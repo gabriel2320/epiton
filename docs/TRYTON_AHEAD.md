@@ -41,7 +41,7 @@ plus attachments depth, graph operators, ↑/↓ nav.
 | **Reports** | Broader formats + print pipeline | **Improved:** formats + pdfjs + `ir.action.report` picker | Small | `ReportDownload.tsx` |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state + validate + on_change + M2O search | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
-| **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** secure session hydrate/persist + title/safe-area; thin hosts | Small–Medium | `secureSessionBridge.ts` |
+| **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** memory-only session bridge + title/safe-area; thin hosts | Small–Medium | `secureSessionBridge.ts` |
 
 
 ## P2 — Polish / niche
@@ -64,7 +64,7 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 | Area | Note |
 |------|------|
-| Session CRUD / act_window / keywords | Live `compat:live` 19/19 on Tryton 7 lab |
+| Session CRUD / act_window / keywords | Live `compat:live` 19/19 on Tryton 7 and 8 labs |
 | Domain tabs + `search_count` badges | Implemented |
 | Client analytics overlays | Boards/graphs aggregate `search_read` with insights |
 | Gateway (CSP, rate limit, strict ACL coach) | Sao has no equivalent Axum edge |
@@ -76,7 +76,7 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 1. ~~Board embed / `_actions` / multi-y / form-in-pane / graph click filter~~
 2. ~~Editable tree / notebook memory / wizard / bus / view_search / i18n / CSV / DnD / history~~
 3. ~~Hierarchical tree / lazy / tree_state / sequence DnD / favorites / pdfjs / email~~
-4. ~~Shell title + safe-area + secure session hydrate~~
+4. ~~Shell title + safe-area + fail-closed memory-only session bridge~~
 5. ~~Richer `tree_state` domains; print ids; tree/graph_open~~
 6. ~~Wizard on_change + calendar arch/write + board wizard/report open UX~~
 7. ~~Form button action routing + attachment links + PYSON ops + `common.db.list`~~
@@ -95,8 +95,11 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 ```bash
 pnpm --filter @epiton/compat test   # offline contracts
-pnpm compat:live                    # live RPC (does not measure UI depth)
+pnpm compat:live                    # live RPC for the selected lab tier
+pnpm test:e2e:mock                  # deterministic browser boundary
+EPITON_E2E_LAB=disposable pnpm test:e2e:live
 ```
 
-UI-depth gaps above require manual Sao side-by-side or future Playwright scenarios;
-RPC green ≠ Sao feature parity.
+The live browser check covers core CRUD, not the full UI-depth list above.
+Those gaps still require targeted Playwright scenarios or manual Sao comparison;
+RPC green does not imply complete Sao feature parity.

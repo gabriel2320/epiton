@@ -1,6 +1,7 @@
 # Epitón vs Tryton — comparison & compatibility evidence
 
-Date: **2026-07-31**. Target lab: Tryton **7** docker (`epiton_lab` @ `http://127.0.0.1:8000`).
+Date: **2026-07-31**. Supported lab tiers: Tryton **7.0** and **8.0**, each
+behind its own Epitón gateway.
 Authority: [`CANON.md`](CANON.md) · Matrix: [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## What we compare
@@ -53,21 +54,31 @@ pnpm lab:smoke:live
 
 # Full live compatibility matrix (writes receipt JSON)
 pnpm compat:live
+
+# Pinned, isolated reference-client oracle
+pnpm lab:oracle:7
+pnpm lab:oracle:8
+
+# Browser boundary
+pnpm test:e2e:mock
+EPITON_E2E_LAB=disposable pnpm test:e2e:live
 ```
 
-Receipt path (gitignored): `tests/compat/receipts/compat-live-latest.json`.
+Receipts (gitignored): `tests/compat/receipts/compat-live-<series>-latest.json`
+and `proteus-<series>-latest.json`.
 
-CI already runs lint/test/build + `lab:smoke:live` via `.github/workflows/ci.yml`.
+CI runs lint/typecheck/test/build/bundle, a deterministic browser suite, Rust
+gateway gates, and a Tryton 7/8 matrix containing protocol, Proteus-oracle, and
+live browser checks.
 
 ## Live run snapshot (2026-07-31)
 
-Command: `pnpm compat:live` against local `epiton/tryton-lab:7.0`.
+Commands: `pnpm compat:live` against each local lab tier.
 
-| Result | Count |
-|--------|-------|
-| PASS | 19 |
-| FAIL | 0 |
-| SKIP | 0 |
+| Tier | Epitón protocol | Proteus oracle | Browser CRUD |
+|------|------------------|----------------|--------------|
+| Tryton 7.0 | 19 pass / 0 fail | 4 pass / 0 fail | pass |
+| Tryton 8.0 | 19 pass / 0 fail | 4 pass / 0 fail | pass |
 
 Notable passes: login, preferences, party tree/form views, search_read/count,
 default_get, create/write/read/copy/export/delete, act_window Parties,
@@ -76,17 +87,18 @@ menus, attachments search, form_relate keywords, logout.
 Notable lab limits (not Epitón defects): no `party.party` graph view; no board
 views in stock party/company lab image; unauthenticated server version empty.
 
-Offline: `tests/compat` — **10/10** tests passed (fixtures + Session header +
+Offline: `tests/compat` — **14/14** tests passed (fixtures + Session header +
 PYSON + O2M/M2M + board/graph parse).
 
 ## Architectural differences (intentional)
 
 1. **UI toolkit** — React/Tailwind/`@epiton/ui` instead of jQuery Sao.
-2. **Gateway** — optional Axum proxy (CSP, rate limit, strict ACL coach).
+2. **Gateway** — required for production web (CSP, rate limit, input guards,
+   optional deny-only strict ACL guard).
 3. **Intelligence** — local search/suggestions; never auto-writes.
 4. **Analytics** — client charts over `search_read` (≤500 rows), not a warehouse.
-5. **Storage** — session token in memory (web) / OS store (desktop); only
-   connection prefs in `localStorage`.
+5. **Storage** — session token in memory on every current shell; only sanitized
+   connection preferences may use `localStorage`.
 
 ## Remaining gaps vs Sao (priority)
 
@@ -97,14 +109,13 @@ See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD
 3. ~~Editable tree (`editable` arch).~~
 4. ~~Hierarchical trees, saved searches, notebook tabs, translation wiring.~~
 5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
-6. Probe Tryton 8 lab (`pnpm lab:up:8`) in the same `compat:live` flow.
-7. GNU Health models — only when a GH trytond is attached (`pnpm gh:check`).
-8. Richer calendar write-back / wizard on_change depth / PYSON arithmetic (in progress on ahead list).
+6. GNU Health module depth — only after a pinned GH trytond is attached (`pnpm gh:check`).
+7. Richer calendar write-back / wizard on_change depth / PYSON arithmetic (in progress on ahead list).
 
 ## Conclusion
 
-Against Tryton 7 lab RPC, Epitón’s Session client and core model/action paths
-are **compatible and verified**. Missing board/graph *data* in the stock lab
+Against Tryton 7 and 8 lab RPC, Epitón’s Session client and core model/action
+paths are **compatible and verified**. Missing board/graph *data* in the stock lab
 does not block hosts already implemented in the UI. Treat remaining Sao feature
 depth as product backlog, not protocol breakage. REST Bearer stays **Not probed**.
 Do not claim PHI/HIS readiness.

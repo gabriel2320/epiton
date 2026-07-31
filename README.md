@@ -20,7 +20,7 @@ safer, adaptive UI. **trytond remains the system of record.**
 | [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | Sao/Tryton parity matrix |
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Library allow/deny (SQLAlchemy, shadcn, …) |
 | [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) | On-device search/suggestions (no auto-writes) |
-| [`docs/GNU_HEALTH.md`](docs/GNU_HEALTH.md) | GNU Health probe matrix (Phase 4) |
+| [`docs/GNU_HEALTH.md`](docs/GNU_HEALTH.md) | GNU Health metadata-only discovery contract |
 | [`docs/BRAND.md`](docs/BRAND.md) | Brand brief |
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Point-in-time audit (2026-07-31) |
 | [`docs/TRYTON_COMPARE.md`](docs/TRYTON_COMPARE.md) | Tryton vs Epitón + live compat evidence |
@@ -51,17 +51,27 @@ Trytond lab (synthetic only):
 pnpm lab:up
 pnpm lab:smoke
 pnpm lab:smoke:live
-# Optional Tryton 8 (port 8001 / gateway 8081):
-# pnpm lab:up:8
+# Supported Tryton 8 tier (port 8001 / gateway 8081):
+pnpm lab:up:8
 ```
 
 Default lab credentials: [`docker/README.md`](docker/README.md).
 
-Gateway (optional, preferred for production CSP):
+Production web uses a mandatory same-origin gateway. Direct trytond endpoints
+remain available only to native shells and controlled development:
 
 ```bash
-pnpm lab:up          # includes gateway on :8080 when composed
+pnpm lab:up          # Tryton 7 + gateway on :8080
 pnpm gateway:smoke
+```
+
+Compatibility and browser-boundary checks (synthetic disposable data only):
+
+```bash
+pnpm compat:live       # Epiton protocol contract
+pnpm lab:oracle:7      # isolated Proteus reference oracle
+pnpm test:e2e:mock     # deterministic browser suite
+pnpm test:e2e:live     # requires EPITON_E2E_LAB=disposable
 ```
 
 ## Agent / AI usage
@@ -82,9 +92,10 @@ pnpm lint && pnpm test && pnpm --filter @epiton/web build && pnpm check:bundle
 ## Architecture (one glance)
 
 ```text
-Web / Desktop / Mobile  →  @epiton/protocol (Session RPC)
-                        →  apps/gateway (optional)
-                        →  trytond  →  PostgreSQL
+Production browser  →  same-origin reverse proxy → apps/gateway
+Native / dev client →  apps/gateway or controlled trytond endpoint
+All clients         →  @epiton/protocol (Session RPC)
+                    →  trytond  →  PostgreSQL
 ```
 
 Client analytics (boards/graphs) only visualize `search_read` / graph arch.

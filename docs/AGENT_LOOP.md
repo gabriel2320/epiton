@@ -36,7 +36,9 @@ Daily speed path for agents. Authority and rails live in
 | Gateway health | `pnpm gateway:smoke` |
 | GH model probe | `pnpm gh:check` |
 | Gateway tests | `cd apps/gateway && cargo test` |
-| E2E (optional) | `pnpm test:e2e` |
+| Mock browser E2E | `pnpm test:e2e:mock` |
+| Disposable live browser E2E | `EPITON_E2E_LAB=disposable pnpm test:e2e:live` |
+| Proteus oracle (7 / 8) | `pnpm lab:oracle:7` / `pnpm lab:oracle:8` |
 
 ## Batch sizing
 
@@ -64,7 +66,8 @@ delivery; do not fake live results.
 ## CI vs local
 
 - **Local loop:** lint → test → web build → bundle.
-- **CI (`.github/workflows/ci.yml`):** same plus gateway cargo + lab-smoke on push/PR.
+- **CI (`.github/workflows/ci.yml`):** same plus mock browser, locked gateway
+  cargo, and Tryton 7/8 protocol/oracle/live-browser gates on push/PR.
 - Agents should not wait on Actions for every iteration; fix locally first.
 
 ## “Continua” pattern
@@ -96,3 +99,4 @@ A batch is done when:
 - [ ] Gates above are green (or lab gap explicitly noted)
 - [ ] Canon docs updated if status/deps/authority changed
 - [ ] No PHI, no session tokens, no Sao paste in the diff
+- [ ] Production browser traffic remains same-origin through the gateway

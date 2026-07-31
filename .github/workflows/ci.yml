@@ -17,8 +17,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm lint
+      - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @epiton/protocol build
       - run: pnpm --filter @epiton/view-engine build
@@ -28,6 +30,7 @@ jobs:
       - run: pnpm check:bundle
         env:
           EPITON_BUNDLE_LIMIT_KB: "750"
+      - run: pnpm test:e2e:mock
 
   gateway:
     runs-on: ubuntu-latest
@@ -36,12 +39,26 @@ jobs:
         working-directory: apps/gateway
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test
-      - run: cargo check
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - run: cargo test --locked
+      - run: cargo check --locked
 
-  lab-smoke:
+  lab-compat:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - series: "7.0"
+            database: epiton_lab
+            gateway: http://127.0.0.1:8080
+            start: lab:up
+            oracle: lab:oracle:7
+          - series: "8.0"
+            database: epiton_lab8
+            gateway: http://127.0.0.1:8081
+            start: lab:up:8
+            oracle: lab:oracle:8
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -51,32 +68,68 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm --filter @epiton/protocol build
-      - name: Start Tryton lab
-        run: pnpm lab:up
-      - name: Wait for trytond
+      - run: pnpm --filter @epiton/view-engine build
+      - name: Start Tryton ${{ matrix.series }} lab
+        run: pnpm ${{ matrix.start }}
+      - name: Wait for Epiton gateway
         run: |
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null -w "%{http_code}" -X POST \
-              -H "Content-Type: application/json" \
-              -d '{"id":1,"method":"common.server.version","params":[]}' \
-              http://127.0.0.1:8000/epiton_lab/ | grep -qE '200|401'; then
-              echo "trytond ready"
+            if curl -fsS "${{ matrix.gateway }}/healthz" >/dev/null; then
+              echo "gateway ready"
               exit 0
             fi
             sleep 5
           done
-          echo "trytond did not become ready"
-          docker compose -f docker/docker-compose.yml logs
+          echo "gateway did not become ready"
+          docker compose -f docker/docker-compose.yml --profile tryton8 logs
           exit 1
-      - name: Live RPC smoke
-        run: pnpm lab:smoke:live
+      - name: Epiton live compatibility contract
+        run: pnpm compat:live
         env:
-          EPITON_BASE: http://127.0.0.1:8000
-          EPITON_DB: epiton_lab
+          EPITON_BASE: ${{ matrix.gateway }}
+          EPITON_DB: ${{ matrix.database }}
           EPITON_USER: admin
           EPITON_PASSWORD: admin
+          EPITON_COMPAT_SERIES: ${{ matrix.series }}
+      - name: GNU Health metadata guard on stock Tryton
+        run: |
+          set +e
+          pnpm gh:check
+          status=$?
+          set -e
+          if [ "$status" -ne 2 ]; then
+            echo "expected stock Tryton GNU Health discovery to exit 2, got $status"
+            exit 1
+          fi
+        env:
+          EPITON_BASE: ${{ matrix.gateway }}
+          EPITON_DB: ${{ matrix.database }}
+          EPITON_USER: admin
+          EPITON_PASSWORD: admin
+          EPITON_GH_ENVIRONMENT_KIND: stock-tryton-${{ matrix.series }}
+          EPITON_GH_RECEIPT: tests/compat/receipts/gnu-health-${{ matrix.series }}-latest.json
+      - name: Proteus reference oracle
+        run: pnpm ${{ matrix.oracle }}
+      - name: Browser-to-Tryton disposable CRUD
+        run: pnpm test:e2e:live
+        env:
+          VITE_EPITON_GATEWAY_URL: ${{ matrix.gateway }}
+          EPITON_E2E_LAB: disposable
+          EPITON_DB: ${{ matrix.database }}
+          EPITON_USER: admin
+          EPITON_PASSWORD: admin
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compat-receipts-${{ matrix.series }}
+          path: tests/compat/receipts/*-${{ matrix.series }}-latest.json
+          if-no-files-found: warn
+      - name: Lab diagnostics
+        if: failure()
+        run: docker compose -f docker/docker-compose.yml --profile tryton8 logs --no-color
       - name: Tear down lab
         if: always()
         run: pnpm lab:down

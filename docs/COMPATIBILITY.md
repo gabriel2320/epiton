@@ -8,7 +8,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Area | Tryton contract | Epiton status | Notes |
 |------|-----------------|---------------|-------|
 | JSON-RPC 1.0 | `/{db}/` (Tryton 7 docker) and `/{db}/rpc/` | Implemented (`@epiton/protocol`, auto-fallback) | |
-| Session auth | `Authorization: Session` base64(login:uid:token) | Implemented | Web: memory only; Tauri/Capacitor: OS store via bridge |
+| Session auth | `Authorization: Session` base64(login:uid:token) | Implemented | Memory-only on web, Tauri, and Capacitor; no token hydration |
 | Login | `common.db.login` (+ `common.db.list`) | Improved | Password params; DB datalist when list exposed |
 | Logout | `common.db.logout` | Implemented | |
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
@@ -34,7 +34,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply + dialog save/delete (no prompt) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
-| Shell hosts | Tauri / Capacitor | Improved | Secure session hydrate/persist + title/safe-area |
+| Shell hosts | Tauri / Capacitor | Beta | Title/safe-area; memory-only sessions; legacy preference slots erased |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Email compose | mailto / form_action keywords | Improved | CC/BCC + keyword-first mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Catalog + `t()` labels + Shell/workspace chrome |
@@ -55,22 +55,24 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip, Alert, ConfirmDialog |
 | Notices | status banners | Implemented | `Alert` tones; delete uses `ConfirmDialog` |
 | Bus | `/{db}/bus` | Improved | user+client channels; title/message; auto-open record payloads |
-| REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
+| REST | Bearer application tokens | Not probed (default false) | Do not claim compatibility |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |
-| CSP | Web security headers | Prod hardened | Prefer web→gateway so `connect-src 'self'` |
-| Series 7.0 LTS | Docker lab image | Default `pnpm lab:up` | CI smoke |
-| Series 8.x | Capability detect + lab profile | `pnpm lab:up:8` → :8001 / gateway :8081 | Separate Postgres volume |
+| CSP | Web security headers | Prod hardened | Production web is pinned to a same-origin gateway with `connect-src 'self'` |
+| Series 7.0 LTS | Docker lab image | Supported tier | CI protocol 19/19 + Proteus oracle 4/4 + browser CRUD |
+| Series 8.x | Docker lab image + RPC fallback | Supported tier | CI protocol 19/19 + Proteus oracle 4/4 + browser CRUD; separate Postgres volume |
 | Sao coexistence | Same trytond | Supported | Do not share browser storage blindly |
-| Proteus / XML-RPC | Server-side | Out of Epiton UI scope | |
-| GNU Health | `health_*` modules | Matrix in `docs/GNU_HEALTH.md` | Phase 4 |
+| Proteus / XML-RPC | Server-side reference client | Lab oracle only | Exact 7/8 pins; synthetic CRUD; redacted receipt; never runtime/UI |
+| GNU Health | `gnuhealth.*` models | Metadata-only discovery contract | No business-row reads or writes; dedicated GH lab still required |
 
 ## Tryton 8 lab profile
 
-Default compose stays on **Tryton 7.0** (CI). Optional series 8:
+Default compose starts **Tryton 7.0**. Series 8 is a supported CI tier with an
+isolated database and gateway:
 
 ```bash
 pnpm lab:up:8          # db8 + tryton8 (:8001) + gateway8 (:8081)
 # Login database: epiton_lab8
+pnpm lab:oracle:8      # pinned Proteus reference oracle
 pnpm lab:down          # tears down default + tryton8 profile
 ```
 
@@ -78,12 +80,20 @@ pnpm lab:down          # tears down default + tryton8 profile
 
 ## Security deployment note
 
-Recommended production topology: browser → **epiton-gateway** → trytond. Then production CSP can keep `connect-src 'self'` (same origin as the SPA or gateway reverse-proxy). Direct browser→trytond remains supported in development (`connect-src` allows http/https).
+Required production-web topology: browser → same-origin reverse proxy →
+**epiton-gateway** → trytond. Production CSP keeps `connect-src 'self'`, and the
+login server field is locked to that origin. Direct browser→trytond remains a
+development-only mode; native beta shells may use an explicitly configured
+endpoint.
 
-Session tokens must not be written to `localStorage` (only `epiton.connection` baseUrl/database).
+Session tokens must not be written to `localStorage`, `sessionStorage`, Tauri
+Store, or Capacitor Preferences. Connection preferences are non-secret;
+production web ignores any stored `baseUrl`.
 
 ## Fixtures
 
 Synthetic traces live in `tests/compat/fixtures/`. Offline replay:
 `pnpm --filter @epiton/compat test`. Live matrix against docker lab:
-`pnpm compat:live` (see [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)).
+`pnpm compat:live` (see [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)). The browser
+boundary is covered by `pnpm test:e2e:mock` and the disposable lab by
+`EPITON_E2E_LAB=disposable pnpm test:e2e:live`.

@@ -7,7 +7,7 @@ disagree, this file wins on **authority**; then the linked specialist doc.
 
 | Claim | Canon |
 |-------|-------|
-| What Epitón is | Modern **Tryton-compatible client** (web/desktop/mobile) + optional Axum gateway |
+| What Epitón is | Modern **Tryton-compatible client** (web/desktop/mobile) with an Axum gateway required for production web |
 | Business/clinical truth | **trytond** (PostgreSQL via Tryton modules) — never the browser |
 | Interaction contract | Tryton **JSON-RPC Session** (`Authorization: Session`) |
 | License of Epitón code | **Apache-2.0** (`LICENSE`) |
@@ -44,7 +44,7 @@ Do **not** invent a second roadmap file. Persist durable status in
 ├─────────────────────────────────────────────────────────┤
 │  @epiton/protocol — Session JSON-RPC client shape          │
 ├─────────────────────────────────────────────────────────┤
-│  apps/gateway — optional proxy, ACL coach, CSP topology    │
+│  apps/gateway — required production-web security boundary │
 ├─────────────────────────────────────────────────────────┤
 │  trytond — AUTHORITATIVE models, ACLs, wizards, reports    │
 ├─────────────────────────────────────────────────────────┤
@@ -61,7 +61,7 @@ Forbidden second truths:
 
 Allowed non-authoritative client data:
 
-- `localStorage` key `epiton.connection` → `{ baseUrl, database }` only
+- `localStorage` key `epiton.connection` → connection preferences only; production web ignores a stored `baseUrl`
 - `sessionStorage` board pane order (`epiton.board.order.*`)
 - In-memory Session token + preferences after login
 - Chart aggregations derived from `search_read` (display only)
@@ -75,8 +75,8 @@ Allowed non-authoritative client data:
 | `@epiton/ui` | Shared primitives (Button, Alert, ConfirmDialog, …) |
 | `@epiton/intelligence` | Local search, suggestions, presets — **no writes** |
 | `@epiton/web` | SPA shell + workspaces |
-| `@epiton/desktop` | Tauri shell; OS secure storage for session |
-| `@epiton/mobile` | Capacitor shell |
+| `@epiton/desktop` | Tauri beta shell; session stays in memory |
+| `@epiton/mobile` | Capacitor beta shell; session stays in memory |
 | `epiton-gateway` | Axum reverse proxy |
 
 ## RPC shape (Sao-compatible, not GPL)
@@ -88,7 +88,12 @@ Sao/GTK code.
 Default lab RPC bases:
 
 - Tryton 7 compose: `http://127.0.0.1:8000/{db}/` with `/rpc/` fallback
-- Gateway: `http://127.0.0.1:8080`
+- Tryton 7 gateway: `http://127.0.0.1:8080`
+- Tryton 8 gateway: `http://127.0.0.1:8081`
+
+Proteus is permitted only as a pinned, isolated compatibility oracle under
+`docker/proteus/`. It is not a runtime dependency and must not enter UI or
+production paths.
 
 ## UI state exclusivity
 
