@@ -1,5 +1,5 @@
-import { modelHasAccessRows } from "@epiton/protocol";
 import { strictAclCoach } from "@epiton/intelligence";
+import { modelHasAccessRows } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
@@ -18,7 +18,9 @@ import { VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 
-/** Generic Tryton model workspace — opens any model via fields_view_get + CRUD. */
+/** Generic Tryton model workspace — opens any model via fields_view_get + CRUD.
+ * Remount with `key={model}` from the shell when switching models.
+ */
 export function ModelWorkspace(props: {
   model: string;
   useClinicalWidgets?: boolean;
@@ -36,14 +38,6 @@ export function ModelWorkspace(props: {
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
     : undefined;
-
-  useEffect(() => {
-    setSelectedId(null);
-    setDraft({});
-    setMode("read");
-    setRelationField(null);
-    setNotice(null);
-  }, [props.model]);
 
   const formViewQuery = useQuery({
     queryKey: ["model", props.model, "form-view"],
@@ -192,7 +186,10 @@ export function ModelWorkspace(props: {
     () =>
       treeViewQuery.data
         ? treeColumns(treeViewQuery.data)
-        : [{ name: "id", string: "ID" }, { name: "rec_name", string: "Name" }],
+        : [
+            { name: "id", string: "ID" },
+            { name: "rec_name", string: "Name" },
+          ],
     [treeViewQuery.data],
   );
 

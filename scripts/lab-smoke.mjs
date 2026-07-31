@@ -13,6 +13,9 @@ async function main() {
   const session = await client.login(username, password);
   console.log("login ok userId=", session.userId);
 
+  const partyModel = await resolveWorkspaceModel(client, "party.party");
+  console.log("resolve party.party ->", partyModel);
+
   try {
     const parties = await client.searchRead("party.party", [], ["name"], 0, 5);
     console.log("party.party rows=", parties.length);
@@ -26,22 +29,16 @@ async function main() {
     console.log("created party id=", id);
     await client.model("party.party", "write", [[id], { code: "EPITON" }], {});
     console.log("write ok");
+
+    const company = await resolveWorkspaceModel(client, "company.company");
+    if (company) {
+      const view = await client.fieldsViewGet(company, null, "tree");
+      console.log("generic model", company, "tree arch bytes=", String(view.arch ?? "").length);
+    }
   } catch (err) {
     console.log("party module path skipped:", err instanceof Error ? err.message : err);
     const users = await client.searchRead("res.user", [], ["name", "login"], 0, 3);
     console.log("res.user rows=", users.length);
-  }
-
-  const companyModel = await resolveWorkspaceModel(client, "company.company");
-  if (companyModel) {
-    try {
-      const view = await client.fieldsViewGet(companyModel, null, "tree");
-      console.log("generic workspace model=", companyModel, "tree keys=", Object.keys(view));
-      const rows = await client.searchRead(companyModel, [], ["id"], 0, 3);
-      console.log("company rows=", rows.length);
-    } catch (err) {
-      console.log("company path skipped:", err instanceof Error ? err.message : err);
-    }
   }
 
   await client.logout();

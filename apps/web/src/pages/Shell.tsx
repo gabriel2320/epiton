@@ -204,6 +204,7 @@ export function Shell() {
           />
         ) : (
           <ModelWorkspace
+            key={active}
             model={active}
             useClinicalWidgets={preset === "clinical"}
             onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
