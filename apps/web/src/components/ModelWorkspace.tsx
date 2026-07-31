@@ -39,6 +39,7 @@ import {
   flattenTreeRows,
   formatOrder,
   inferGraphFields,
+  isTrytonRelationCommands,
   mergeDomains,
   mergeTreeRows,
   parseCalendarArch,
@@ -809,16 +810,11 @@ export function ModelWorkspace(props: {
         else if (meta.type === "many2one") {
           values[key] = Array.isArray(raw) ? (raw[0] ?? null) : raw;
         } else if (meta.type === "many2many") {
-          values[key] =
-            Array.isArray(raw) && raw[0] === "add" ? raw : toTrytonM2M(normalizeIds(raw));
+          // Preserve command lists from RelationLinesEditor; otherwise add existing ids.
+          values[key] = isTrytonRelationCommands(raw) ? raw : toTrytonM2M(normalizeIds(raw));
         } else if (meta.type === "one2many") {
           // Preserve command lists from RelationLinesEditor; otherwise add existing ids.
-          if (
-            Array.isArray(raw) &&
-            raw.length > 0 &&
-            Array.isArray(raw[0]) &&
-            typeof raw[0][0] === "string"
-          ) {
+          if (isTrytonRelationCommands(raw)) {
             values[key] = raw;
           } else {
             values[key] = normalizeIds(raw).map((id) => ["add", [id]]);

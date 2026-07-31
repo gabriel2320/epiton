@@ -11,6 +11,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 
 /** Embedded O2M line form: create or edit related values before queuing commands. */
@@ -195,6 +196,8 @@ export function RelationLineForm(props: {
           ? "data"
           : "empty";
 
+  const nestedLines = relationField?.type === "one2many" || relationField?.type === "many2many";
+
   return (
     <Panel title={editing ? `Edit ${props.model} #${props.lineId}` : `New ${props.model} line`}>
       <StateBlock
@@ -226,7 +229,7 @@ export function RelationLineForm(props: {
               },
             })
           : null}
-        {relationField?.type === "many2one" || relationField?.type === "many2many" ? (
+        {relationField?.type === "many2one" ? (
           <RelationSearch
             field={relationField}
             recordValues={draft}
@@ -237,21 +240,22 @@ export function RelationLineForm(props: {
               setRelationDomain(undefined);
             }}
             onPick={(id, recName) => {
-              if (relationField.type === "many2one") {
-                handleChange(relationField.name, [id, recName]);
-              } else {
-                const prev = Array.isArray(draft[relationField.name])
-                  ? (draft[relationField.name] as unknown[])
-                  : [];
-                const ids = prev
-                  .map((item) => (Array.isArray(item) ? Number(item[0]) : Number(item)))
-                  .filter((n) => Number.isFinite(n));
-                if (!ids.includes(id)) ids.push(id);
-                handleChange(
-                  relationField.name,
-                  ids.map((n) => [n, n === id ? recName : String(n)]),
-                );
-              }
+              handleChange(relationField.name, [id, recName]);
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+          />
+        ) : null}
+        {nestedLines && relationField ? (
+          <RelationLinesEditor
+            field={relationField}
+            value={draft[relationField.name]}
+            mode="write"
+            recordValues={draft}
+            domain={relationDomain}
+            onOpenLine={props.onOpenRelated}
+            onCommit={(next) => {
+              handleChange(relationField.name, next);
               setRelationField(null);
               setRelationDomain(undefined);
             }}

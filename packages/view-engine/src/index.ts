@@ -30,6 +30,8 @@ export {
   type TranslationDict,
 } from "./i18n";
 export {
+  isTrytonRelationCommands,
+  relationRecordCount,
   toTrytonM2M,
   toTrytonM2MDelta,
   toTrytonO2M,

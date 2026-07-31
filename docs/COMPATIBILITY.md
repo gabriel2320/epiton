@@ -17,7 +17,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Attachments | `ir.attachment` | Improved | Data upload/download + link type + DnD |
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
 | Editable tree | `editable` arch / inline write | Improved | Cell editors + m2o picker + New row top/bottom; tree buttons |
-| O2M / M2M / M2O | field types in view engine | Improved | rec_name + M2M deltas + line on_change; no silent fake arch |
+| O2M / M2M / M2O | field types in view engine | Improved | Tree+form host; nested lines; M2M cmd preserve; badge count |
 | Revision history | `model.__history__` | Improved | Field peek + Load into form draft |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |

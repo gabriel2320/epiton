@@ -1,17 +1,22 @@
 import { Button, Panel } from "@epiton/ui";
 import {
   type O2MCommand,
+  type ParsedView,
   type RecordValues,
   type ViewField,
+  parseFieldsViewGet,
   toTrytonM2MDelta,
   toTrytonO2M,
+  treeColumns,
 } from "@epiton/view-engine";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { BoardTree } from "./BoardTree";
 import { RelationLineForm } from "./RelationLineForm";
 import { RelationSearch } from "./RelationSearch";
 
-/** Inline editor for One2Many / Many2Many line commands (Sao parity). */
+/** Inline editor for One2Many / Many2Many line commands (Sao-style tree + form). */
 export function RelationLinesEditor(props: {
   field: ViewField;
   value: unknown;
@@ -23,74 +28,103 @@ export function RelationLinesEditor(props: {
   onOpenLine?: (model: string, id: number) => void;
 }) {
   const client = useAppStore((s) => s.client);
+  const sessionContext = useAppStore((s) => s.sessionContext);
+  const relation = props.field.relation;
   const initialIds = useMemo(() => normalizeIds(props.value), [props.value]);
   const [ids, setIds] = useState<number[]>(initialIds);
   const [baselineIds, setBaselineIds] = useState<number[]>(initialIds);
-  const [labels, setLabels] = useState<Record<number, string>>({});
-  const [draftId, setDraftId] = useState("");
   const [commands, setCommands] = useState<O2MCommand[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [lineForm, setLineForm] = useState<"create" | number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setIds(initialIds);
     setBaselineIds(initialIds);
     setCommands([]);
+    setSelectedId(null);
+    setLineForm(null);
   }, [initialIds]);
 
-  useEffect(() => {
-    const relation = props.field.relation;
-    if (!client || !relation || !ids.length) {
-      setLabels({});
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
+  const treeViewQuery = useQuery({
+    queryKey: ["relation-lines-tree", relation],
+    enabled: Boolean(client && relation),
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<ParsedView | null> => {
+      if (!client || !relation) return null;
       try {
-        const rows = await client.searchRead(
-          relation,
-          [["id", "in", ids]],
-          ["id", "rec_name", "name"],
-          0,
-          ids.length,
+        return parseFieldsViewGet(
+          await client.fieldsViewGet(relation, null, "tree", sessionContext),
         );
-        if (cancelled) return;
-        const next: Record<number, string> = {};
-        for (const row of rows) {
-          const id = Number(row.id);
-          if (!Number.isFinite(id)) continue;
-          next[id] = String(row.rec_name ?? row.name ?? `#${id}`);
-        }
-        setLabels(next);
       } catch {
-        if (!cancelled) setLabels({});
+        return null;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [client, props.field.relation, ids]);
+    },
+  });
+
+  const columns = useMemo(() => {
+    if (treeViewQuery.data) {
+      const cols = treeColumns(treeViewQuery.data).slice(0, 5);
+      if (cols.length) return cols.map((c) => ({ name: c.name, string: c.string }));
+    }
+    return [
+      { name: "rec_name", string: "Name" },
+      { name: "id", string: "ID" },
+    ];
+  }, [treeViewQuery.data]);
+
+  const fieldNames = useMemo(() => {
+    const names = new Set<string>(["id", "rec_name", "name"]);
+    for (const c of columns) names.add(c.name);
+    return [...names];
+  }, [columns]);
+
+  const rowsQuery = useQuery({
+    queryKey: ["relation-lines-rows", relation, ids, fieldNames.join(",")],
+    enabled: Boolean(client && relation && ids.length),
+    queryFn: async (): Promise<Array<Record<string, unknown>>> => {
+      if (!client || !relation || !ids.length) return [];
+      const rows = await client.searchRead(
+        relation,
+        [["id", "in", ids]],
+        fieldNames,
+        0,
+        ids.length,
+        null,
+        sessionContext,
+      );
+      const byId = new Map<number, Record<string, unknown>>();
+      for (const row of rows) {
+        const id = Number(row.id);
+        if (Number.isFinite(id)) byId.set(id, row as Record<string, unknown>);
+      }
+      return ids.map((id) => byId.get(id) ?? { id, rec_name: `#${id}`, name: `#${id}` });
+    },
+  });
+
+  const treeRows = rowsQuery.data ?? [];
+  const pendingCreates = commands.filter((c) => c.op === "create");
 
   function addId(id: number) {
     if (!Number.isFinite(id)) return;
     setIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setCommands((prev) => [...prev, { op: "add", id }]);
-  }
-
-  function addFromInput() {
-    addId(Number(draftId));
-    setDraftId("");
+    setSelectedId(id);
   }
 
   function removeId(id: number) {
     setIds((prev) => prev.filter((x) => x !== id));
     setCommands((prev) => [...prev, { op: "remove", id }]);
+    if (selectedId === id) setSelectedId(null);
+    if (lineForm === id) setLineForm(null);
   }
 
   function deleteId(id: number) {
     setIds((prev) => prev.filter((x) => x !== id));
     setCommands((prev) => [...prev, { op: "delete", id }]);
+    if (selectedId === id) setSelectedId(null);
+    if (lineForm === id) setLineForm(null);
   }
 
   function apply() {
@@ -117,63 +151,91 @@ export function RelationLinesEditor(props: {
     setLineForm(null);
   }
 
+  function selectRow(id: number) {
+    setSelectedId(id);
+    if (props.mode === "write" && props.field.type === "one2many") {
+      setLineForm(id);
+    }
+  }
+
   return (
     <Panel title={`${props.field.string ?? props.field.name} (${props.field.type})`}>
-      <ul className="epiton-menu-list">
-        {ids.map((id) => (
-          <li key={id} className="epiton-menu-row">
-            <span>{labels[id] ? `${labels[id]} (#${id})` : `#${id}`}</span>
-            {props.field.relation && props.onOpenLine ? (
-              <Button onClick={() => props.onOpenLine?.(props.field.relation as string, id)}>
-                Open
-              </Button>
-            ) : null}
-            {props.mode === "write" && props.field.type === "one2many" ? (
-              <Button onClick={() => setLineForm(id)}>Edit</Button>
-            ) : null}
-            {props.mode === "write" ? (
-              <>
-                <Button variant="danger" onClick={() => removeId(id)}>
-                  Remove
-                </Button>
-                {props.field.type === "one2many" ? (
-                  <Button variant="danger" onClick={() => deleteId(id)}>
-                    Delete
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {props.mode === "write" ? (
-        <div className="epiton-toolbar">
-          <input
-            value={draftId}
-            onChange={(e) => setDraftId(e.target.value)}
-            placeholder="record id"
-            aria-label="Related record id"
-          />
-          <Button onClick={addFromInput}>Add id</Button>
-          <Button onClick={() => setSearchOpen(true)}>Search add</Button>
-          {props.field.type === "one2many" && props.field.relation ? (
-            <Button onClick={() => setLineForm("create")}>New line</Button>
+      <div className="epiton-relation-split">
+        <div className="epiton-relation-tree">
+          {ids.length ? (
+            <BoardTree
+              rows={treeRows}
+              columns={columns}
+              selectedId={selectedId}
+              onSelect={(id) => selectRow(id)}
+              onOpen={(id) => {
+                if (relation && props.onOpenLine) props.onOpenLine(relation, id);
+              }}
+            />
+          ) : (
+            <p className="epiton-board-pane-empty" role="status">
+              No lines
+            </p>
+          )}
+          {pendingCreates.length ? (
+            <p className="text-sm text-[var(--epiton-muted)]" role="status">
+              Queued creates: {pendingCreates.length}
+            </p>
           ) : null}
-          <Button variant="primary" onClick={apply}>
-            Apply relation commands
-          </Button>
+          {props.mode === "write" ? (
+            <div className="epiton-toolbar">
+              <Button onClick={() => setSearchOpen(true)}>Search add</Button>
+              {props.field.type === "one2many" && relation ? (
+                <Button
+                  onClick={() => {
+                    setLineForm("create");
+                    setSelectedId(null);
+                  }}
+                >
+                  New line
+                </Button>
+              ) : null}
+              {selectedId != null ? (
+                <>
+                  {props.field.type === "one2many" ? (
+                    <Button onClick={() => setLineForm(selectedId)}>Edit</Button>
+                  ) : null}
+                  <Button variant="danger" onClick={() => removeId(selectedId)}>
+                    Remove
+                  </Button>
+                  {props.field.type === "one2many" ? (
+                    <Button variant="danger" onClick={() => deleteId(selectedId)}>
+                      Delete
+                    </Button>
+                  ) : null}
+                  {relation && props.onOpenLine ? (
+                    <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>Open</Button>
+                  ) : null}
+                </>
+              ) : null}
+              <Button variant="primary" onClick={apply}>
+                Apply relation commands
+              </Button>
+            </div>
+          ) : selectedId != null && relation && props.onOpenLine ? (
+            <div className="epiton-toolbar">
+              <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>Open</Button>
+            </div>
+          ) : null}
         </div>
-      ) : null}
-      {lineForm != null && props.field.relation ? (
-        <RelationLineForm
-          model={props.field.relation}
-          lineId={lineForm === "create" ? null : lineForm}
-          onCancel={() => setLineForm(null)}
-          onSave={queueLine}
-          onOpenRelated={props.onOpenLine}
-        />
-      ) : null}
-      {searchOpen && props.field.relation ? (
+        {lineForm != null && relation ? (
+          <div className="epiton-relation-form">
+            <RelationLineForm
+              model={relation}
+              lineId={lineForm === "create" ? null : lineForm}
+              onCancel={() => setLineForm(null)}
+              onSave={queueLine}
+              onOpenRelated={props.onOpenLine}
+            />
+          </div>
+        ) : null}
+      </div>
+      {searchOpen && relation ? (
         <RelationSearch
           field={props.field}
           recordValues={props.recordValues ?? {}}
@@ -188,7 +250,7 @@ export function RelationLinesEditor(props: {
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
       <p className="text-sm text-[var(--epiton-muted)]">
-        Relation: {props.field.relation ?? "—"} · pending ops: {commands.length}
+        Relation: {relation ?? "—"} · lines: {ids.length} · pending ops: {commands.length}
       </p>
     </Panel>
   );
@@ -196,6 +258,34 @@ export function RelationLinesEditor(props: {
 
 function normalizeIds(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
+  if (
+    value.length > 0 &&
+    Array.isArray(value[0]) &&
+    typeof (value[0] as unknown[])[0] === "string"
+  ) {
+    const ids: number[] = [];
+    const removed = new Set<number>();
+    for (const cmd of value) {
+      if (!Array.isArray(cmd) || typeof cmd[0] !== "string") continue;
+      const op = cmd[0];
+      if (op === "add" || op === "write") {
+        const arr = cmd[1];
+        if (!Array.isArray(arr)) continue;
+        for (const id of arr) {
+          const n = Number(id);
+          if (Number.isFinite(n) && !ids.includes(n)) ids.push(n);
+        }
+      } else if (op === "remove" || op === "delete") {
+        const arr = cmd[1];
+        if (!Array.isArray(arr)) continue;
+        for (const id of arr) {
+          const n = Number(id);
+          if (Number.isFinite(n)) removed.add(n);
+        }
+      }
+    }
+    return ids.filter((id) => !removed.has(id));
+  }
   return value
     .map((item) => {
       if (typeof item === "number") return item;

@@ -4,6 +4,7 @@ import { formatTrytonDate, parseTrytonDateInput } from "./dates";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
 import { evalDomain, resolveStatesAttr } from "./pyson";
+import { relationRecordCount } from "./relations";
 
 export type RecordValues = Record<string, unknown>;
 
@@ -334,12 +335,12 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   }
 
   if (field.type === "one2many" || field.type === "many2many") {
-    const rows = Array.isArray(value) ? value : [];
     const domain = evalDomain(field.domain ?? [], ctx.values);
+    const count = relationRecordCount(value);
     return createElement(
       "div",
       { className: "epiton-o2m", "data-relation": field.relation ?? "" },
-      createElement("div", { className: "epiton-o2m-count" }, `${rows.length} record(s)`),
+      createElement("div", { className: "epiton-o2m-count" }, `${count} record(s)`),
       createElement(
         "button",
         {

@@ -40,3 +40,41 @@ export function toTrytonM2MDelta(previous: number[], next: number[]): unknown[] 
   if (!cmds.length && next.length) return [["add", next]];
   return cmds;
 }
+
+/** True when value looks like Tryton O2M/M2M command tuples from the line editor. */
+export function isTrytonRelationCommands(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    Array.isArray(value[0]) &&
+    typeof value[0][0] === "string"
+  );
+}
+
+/**
+ * Logical line count for form badges. Id lists count directly; command lists
+ * estimate from add/create minus remove/delete (write does not change count).
+ */
+export function relationRecordCount(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  if (!value.length) return 0;
+  if (isTrytonRelationCommands(value)) {
+    let n = 0;
+    for (const cmd of value) {
+      if (!Array.isArray(cmd) || typeof cmd[0] !== "string") continue;
+      const op = cmd[0];
+      if (op === "create") n += 1;
+      else if (op === "add" && Array.isArray(cmd[1])) n += cmd[1].length;
+      else if ((op === "remove" || op === "delete") && Array.isArray(cmd[1])) n -= cmd[1].length;
+    }
+    return Math.max(0, n);
+  }
+  return value.filter((item) => {
+    if (typeof item === "number") return Number.isFinite(item);
+    if (Array.isArray(item) && typeof item[0] === "number") return Number.isFinite(item[0]);
+    if (item && typeof item === "object" && "id" in item) {
+      return Number.isFinite(Number((item as { id: unknown }).id));
+    }
+    return false;
+  }).length;
+}

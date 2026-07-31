@@ -20,11 +20,11 @@ Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
-3. Nested O2M/M2M as *full* Sao screens (line forms now run on_change; still command-queue, not embedded tree/form screens)
+3. Nested O2M/M2M still command-queue on parent save (now tree+side form + nested editors; not live Sao Screen)
 
-Recently improved (2026-07-31 cont. 3): line-form M2O/buttons, no fake form/tree arches,
-list-form `renderView` cards, reference model picker, URL javascript block, prefs RelationSearch;
-plus tree buttons, history restore, polymorphic actions, calendar, wizards.
+Recently improved (2026-07-31 cont. 4): relation tree+form split, nested O2M/M2M on
+line forms, M2M command-list preserve on save, logical relation badge counts;
+plus line-form M2O/buttons, list-form arches, prefs RelationSearch.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -81,8 +81,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 8. ~~Polymorphic `ir.action`; O2M/M2M labels+deltas; button active_ids; bus depth; CSV export picker; domain-tab memory~~
 9. ~~Tree buttons; editable m2o; New row; history peek/restore; line on_change~~
 10. ~~Line-form M2O/buttons; real form/tree errors; list-form renderView; reference/url; prefs relations~~
-11. GTK-only plugins remain out of scope; full nested Sao relation screens remain Medium polish
-12. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
+11. ~~Relation tree+form split; nested O2M/M2M editors; M2M cmd preserve; relation badge count~~
+12. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
+13. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 
