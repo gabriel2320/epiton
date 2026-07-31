@@ -64,6 +64,7 @@ export {
   type PysonNode,
 } from "./pyson";
 export { formatTrytonDate, parseTrytonDateInput } from "./dates";
+export { boardActionNames } from "./board";
 
 export interface WizardButton {
   state: string;

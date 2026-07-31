@@ -3,6 +3,7 @@ import {
   type JsonObject,
   type JsonValue,
   applyFieldChange,
+  exportModelCsv,
   modelHasAccessRows,
   viewIdForMode,
 } from "@epiton/protocol";
@@ -104,6 +105,37 @@ export function ModelWorkspace(props: {
   function selectId(id: number | null) {
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
+  }
+
+  function downloadCsvBlob(filename: string, csv: string) {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportCsv() {
+    if (!client) return;
+    setNotice("Exporting CSV…");
+    try {
+      const fieldNames = columns.map((c) => c.name).filter(Boolean);
+      const ids =
+        selectedIds.length > 0 ? selectedIds : selectedId != null ? [selectedId] : undefined;
+      const csv = await exportModelCsv(client, props.model, {
+        ids,
+        fields: fieldNames.length ? fieldNames : ["id", "rec_name"],
+        domain: (listDomain as JsonValue[]) ?? [],
+        context: rpcContext,
+      });
+      downloadCsvBlob(`${props.model}.csv`, csv);
+      setNotice(`Exported ${ids?.length ? ids.length : "domain"} row(s)`);
+      props.onHistory?.("export_csv");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Export failed");
+    }
   }
 
   const formViewQuery = useQuery({
@@ -511,6 +543,12 @@ export function ModelWorkspace(props: {
           >
             Delete{selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
           </Button>
+          <Button
+            disabled={!client || (!selectedIds.length && !selectedId && !listQuery.data?.length)}
+            onClick={() => void exportCsv()}
+          >
+            Export CSV
+          </Button>
         </div>
         <div className="epiton-toolbar">
           <input
@@ -693,6 +731,7 @@ export function ModelWorkspace(props: {
             mode={mode}
             recordValues={draft}
             domain={relationDomain}
+            onOpenLine={(model, id) => props.onPushRelated?.(model, id)}
             onCommit={(next) => {
               setDraft((d) => ({ ...d, [relationField.name]: next }));
               setRelationField(null);

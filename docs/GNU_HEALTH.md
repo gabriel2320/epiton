@@ -6,7 +6,7 @@ Epiton targets Tryton RPC compatibility first. GNU Health modules install on try
 |--------------------------|---------------------|------------|-------------|
 | `gnuhealth.patient` | form, tree | Validate arch widgets | Patient badge widget |
 | `gnuhealth.appointment` | calendar, form | Calendar renderer MVP | Full calendar pack |
-| `gnuhealth.prescription.order` | form + O2M lines | O2M lines open | Inline O2M editor |
+| `gnuhealth.prescription.order` | form + O2M lines | O2M Open + create commands | Nested form polish |
 | `gnuhealth.lab` | form, tree | Binary/report attach | Lab result panel |
 | `gnuhealth.hospital.bed` | tree | OK with stock tree | Floor map optional |
 | Maternity / neonatology extensions | form notebooks | Notebook/page supported | Specialty presets |

@@ -192,6 +192,58 @@
   cursor: default;
 }
 
+.epiton-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin: 0 0 0.75rem;
+}
+
+.epiton-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1px solid var(--epiton-border);
+  border-radius: 8px;
+  background: var(--epiton-bg);
+  padding: 0.15rem 0.2rem 0.15rem 0.55rem;
+}
+
+.epiton-tab[data-active="true"] {
+  border-color: var(--epiton-accent);
+  background: color-mix(in srgb, var(--epiton-accent) 12%, var(--epiton-bg));
+}
+
+.epiton-tab button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--epiton-fg);
+  font: inherit;
+  cursor: pointer;
+  padding: 0.25rem 0.2rem;
+}
+
+.epiton-tab-close {
+  color: var(--epiton-muted) !important;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.epiton-board-tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+}
+
+.epiton-board-tiles li {
+  margin: 0;
+}
+
 .epiton-progress {
   display: flex;
   align-items: center;

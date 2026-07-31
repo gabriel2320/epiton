@@ -10,10 +10,12 @@ import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { BoardWorkspace } from "../components/BoardWorkspace";
 import { BusBanner } from "../components/BusBanner";
 import { CardsWorkspace } from "../components/CardsWorkspace";
 import { CommandPalette } from "../components/CommandPalette";
 import { MenuTree } from "../components/MenuTree";
+import { PreferencesPanel } from "../components/PreferencesPanel";
 import { ToolDrawer } from "../components/ToolDrawer";
 import { readDeepLink, writeDeepLink } from "../lib/deeplink";
 import { useAppStore } from "../lib/store";
@@ -40,6 +42,25 @@ interface ActionFrame {
   views?: Array<[number | null, string]>;
 }
 
+interface WorkspaceTab {
+  id: string;
+  title: string;
+  stack: ActionFrame[];
+}
+
+function tabId(): string {
+  return `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function isBoardViews(views?: Array<[number | null, string]>): boolean {
+  if (!views?.length) return false;
+  return views[0]?.[1] === "board" || views.every(([, mode]) => mode === "board");
+}
+
+function makeTab(frame: ActionFrame): WorkspaceTab {
+  return { id: tabId(), title: frame.label || frame.model, stack: [frame] };
+}
+
 export function Shell() {
   const client = useAppStore((s) => s.client);
   const session = useAppStore((s) => s.session);
@@ -55,11 +76,37 @@ export function Shell() {
   const queryClient = useQueryClient();
 
   const deep = readDeepLink();
-  const [stack, setStack] = useState<ActionFrame[]>([
-    { model: deep.model ?? "party.party", id: deep.id, label: deep.model ?? "party.party" },
-  ]);
+  const [tabState, setTabState] = useState(() => {
+    const tab = makeTab({
+      model: deep.model ?? "party.party",
+      id: deep.id,
+      label: deep.model ?? "party.party",
+    });
+    return { tabs: [tab], activeTabId: tab.id };
+  });
+  const { tabs, activeTabId } = tabState;
+  const setTabs = (updater: WorkspaceTab[] | ((prev: WorkspaceTab[]) => WorkspaceTab[])) => {
+    setTabState((prev) => ({
+      ...prev,
+      tabs: typeof updater === "function" ? updater(prev.tabs) : updater,
+    }));
+  };
+  const setActiveTabId = (id: string) => {
+    setTabState((prev) => ({ ...prev, activeTabId: id }));
+  };
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
+  const stack = activeTab?.stack ?? [
+    {
+      model: deep.model ?? "party.party",
+      id: deep.id,
+      label: deep.model ?? "party.party",
+    },
+  ];
   const active = stack[stack.length - 1]?.model ?? "party.party";
   const selectedId = stack[stack.length - 1]?.id ?? null;
+  const topFrame = stack[stack.length - 1];
+  const boardMode = isBoardViews(topFrame?.views);
+
   const [activeWizard, setActiveWizard] = useState<string | null>(null);
   const [wizardActionId, setWizardActionId] = useState<number | null>(null);
   const [activeReport, setActiveReport] = useState<string | null>(null);
@@ -68,6 +115,28 @@ export function Shell() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+
+  function updateActiveTab(mutator: (tab: WorkspaceTab) => WorkspaceTab) {
+    setTabState((prev) => ({
+      ...prev,
+      tabs: prev.tabs.map((tab) =>
+        tab.id === (activeTab?.id ?? prev.activeTabId) ? mutator(tab) : tab,
+      ),
+    }));
+  }
+
+  function setStack(next: ActionFrame[] | ((s: ActionFrame[]) => ActionFrame[])) {
+    updateActiveTab((tab) => {
+      const stackNext = typeof next === "function" ? next(tab.stack) : next;
+      const top = stackNext[stackNext.length - 1];
+      return {
+        ...tab,
+        stack: stackNext,
+        title: top?.label ?? top?.model ?? tab.title,
+      };
+    });
+  }
 
   function setSelectedId(id: number | null) {
     setStack((s) => {
@@ -184,9 +253,30 @@ export function Shell() {
     setStack((s) => s.slice(0, index + 1));
   }
 
-  async function openWorkspace(actionOrModel: string, source: string) {
+  function openNewTab(frame?: ActionFrame) {
+    const tab = makeTab(frame ?? { model: "party.party", id: null, label: "party.party" });
+    setTabState((prev) => ({
+      tabs: [...prev.tabs, tab],
+      activeTabId: tab.id,
+    }));
+  }
+
+  function closeTab(id: string) {
+    setTabState((prev) => {
+      if (prev.tabs.length <= 1) return prev;
+      const nextTabs = prev.tabs.filter((t) => t.id !== id);
+      const nextActive =
+        prev.activeTabId === id
+          ? (nextTabs[nextTabs.length - 1]?.id ?? nextTabs[0]?.id ?? prev.activeTabId)
+          : prev.activeTabId;
+      return { tabs: nextTabs, activeTabId: nextActive };
+    });
+  }
+
+  async function openWorkspace(actionOrModel: string, source: string, asNewTab = false) {
     if (!client) {
-      replaceRoot(actionOrModel);
+      if (asNewTab) openNewTab({ model: actionOrModel, id: null, label: actionOrModel });
+      else replaceRoot(actionOrModel);
       setActiveWizard(null);
       return;
     }
@@ -196,12 +286,16 @@ export function Shell() {
       setActiveWizard(null);
       setWizardActionId(null);
       setActiveReport(null);
-      replaceRoot(resolved.model, null, {
+      const frame: ActionFrame = {
+        model: resolved.model,
+        id: null,
+        label: resolved.name ?? resolved.model,
         domain: resolved.domain,
         context: resolved.context,
         views: resolved.views,
-        label: resolved.name ?? resolved.model,
-      });
+      };
+      if (asNewTab) openNewTab(frame);
+      else replaceRoot(resolved.model, null, frame);
       setHistory((h) => [...h, { model: resolved.model, action: source }]);
       return;
     }
@@ -249,7 +343,7 @@ export function Shell() {
                 type="button"
                 data-active={active === f && !activeWizard}
                 onMouseEnter={() => void prefetchModel(f)}
-                onClick={() => void openWorkspace(f, "favorite")}
+                onClick={(e) => void openWorkspace(f, "favorite", e.metaKey || e.ctrlKey)}
               >
                 {f}
               </button>
@@ -302,6 +396,14 @@ export function Shell() {
             </Button>
             <BusBanner />
             <ToolDrawer
+              open={prefsOpen}
+              onOpenChange={setPrefsOpen}
+              title="Preferences"
+              triggerLabel="Prefs"
+            >
+              <PreferencesPanel />
+            </ToolDrawer>
+            <ToolDrawer
               open={wizardOpen}
               onOpenChange={setWizardOpen}
               title="Wizard"
@@ -350,6 +452,34 @@ export function Shell() {
           <Button onClick={logout}>Logout</Button>
         </div>
 
+        <div className="epiton-tabs" role="tablist" aria-label="Workspace tabs">
+          {tabs.map((tab) => (
+            <div key={tab.id} className="epiton-tab" data-active={tab.id === activeTab?.id}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab.id === activeTab?.id}
+                onClick={() => setActiveTabId(tab.id)}
+              >
+                {tab.title}
+              </button>
+              {tabs.length > 1 ? (
+                <button
+                  type="button"
+                  className="epiton-tab-close"
+                  aria-label={`Close ${tab.title}`}
+                  onClick={() => closeTab(tab.id)}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          ))}
+          <Button onClick={() => openNewTab()} aria-label="New tab">
+            + Tab
+          </Button>
+        </div>
+
         <nav className="epiton-breadcrumbs" aria-label="Action stack">
           {stack.map((frame, index) => (
             <span key={`${frame.model}-${index}`}>
@@ -394,15 +524,21 @@ export function Shell() {
               if (hit?.action) void openWorkspace(String(hit.action), "cards");
             }}
           />
+        ) : boardMode ? (
+          <BoardWorkspace
+            key={`${active}:${activeTab?.id}:board`}
+            model={active}
+            onOpen={(ref) => void openWorkspace(ref, "board")}
+          />
         ) : (
           <Suspense fallback={<p role="status">Loading workspace…</p>}>
             <ModelWorkspace
-              key={`${active}:${stack.length}`}
+              key={`${active}:${activeTab?.id}:${stack.length}`}
               model={active}
               initialSelectedId={selectedId}
-              actionDomain={stack[stack.length - 1]?.domain}
-              actionContext={stack[stack.length - 1]?.context}
-              actionViews={stack[stack.length - 1]?.views}
+              actionDomain={topFrame?.domain}
+              actionContext={topFrame?.context}
+              actionViews={topFrame?.views}
               useClinicalWidgets={preset === "clinical"}
               onSelectedIdChange={setSelectedId}
               onPushRelated={(model, id) => {
