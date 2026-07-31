@@ -12,3 +12,10 @@ test("can switch language to Spanish", async ({ page }) => {
   await page.getByLabel("Language").selectOption("es");
   await expect(page.getByRole("button", { name: /Entrar a Epiton/i })).toBeVisible();
 });
+
+test("login form has empty credentials by default", async ({ page }) => {
+  await page.goto("/");
+  const user = page.locator('input[name="username"], input').nth(2);
+  await expect(page.getByRole("button", { name: /Enter Epiton|Entrar a Epiton/i })).toBeEnabled();
+  await expect(user).toBeVisible();
+});

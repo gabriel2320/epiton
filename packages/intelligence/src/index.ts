@@ -1,3 +1,5 @@
+import Fuse from "fuse.js";
+
 export type Density = "compact" | "comfortable";
 export type LayoutMode = "tree-form" | "list-form" | "cards";
 export type WorkspacePreset = "general" | "accounting" | "warehouse" | "clinical";
@@ -43,33 +45,44 @@ export function unifiedSearch(
   recents: RecentRecord[],
   limit = 20,
 ): ActionSuggestion[] {
-  const out: ActionSuggestion[] = [];
-  for (const m of menus) {
-    const score = Math.max(
-      scoreMatch(query, m.name),
-      ...(m.keywords ?? []).map((k) => scoreMatch(query, k)),
-    );
-    if (score > 0) {
-      out.push({
-        kind: "menu",
-        label: m.name,
-        score,
-        payload: { id: m.id, action: m.action },
-      });
-    }
+  const q = query.trim();
+  if (!q) {
+    return menus.slice(0, Math.min(limit, 8)).map((m) => ({
+      kind: "menu" as const,
+      label: m.name,
+      score: 1,
+      payload: { id: m.id, action: m.action },
+    }));
   }
-  for (const r of recents) {
-    const score = scoreMatch(query, `${r.title} ${r.model}`);
-    if (score > 0) {
-      out.push({
-        kind: "record",
-        label: r.title,
-        score: score + 5,
-        payload: { model: r.model, id: r.id },
-      });
-    }
-  }
-  return out.sort((a, b) => b.score - a.score).slice(0, limit);
+
+  const menuDocs = menus.map((m) => ({
+    kind: "menu" as const,
+    label: m.name,
+    haystack: `${m.name} ${(m.keywords ?? []).join(" ")} ${m.action ?? ""}`,
+    payload: { id: m.id, action: m.action },
+  }));
+  const recentDocs = recents.map((r) => ({
+    kind: "record" as const,
+    label: r.title,
+    haystack: `${r.title} ${r.model}`,
+    payload: { model: r.model, id: r.id },
+  }));
+
+  const fuse = new Fuse([...menuDocs, ...recentDocs], {
+    keys: ["label", "haystack"],
+    threshold: 0.4,
+    includeScore: true,
+  });
+
+  return fuse
+    .search(q)
+    .slice(0, limit)
+    .map((hit) => ({
+      kind: hit.item.kind,
+      label: hit.item.label,
+      score: Math.round((1 - (hit.score ?? 0)) * 100) + (hit.item.kind === "record" ? 5 : 0),
+      payload: hit.item.payload,
+    }));
 }
 
 export function suggestNextActions(

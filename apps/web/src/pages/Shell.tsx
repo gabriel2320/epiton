@@ -7,16 +7,29 @@ import {
 } from "@epiton/intelligence";
 import { resolveAction } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { AttachmentsPanel } from "../components/AttachmentsPanel";
+import { parseFieldsViewGet } from "@epiton/view-engine";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { BusBanner } from "../components/BusBanner";
 import { CardsWorkspace } from "../components/CardsWorkspace";
 import { CommandPalette } from "../components/CommandPalette";
-import { ModelWorkspace } from "../components/ModelWorkspace";
-import { ReportDownload } from "../components/ReportDownload";
-import { WizardStepper } from "../components/WizardStepper";
+import { MenuTree } from "../components/MenuTree";
+import { ToolDrawer } from "../components/ToolDrawer";
+import { readDeepLink, writeDeepLink } from "../lib/deeplink";
 import { useAppStore } from "../lib/store";
+
+const ModelWorkspace = lazy(() =>
+  import("../components/ModelWorkspace").then((m) => ({ default: m.ModelWorkspace })),
+);
+const WizardStepper = lazy(() =>
+  import("../components/WizardStepper").then((m) => ({ default: m.WizardStepper })),
+);
+const AttachmentsPanel = lazy(() =>
+  import("../components/AttachmentsPanel").then((m) => ({ default: m.AttachmentsPanel })),
+);
+const ReportDownload = lazy(() =>
+  import("../components/ReportDownload").then((m) => ({ default: m.ReportDownload })),
+);
 
 export function Shell() {
   const client = useAppStore((s) => s.client);
@@ -30,11 +43,23 @@ export function Shell() {
   const setSession = useAppStore((s) => s.setSession);
   const setClient = useAppStore((s) => s.setClient);
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
-  const [active, setActive] = useState("party.party");
+  const queryClient = useQueryClient();
+
+  const deep = readDeepLink();
+  const [active, setActive] = useState(deep.model ?? "party.party");
+  const [selectedId, setSelectedId] = useState<number | null>(deep.id);
   const [activeWizard, setActiveWizard] = useState<string | null>(null);
   const [wizardActionId, setWizardActionId] = useState<number | null>(null);
+  const [activeReport, setActiveReport] = useState<string | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ model: string; action: string }>>([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+
+  useEffect(() => {
+    writeDeepLink(active, selectedId);
+  }, [active, selectedId]);
 
   const layout = useMemo(
     () =>
@@ -49,6 +74,7 @@ export function Shell() {
   const menusQuery = useQuery({
     queryKey: ["menus", session?.userId],
     enabled: Boolean(client),
+    staleTime: 60_000,
     queryFn: async () => {
       if (!client) return [] as MenuItem[];
       try {
@@ -83,6 +109,28 @@ export function Shell() {
   const favorites = workspaceFavorites(preset);
   const suggestions = suggestNextActions(history);
 
+  async function prefetchModel(actionOrModel: string) {
+    if (!client) return;
+    const resolved = await resolveAction(client, actionOrModel);
+    if (resolved.kind !== "model") return;
+    const model = resolved.model;
+    await queryClient.prefetchQuery({
+      queryKey: ["model", model, "tree-view"],
+      staleTime: 5 * 60_000,
+      queryFn: async () => {
+        try {
+          return parseFieldsViewGet(await client.fieldsViewGet(model, null, "tree"));
+        } catch {
+          return null;
+        }
+      },
+    });
+    await queryClient.prefetchQuery({
+      queryKey: ["model", model, "list", "id,rec_name,name,code,active"],
+      queryFn: async () => client.searchRead(model, [], ["id", "rec_name", "name"], 0, 40, null),
+    });
+  }
+
   async function openWorkspace(actionOrModel: string, source: string) {
     if (!client) {
       setActive(actionOrModel);
@@ -94,14 +142,23 @@ export function Shell() {
     if (resolved.kind === "model") {
       setActiveWizard(null);
       setWizardActionId(null);
+      setActiveReport(null);
       setActive(resolved.model);
+      setSelectedId(null);
       setHistory((h) => [...h, { model: resolved.model, action: source }]);
       return;
     }
     if (resolved.kind === "wizard") {
       setActiveWizard(resolved.wizard);
       setWizardActionId(resolved.actionId);
+      setWizardOpen(true);
       setHistory((h) => [...h, { model: resolved.wizard, action: `wizard:${source}` }]);
+      return;
+    }
+    if (resolved.kind === "report") {
+      setActiveReport(resolved.report);
+      setReportOpen(true);
+      setHistory((h) => [...h, { model: resolved.report, action: `report:${source}` }]);
       return;
     }
     setWorkspaceNotice(`No workspace for ${actionOrModel}: ${resolved.reason}`);
@@ -133,6 +190,7 @@ export function Shell() {
               <button
                 type="button"
                 data-active={active === f && !activeWizard}
+                onMouseEnter={() => void prefetchModel(f)}
                 onClick={() => void openWorkspace(f, "favorite")}
               >
                 {f}
@@ -141,20 +199,11 @@ export function Shell() {
           ))}
         </ul>
         <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>Menu</h3>
-        <ul className="epiton-menu-list">
-          {(menusQuery.data ?? []).slice(0, 40).map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (m.action) void openWorkspace(m.action, "menu");
-                }}
-              >
-                {m.name}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <MenuTree
+          items={menusQuery.data ?? []}
+          onOpen={(action) => void openWorkspace(action, "menu")}
+          onPrefetch={(action) => void prefetchModel(action)}
+        />
         {suggestions.length ? (
           <>
             <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>Suggested</h3>
@@ -194,6 +243,46 @@ export function Shell() {
               Theme: {theme}
             </Button>
             <BusBanner />
+            <ToolDrawer
+              open={wizardOpen}
+              onOpenChange={setWizardOpen}
+              title="Wizard"
+              triggerLabel="Wizard"
+            >
+              <Suspense fallback={<p role="status">Loading wizard…</p>}>
+                <WizardStepper
+                  key={activeWizard ?? "manual-wizard"}
+                  initialWizard={activeWizard}
+                  actionId={wizardActionId}
+                  activeModel={active}
+                  activeId={selectedId}
+                  autoStart={Boolean(activeWizard)}
+                />
+              </Suspense>
+            </ToolDrawer>
+            <ToolDrawer
+              open={reportOpen}
+              onOpenChange={setReportOpen}
+              title="Reports"
+              triggerLabel="Reports"
+            >
+              <Suspense fallback={<p role="status">Loading reports…</p>}>
+                <ReportDownload
+                  initialReport={activeReport}
+                  initialIds={selectedId != null ? String(selectedId) : "1"}
+                />
+              </Suspense>
+            </ToolDrawer>
+            <ToolDrawer
+              open={attachOpen}
+              onOpenChange={setAttachOpen}
+              title="Attachments"
+              triggerLabel="Attachments"
+            >
+              <Suspense fallback={<p role="status">Loading attachments…</p>}>
+                <AttachmentsPanel model={active} recordId={selectedId ?? undefined} />
+              </Suspense>
+            </ToolDrawer>
           </div>
           <Button onClick={logout}>Logout</Button>
         </div>
@@ -219,25 +308,17 @@ export function Shell() {
             }}
           />
         ) : (
-          <ModelWorkspace
-            key={active}
-            model={active}
-            useClinicalWidgets={preset === "clinical"}
-            onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
-          />
+          <Suspense fallback={<p role="status">Loading workspace…</p>}>
+            <ModelWorkspace
+              key={active}
+              model={active}
+              initialSelectedId={selectedId}
+              useClinicalWidgets={preset === "clinical"}
+              onSelectedIdChange={setSelectedId}
+              onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
+            />
+          </Suspense>
         )}
-
-        <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
-          <WizardStepper
-            key={activeWizard ?? "manual-wizard"}
-            initialWizard={activeWizard}
-            actionId={wizardActionId}
-            activeModel={active}
-            autoStart={Boolean(activeWizard)}
-          />
-          <AttachmentsPanel model={active} />
-          <ReportDownload />
-        </div>
       </main>
 
       <CommandPalette
@@ -247,6 +328,7 @@ export function Shell() {
             void openWorkspace(String(item.payload.action), "command");
           } else if (item.kind === "record" && typeof item.payload.model === "string") {
             void openWorkspace(String(item.payload.model), "command");
+            if (typeof item.payload.id === "number") setSelectedId(item.payload.id);
           }
         }}
         search={unifiedSearch}

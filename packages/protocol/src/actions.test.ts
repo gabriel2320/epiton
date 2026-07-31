@@ -78,6 +78,21 @@ describe("resolveAction", () => {
     });
   });
 
+  it("resolves report action references", async () => {
+    const fetchImpl = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ id: 1, result: [{ id: 7, report_name: "party.label" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
+    await expect(resolveAction(client, "ir.action.report,7")).resolves.toEqual({
+      kind: "report",
+      report: "party.label",
+      actionId: 7,
+    });
+  });
+
   it("rejects incomplete ir.action types", async () => {
     const client = clientWithFetch(vi.fn() as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action.act_window")).resolves.toMatchObject({

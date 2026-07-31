@@ -25,3 +25,7 @@ Features:
 - **Strict ACL**: mutating `model.*` calls (create/write/delete/copy/import/button_*) probe `ir.model.access`; deny when no rows (`EPITON_STRICT_ACL=true`)
 
 Terminate TLS at a reverse proxy (Caddy/nginx) in front of this gateway; the process itself speaks HTTP.
+
+## Frontend CSP
+
+Production Epiton web prefers **browser → gateway → trytond** so CSP `connect-src 'self'` stays tight. See `docs/COMPATIBILITY.md`.

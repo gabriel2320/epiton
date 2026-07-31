@@ -3,12 +3,11 @@ import type { EpitonClient } from "./index";
 export type ResolvedAction =
   | { kind: "model"; model: string }
   | { kind: "wizard"; wizard: string; actionId: number | null }
+  | { kind: "report"; report: string; actionId: number | null }
   | { kind: "unsupported"; ref: string; reason: string };
 
 /**
- * Resolve a menu/action reference to a workspace model or wizard.
- * Accepts bare model/wizard names (`party.party`, `ir.module.activate_upgrade`)
- * or references (`ir.action.act_window,12`, `ir.action.wizard,3`).
+ * Resolve a menu/action reference to a workspace model, wizard, or report.
  */
 export async function resolveAction(
   client: EpitonClient,
@@ -43,7 +42,25 @@ export async function resolveAction(
           };
         }
       } catch {
-        // Fall through to model — wizard table may be unavailable offline.
+        // Fall through
+      }
+      try {
+        const reports = await client.searchRead(
+          "ir.action.report",
+          [["report_name", "=", raw]],
+          ["id", "report_name"],
+          0,
+          1,
+        );
+        if (reports[0] && typeof reports[0].report_name === "string") {
+          return {
+            kind: "report",
+            report: reports[0].report_name,
+            actionId: Number(reports[0].id) || null,
+          };
+        }
+      } catch {
+        // Fall through to model
       }
       return { kind: "model", model: raw };
     }
@@ -91,6 +108,25 @@ export async function resolveAction(
       return { kind: "unsupported", ref: raw, reason: "wizard missing wiz_name" };
     } catch {
       return { kind: "unsupported", ref: raw, reason: "wizard lookup failed" };
+    }
+  }
+
+  if (type === "ir.action.report") {
+    try {
+      const rows = await client.searchRead(
+        "ir.action.report",
+        [["id", "=", id]],
+        ["report_name"],
+        0,
+        1,
+      );
+      const report = rows[0]?.report_name;
+      if (typeof report === "string" && report.length > 0) {
+        return { kind: "report", report, actionId: id };
+      }
+      return { kind: "unsupported", ref: raw, reason: "report missing report_name" };
+    } catch {
+      return { kind: "unsupported", ref: raw, reason: "report lookup failed" };
     }
   }
 

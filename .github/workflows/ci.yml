@@ -25,6 +25,9 @@ jobs:
       - run: pnpm --filter @epiton/intelligence build
       - run: pnpm --filter @epiton/ui build
       - run: pnpm --filter @epiton/web build
+      - run: pnpm check:bundle
+        env:
+          EPITON_BUNDLE_LIMIT_KB: "750"
 
   gateway:
     runs-on: ubuntu-latest

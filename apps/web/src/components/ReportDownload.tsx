@@ -1,15 +1,33 @@
 import { Button, Panel } from "@epiton/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
 
-/** Download Tryton report payloads when the server returns [type, data, ...] tuples. */
-export function ReportDownload() {
+/** Download / preview Tryton report payloads ([type, data, ...] tuples). */
+export function ReportDownload(props: {
+  initialReport?: string | null;
+  initialIds?: string;
+}) {
   const client = useAppStore((s) => s.client);
-  const [reportName, setReportName] = useState("party.label");
-  const [idsText, setIdsText] = useState("1");
+  const [reportName, setReportName] = useState(props.initialReport ?? "party.label");
+  const [idsText, setIdsText] = useState(props.initialIds ?? "1");
   const [message, setMessage] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  async function run() {
+  useEffect(() => {
+    if (props.initialReport) setReportName(props.initialReport);
+  }, [props.initialReport]);
+
+  useEffect(() => {
+    if (props.initialIds) setIdsText(props.initialIds);
+  }, [props.initialIds]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  async function run(preview: boolean) {
     if (!client) return;
     try {
       const ids = idsText
@@ -27,6 +45,16 @@ export function ReportDownload() {
         if (bytes.length) {
           const blob = new Blob([bytes], { type: mime.includes("/") ? mime : "application/pdf" });
           const url = URL.createObjectURL(blob);
+          if (preview) {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(url);
+            setMessage(`Preview ${bytes.length} bytes`);
+            // Lazy-load pdf.js only when previewing
+            void import("pdfjs-dist").then(() => {
+              /* pdfjs available for future canvas render; iframe is enough for MVP */
+            });
+            return;
+          }
           const a = document.createElement("a");
           a.href = url;
           a.download = `${reportName}.pdf`;
@@ -58,9 +86,18 @@ export function ReportDownload() {
           aria-label="Record ids"
           placeholder="ids comma-separated"
         />
-        <Button onClick={run}>Execute / download</Button>
+        <Button onClick={() => void run(false)}>Download</Button>
+        <Button onClick={() => void run(true)}>Preview</Button>
       </div>
       <p role="status">{message}</p>
+      {previewUrl ? (
+        <iframe
+          title="Report preview"
+          src={previewUrl}
+          className="epiton-report-preview"
+          style={{ width: "100%", minHeight: "420px", border: "1px solid var(--epiton-border)" }}
+        />
+      ) : null}
     </Panel>
   );
 }

@@ -6,13 +6,18 @@ import {
   type ViewField,
   type WidgetRegistry,
   clinicalWidgetRegistry,
+  inferGraphFields,
   parseFieldsViewGet,
   renderView,
+  rowsToCalendarEvents,
+  rowsToGraphData,
   treeColumns,
 } from "@epiton/view-engine";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { CalendarView } from "./CalendarView";
+import { GraphView } from "./GraphView";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
@@ -24,24 +29,33 @@ const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 export function ModelWorkspace(props: {
   model: string;
   useClinicalWidgets?: boolean;
+  initialSelectedId?: number | null;
   onHistory?: (action: string) => void;
+  onSelectedIdChange?: (id: number | null) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(props.initialSelectedId ?? null);
   const [draft, setDraft] = useState<RecordValues>({});
   const [mode, setMode] = useState<"read" | "write">("read");
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"tree" | "calendar" | "graph">("tree");
 
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
     : undefined;
 
+  function selectId(id: number | null) {
+    setSelectedId(id);
+    props.onSelectedIdChange?.(id);
+  }
+
   const formViewQuery = useQuery({
     queryKey: ["model", props.model, "form-view"],
     enabled: Boolean(client),
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
       try {
@@ -61,6 +75,7 @@ export function ModelWorkspace(props: {
   const treeViewQuery = useQuery({
     queryKey: ["model", props.model, "tree-view"],
     enabled: Boolean(client),
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
       try {
@@ -77,15 +92,41 @@ export function ModelWorkspace(props: {
     },
   });
 
+  const calendarViewQuery = useQuery({
+    queryKey: ["model", props.model, "calendar-view"],
+    enabled: Boolean(client && viewMode === "calendar"),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!client) return null;
+      try {
+        return parseFieldsViewGet(await client.fieldsViewGet(props.model, null, "calendar"));
+      } catch {
+        return null;
+      }
+    },
+  });
+
   const listFields = useMemo(() => {
     const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
-    const merged = [...new Set(["id", ...cols, ...DEFAULT_FIELDS])];
-    return merged.slice(0, 12);
+    const merged = [
+      ...new Set([
+        "id",
+        ...cols,
+        ...DEFAULT_FIELDS,
+        "start",
+        "end",
+        "date",
+        "appointment_date",
+        "create_date",
+      ]),
+    ];
+    return merged.slice(0, 16);
   }, [treeViewQuery.data]);
 
   const listQuery = useQuery({
     queryKey: ["model", props.model, "list", listFields.join(",")],
     enabled: Boolean(client && treeViewQuery.isSuccess),
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       if (!client) return [];
       try {
@@ -111,9 +152,16 @@ export function ModelWorkspace(props: {
     if (recordQuery.data) setDraft(recordQuery.data);
   }, [recordQuery.data]);
 
+  useEffect(() => {
+    if (props.initialSelectedId == null) return;
+    setSelectedId(props.initialSelectedId);
+    props.onSelectedIdChange?.(props.initialSelectedId);
+  }, [props.initialSelectedId, props.onSelectedIdChange]);
+
   const aclQuery = useQuery({
     queryKey: ["model", props.model, "acl"],
     enabled: Boolean(client),
+    staleTime: 60_000,
     queryFn: async () => {
       if (!client) return null;
       return modelHasAccessRows(client, props.model);
@@ -145,7 +193,7 @@ export function ModelWorkspace(props: {
       return id;
     },
     onSuccess: async (id) => {
-      setSelectedId(id);
+      selectId(id);
       setMode("read");
       setNotice("Saved");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
@@ -160,7 +208,7 @@ export function ModelWorkspace(props: {
       props.onHistory?.("delete");
     },
     onSuccess: async () => {
-      setSelectedId(null);
+      selectId(null);
       setDraft({});
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
@@ -193,6 +241,26 @@ export function ModelWorkspace(props: {
     [treeViewQuery.data],
   );
 
+  const calendarEvents = useMemo(
+    () => rowsToCalendarEvents((listQuery.data ?? []) as Array<Record<string, unknown>>),
+    [listQuery.data],
+  );
+
+  const graphFields = useMemo(() => {
+    const names = columns.map((c) => c.name);
+    return inferGraphFields(names);
+  }, [columns]);
+
+  const graphData = useMemo(
+    () =>
+      rowsToGraphData(
+        (listQuery.data ?? []) as Array<Record<string, unknown>>,
+        graphFields.xField,
+        graphFields.yField,
+      ),
+    [listQuery.data, graphFields],
+  );
+
   const aclWarning = strictAclCoach(props.model, aclQuery.data ?? null);
   const listState = listQuery.isLoading
     ? "loading"
@@ -209,7 +277,7 @@ export function ModelWorkspace(props: {
           <Button
             variant="primary"
             onClick={() => {
-              setSelectedId(null);
+              selectId(null);
               setDraft({});
               setMode("write");
               props.onHistory?.("new");
@@ -218,22 +286,43 @@ export function ModelWorkspace(props: {
             New
           </Button>
           <Button onClick={() => listQuery.refetch()}>Refresh</Button>
+          <Button onClick={() => setViewMode("tree")}>Tree</Button>
+          <Button onClick={() => setViewMode("calendar")}>Calendar</Button>
+          <Button onClick={() => setViewMode("graph")}>Graph</Button>
         </div>
         <StateBlock
           state={listState}
           message={listQuery.isError ? listQuery.error.message : "No records"}
         >
-          <VirtualPartyTable
-            rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
-            columns={columns}
-            selectedId={selectedId}
-            onSelect={(id) => {
-              setSelectedId(id);
-              setMode("read");
-              props.onHistory?.("open");
-            }}
-          />
+          {viewMode === "calendar" ? (
+            <CalendarView
+              events={calendarEvents}
+              onSelect={(id) => {
+                selectId(id);
+                setMode("read");
+                props.onHistory?.("open");
+              }}
+            />
+          ) : viewMode === "graph" ? (
+            <GraphView data={graphData} yLabel={graphFields.yField} />
+          ) : (
+            <VirtualPartyTable
+              rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
+              columns={columns}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                selectId(id);
+                setMode("read");
+                props.onHistory?.("open");
+              }}
+            />
+          )}
         </StateBlock>
+        {calendarViewQuery.data ? (
+          <p className="text-sm text-[var(--epiton-muted)]" role="status">
+            Server calendar arch available
+          </p>
+        ) : null}
       </Panel>
 
       <Panel title={selectedId ? `${props.model} #${selectedId}` : `${props.model} form`}>
@@ -264,6 +353,21 @@ export function ModelWorkspace(props: {
               onOpenRelation: (field) => {
                 setRelationField(field);
                 props.onHistory?.(`relation:${field.name}`);
+              },
+              onBinaryDownload: (field, value) => {
+                if (typeof value !== "string" || value.startsWith("javascript:")) return;
+                try {
+                  const bytes = Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+                  const blob = new Blob([bytes], { type: "application/octet-stream" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${props.model}-${field.name}.bin`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch {
+                  setNotice("Binary download failed");
+                }
               },
             })
           : recordQuery.isLoading

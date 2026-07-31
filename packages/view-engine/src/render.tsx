@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { createElement } from "react";
+import { formatTrytonDate, parseTrytonDateInput } from "./dates";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
+import { resolveStatesAttr } from "./pyson";
 
 export type RecordValues = Record<string, unknown>;
 
@@ -14,6 +16,7 @@ export interface RenderContext {
   onChange?: (name: string, value: unknown) => void;
   onButton?: (name: string) => void;
   onOpenRelation?: (field: ViewField, value: unknown) => void;
+  onBinaryDownload?: (field: ViewField, value: unknown) => void;
   renderField?: (field: ViewField, value: unknown) => ReactNode;
 }
 
@@ -64,6 +67,46 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     });
   }
 
+  if (field.type === "binary") {
+    const hasData = value != null && value !== "";
+    return createElement(
+      "div",
+      { className: "epiton-binary" },
+      createElement("span", null, hasData ? "Binary attached" : "No file"),
+      createElement(
+        "button",
+        {
+          type: "button",
+          disabled: !hasData,
+          onClick: () => {
+            if (typeof value === "string" && value.startsWith("javascript:")) return;
+            ctx.onBinaryDownload?.(field, value);
+          },
+        },
+        "Download",
+      ),
+      ctx.mode === "write"
+        ? createElement("input", {
+            ...common,
+            type: "file",
+            onChange: (e: { target: { files: FileList | null } }) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result;
+                if (typeof result === "string") {
+                  const b64 = result.includes(",") ? result.split(",")[1] : result;
+                  ctx.onChange?.(field.name, b64);
+                }
+              };
+              reader.readAsDataURL(file);
+            },
+          })
+        : null,
+    );
+  }
+
   if (field.type === "one2many" || field.type === "many2many") {
     const rows = Array.isArray(value) ? value : [];
     return createElement(
@@ -104,14 +147,21 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     );
   }
 
+  if (field.type === "date" || field.type === "datetime") {
+    const withTime = field.type === "datetime";
+    return createElement("input", {
+      ...common,
+      type: withTime ? "datetime-local" : "date",
+      value: formatTrytonDate(value, withTime),
+      onChange: (e: { target: { value: string } }) =>
+        ctx.onChange?.(field.name, parseTrytonDateInput(e.target.value, withTime)),
+    });
+  }
+
   const inputType =
     field.type === "integer" || field.type === "float" || field.type === "numeric"
       ? "number"
-      : field.type === "date"
-        ? "date"
-        : field.type === "datetime"
-          ? "datetime-local"
-          : "text";
+      : "text";
 
   return createElement("input", {
     ...common,
@@ -157,12 +207,19 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       type: "char" as const,
       string: node.attrs.string ?? name,
     };
+    const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    if (states.invisible) return null;
     const value = ctx.values[name];
+    const fieldWithFlags: ViewField = {
+      ...field,
+      readonly: field.readonly || states.readonly,
+      required: field.required || states.required,
+    };
     return createElement(
       "label",
       { className: "epiton-field", htmlFor: `epiton-field-${name}` },
-      createElement("span", { className: "epiton-field-label" }, fieldLabel(field, name)),
-      renderInput(field, value, ctx),
+      createElement("span", { className: "epiton-field-label" }, fieldLabel(fieldWithFlags, name)),
+      renderInput(fieldWithFlags, value, ctx),
       field.help ? createElement("small", { className: "epiton-field-help" }, field.help) : null,
     );
   }
@@ -177,12 +234,15 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
 
   if (node.tag === "button") {
     const name = node.attrs.name ?? "";
+    const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    if (states.invisible) return null;
     return createElement(
       "button",
       {
         type: "button",
         className: "epiton-button",
         "data-confirm": node.attrs.confirm,
+        disabled: states.readonly === true,
         onClick: () => {
           if (node.attrs.confirm && typeof globalThis.confirm === "function") {
             if (!globalThis.confirm(node.attrs.confirm)) return;
@@ -197,8 +257,8 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
   if (node.tag === "calendar" || node.tag === "graph" || node.tag === "board") {
     return createElement(
       "div",
-      { className: `epiton-${node.tag}-placeholder`, role: "status" },
-      `${node.tag} view — adaptive renderer pending full Sao parity`,
+      { className: `epiton-${node.tag}-host`, role: "status" },
+      `${node.tag} view — use workspace host renderer`,
       node.children.map((c, i) => createElement("div", { key: i }, renderNode(c, view, ctx))),
     );
   }

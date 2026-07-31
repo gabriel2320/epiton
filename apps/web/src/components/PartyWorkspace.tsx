@@ -1,3 +1,7 @@
+/**
+ * @deprecated Prefer ModelWorkspace — kept as an i18n party reference implementation.
+ * Shell no longer mounts this component.
+ */
 import { strictAclCoach } from "@epiton/intelligence";
 import { modelHasAccessRows } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
