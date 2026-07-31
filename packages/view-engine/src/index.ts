@@ -51,6 +51,7 @@ export {
   screenForSelection,
   screenValuesForSave,
   setScreenRelationQueue,
+  shouldApplyNewDefaults,
   updateScreenValues,
   type RelationCommandQueue,
   type RelationFieldKind,

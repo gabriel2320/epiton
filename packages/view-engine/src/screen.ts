@@ -19,24 +19,36 @@ export interface RelationCommandQueue {
 /**
  * Minimal client Screen lifecycle. It owns only an editable snapshot and pending
  * relation commands; trytond remains the sole business-data authority.
+ *
+ * `hydrated` is the explicit lifecycle marker: new drafts are ready immediately;
+ * an existing selection stays unready until hydrate (never inferred from values.id).
  */
 export interface ScreenState {
   model: string;
   recordId: number | null;
+  /** True once a new draft exists or an existing selection has applied a server snapshot. */
+  hydrated: boolean;
   values: RecordValues;
   baseline: RecordValues;
   relationQueues: Record<string, RelationCommandQueue>;
 }
 
+/**
+ * Create a Screen. Omitting `values` for an existing recordId marks the Screen
+ * as not yet hydrated (selection placeholder). Passing `values` (even `{}`)
+ * means the host already has a snapshot and the Screen is ready.
+ */
 export function createScreen(
   model: string,
   recordId: number | null,
-  values: RecordValues = {},
+  values?: RecordValues,
 ): ScreenState {
-  const snapshot = { ...values };
+  const hasSnapshot = values !== undefined;
+  const snapshot = { ...(values ?? {}) };
   return {
     model,
     recordId,
+    hydrated: recordId == null || hasSnapshot,
     values: snapshot,
     baseline: { ...snapshot },
     relationQueues: {},
@@ -88,12 +100,10 @@ export function hydrateSelectedScreen(
   return hydrateScreenFromRecord(screen, model, selectedId, values);
 }
 
-/** True when an existing record Screen has loaded server values (or is a new draft). */
+/** True when a new draft is ready, or an existing selection has hydrated. */
 export function isScreenReadyToSave(screen: ScreenState, selectedId: number | null): boolean {
-  if (selectedId == null) return screen.recordId == null;
-  if (screen.recordId !== selectedId) return false;
-  const rawId = Number(screen.values.id);
-  return Number.isFinite(rawId) && rawId === selectedId;
+  if (selectedId == null) return screen.recordId == null && screen.hydrated;
+  return screen.recordId === selectedId && screen.hydrated;
 }
 
 /** Drop async Screen patches whose generation/identity no longer matches. */
@@ -106,6 +116,20 @@ export function acceptAsyncScreenUpdate(
     expected.model === current.model &&
     expected.recordId === current.recordId
   );
+}
+
+/**
+ * Late `default_get` may apply only while the new Screen is still pristine.
+ * Identity/generation must still match; a user edit wins over delayed defaults.
+ */
+export function shouldApplyNewDefaults(
+  expected: { generation: number; model: string; recordId: number | null },
+  current: { generation: number; model: string; recordId: number | null },
+  screen: ScreenState,
+): boolean {
+  if (!acceptAsyncScreenUpdate(expected, current)) return false;
+  if (screen.recordId != null) return false;
+  return !screenIsDirty(screen);
 }
 
 export function updateScreenValues(screen: ScreenState, values: RecordValues): ScreenState {

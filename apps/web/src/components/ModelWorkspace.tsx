@@ -70,6 +70,7 @@ import {
   screenIsDirty,
   screenValuesForSave,
   setScreenRelationQueue,
+  shouldApplyNewDefaults,
   updateScreenValues,
 } from "../lib/screen";
 import { useAppStore } from "../lib/store";
@@ -217,6 +218,11 @@ export function ModelWorkspace(props: {
       clearTimeout(onChangeTimer.current);
       onChangeTimer.current = null;
     }
+  }
+
+  function leaveWriteMode() {
+    if (mode === "write") bumpScreenGeneration();
+    setMode("read");
   }
 
   function confirmDiscard(): boolean {
@@ -889,6 +895,16 @@ export function ModelWorkspace(props: {
           setDraft((d) => ({ ...d, ...patch }));
           props.onHistory?.(`on_change:${name}`);
         } catch (err) {
+          const current = screenRef.current;
+          if (
+            !acceptAsyncScreenUpdate(expected, {
+              generation: screenGenerationRef.current,
+              model: current.model,
+              recordId: current.recordId,
+            })
+          ) {
+            return;
+          }
           setNotice(err instanceof Error ? err.message : "on_change failed");
         }
       })();
@@ -925,39 +941,45 @@ export function ModelWorkspace(props: {
         [fieldNames.length ? fieldNames : ["name", "active"]],
         rpcContext,
       );
-      const current = screenRef.current;
-      if (
-        !acceptAsyncScreenUpdate(expected, {
-          generation: screenGenerationRef.current,
-          model: current.model,
-          recordId: current.recordId,
-        })
-      ) {
-        return;
-      }
       const next =
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
           ? (defaults as RecordValues)
           : {};
-      setScreen(createScreen(props.model, null, next));
+      setScreen((current) =>
+        shouldApplyNewDefaults(
+          expected,
+          {
+            generation: screenGenerationRef.current,
+            model: current.model,
+            recordId: current.recordId,
+          },
+          current,
+        )
+          ? createScreen(props.model, null, next)
+          : current,
+      );
     } catch {
-      const current = screenRef.current;
-      if (
-        !acceptAsyncScreenUpdate(expected, {
-          generation: screenGenerationRef.current,
-          model: current.model,
-          recordId: current.recordId,
-        })
-      ) {
-        return;
-      }
-      setScreen(createScreen(props.model, null));
+      setScreen((current) =>
+        shouldApplyNewDefaults(
+          expected,
+          {
+            generation: screenGenerationRef.current,
+            model: current.model,
+            recordId: current.recordId,
+          },
+          current,
+        )
+          ? createScreen(props.model, null)
+          : current,
+      );
     }
   }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
+      // Invalidate in-flight on_change so a late patch cannot dirty post-write baseline.
+      bumpScreenGeneration();
       const currentScreen = screenRef.current;
       if (!isScreenReadyToSave(currentScreen, selectedId)) {
         throw new Error(
@@ -980,7 +1002,7 @@ export function ModelWorkspace(props: {
     },
     onSuccess: async (id) => {
       selectId(id, true);
-      setMode("read");
+      leaveWriteMode();
       dirtyRef.current = false;
       setScreen((current) => createScreen(props.model, id, current.values));
       setNotice("Saved");
@@ -1030,7 +1052,7 @@ export function ModelWorkspace(props: {
     const next = ids[nextIdx];
     if (next == null || next === selectedId) return;
     selectId(next);
-    setMode("read");
+    leaveWriteMode();
     props.onHistory?.("nav");
   }
 
@@ -1076,6 +1098,11 @@ export function ModelWorkspace(props: {
       }
       if (e.key === "Escape" && mode === "write" && !typing) {
         if (!keyHandlersRef.current.confirmDiscard()) return;
+        screenGenerationRef.current += 1;
+        if (onChangeTimer.current) {
+          clearTimeout(onChangeTimer.current);
+          onChangeTimer.current = null;
+        }
         if (recordQuery.data) {
           setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
         }
@@ -1669,7 +1696,7 @@ export function ModelWorkspace(props: {
               editable
               onSelect={(id) => {
                 selectId(id);
-                setMode("read");
+                leaveWriteMode();
                 props.onHistory?.("open");
               }}
               onCreateAt={(start, end) => void createCalendarAt(start, end)}
@@ -1709,7 +1736,7 @@ export function ModelWorkspace(props: {
               selectedId={selectedId}
               onSelect={(id) => {
                 selectId(id);
-                setMode("read");
+                leaveWriteMode();
                 props.onHistory?.("open");
               }}
             />
@@ -1764,7 +1791,7 @@ export function ModelWorkspace(props: {
               }
               onOpen={(id) => {
                 selectId(id);
-                setMode("read");
+                leaveWriteMode();
                 void openKeywordAction("tree_open", id, "tree_open").then((opened) => {
                   if (!opened) props.onHistory?.("open");
                 });
@@ -1782,7 +1809,7 @@ export function ModelWorkspace(props: {
               }}
               onSelect={(id) => {
                 selectId(id);
-                setMode("read");
+                leaveWriteMode();
                 props.onHistory?.("open");
               }}
             />
@@ -1826,10 +1853,14 @@ export function ModelWorkspace(props: {
           <Button
             onClick={() => {
               if (mode === "write" && !confirmDiscard()) return;
-              if (mode === "write" && recordQuery.data) {
-                setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
+              if (mode === "write") {
+                if (recordQuery.data) {
+                  setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
+                }
+                leaveWriteMode();
+                return;
               }
-              setMode(mode === "read" ? "write" : "read");
+              setMode("write");
             }}
           >
             {t("workspace.mode")}: {mode}

@@ -13,6 +13,7 @@ import {
   screenIsDirty,
   screenValuesForSave,
   setScreenRelationQueue,
+  shouldApplyNewDefaults,
   updateScreenValues,
 } from "./screen";
 
@@ -133,7 +134,7 @@ describe("screen", () => {
     expect(screenIsDirty(second)).toBe(false);
   });
 
-  it("clears record A immediately when the host selects record B", () => {
+  it("clears a dirty record A when external initial selection moves to record B", () => {
     const lines = createRelationQueue("one2many", [8]);
     lines.commands = [{ op: "write", id: 8, values: { quantity: 4 } }];
     const first = setScreenRelationQueue(
@@ -144,6 +145,7 @@ describe("screen", () => {
 
     const waitingForSecond = screenForSelection(first, "sale.sale", 9);
     expect(waitingForSecond).toEqual(createScreen("sale.sale", 9));
+    expect(waitingForSecond.hydrated).toBe(false);
     expect(screenIsDirty(waitingForSecond)).toBe(false);
   });
 
@@ -230,13 +232,46 @@ describe("screen", () => {
 
   it("blocks save until an existing record Screen is hydrated", () => {
     const loading = screenForSelection(createScreen("sale.sale", 7), "sale.sale", 9);
+    expect(loading.hydrated).toBe(false);
     expect(isScreenReadyToSave(loading, 9)).toBe(false);
     const hydrated = hydrateSelectedScreen(loading, "sale.sale", 9, 9, { id: 9, name: "S-9" });
+    expect(hydrated.hydrated).toBe(true);
     expect(isScreenReadyToSave(hydrated, 9)).toBe(true);
     expect(isScreenReadyToSave(createScreen("sale.sale", null), null)).toBe(true);
   });
 
-  it("rejects async Screen updates after identity changes", () => {
+  it("marks an existing Screen ready after hydrate even without values.id", () => {
+    const loading = createScreen("sale.sale", 9);
+    expect(loading.hydrated).toBe(false);
+    expect(isScreenReadyToSave(loading, 9)).toBe(false);
+
+    const hydrated = hydrateSelectedScreen(loading, "sale.sale", 9, 9, { name: "S-9" });
+    expect(hydrated.values.id).toBeUndefined();
+    expect(hydrated.hydrated).toBe(true);
+    expect(hydrated.values.name).toBe("S-9");
+    expect(isScreenReadyToSave(hydrated, 9)).toBe(true);
+  });
+
+  it("rejects late default_get after the new draft was edited", () => {
+    const expected = { generation: 1, model: "sale.sale", recordId: null as number | null };
+    const current = { generation: 1, model: "sale.sale", recordId: null as number | null };
+    const pristine = createScreen("sale.sale", null);
+    expect(shouldApplyNewDefaults(expected, current, pristine)).toBe(true);
+
+    const edited = updateScreenValues(pristine, { ...pristine.values, name: "typed" });
+    expect(screenIsDirty(edited)).toBe(true);
+    expect(shouldApplyNewDefaults(expected, current, edited)).toBe(false);
+
+    const defaults = { name: "from-server", active: true };
+    // Host applies defaults only when the helper says so — edited draft wins.
+    const applied = shouldApplyNewDefaults(expected, current, edited)
+      ? createScreen("sale.sale", null, defaults)
+      : edited;
+    expect(applied.values.name).toBe("typed");
+    expect(applied.values.active).toBeUndefined();
+  });
+
+  it("rejects async Screen updates after identity or generation changes", () => {
     const expected = { generation: 1, model: "sale.sale", recordId: 7 as number | null };
     expect(
       acceptAsyncScreenUpdate(expected, { generation: 1, model: "sale.sale", recordId: 7 }),
@@ -250,5 +285,39 @@ describe("screen", () => {
     expect(
       acceptAsyncScreenUpdate(expected, { generation: 1, model: "sale.sale", recordId: null }),
     ).toBe(false);
+  });
+
+  it("invalidates deferred on_change work when generation bumps (discard/Save)", () => {
+    const scheduled = { generation: 4, model: "sale.sale", recordId: 7 as number | null };
+    // Host bumps generation on discard / exit write / Save start.
+    const afterDiscard = { generation: 5, model: "sale.sale", recordId: 7 as number | null };
+    expect(acceptAsyncScreenUpdate(scheduled, afterDiscard)).toBe(false);
+
+    const afterSaveStart = { generation: 5, model: "sale.sale", recordId: 7 as number | null };
+    expect(acceptAsyncScreenUpdate(scheduled, afterSaveStart)).toBe(false);
+
+    // Stale catch path must also refuse to publish a notice.
+    const afterIdentityChange = {
+      generation: 4,
+      model: "sale.sale",
+      recordId: null as number | null,
+    };
+    expect(acceptAsyncScreenUpdate(scheduled, afterIdentityChange)).toBe(false);
+  });
+
+  it("keeps Save-without-Apply for live relation queues after hydrate", () => {
+    const fields: Record<string, ViewField> = {
+      lines: field("lines", "one2many"),
+    };
+    let screen = hydrateSelectedScreen(createScreen("sale.sale", 7), "sale.sale", 7, 7, {
+      name: "S-7",
+    });
+    expect(isScreenReadyToSave(screen, 7)).toBe(true);
+    const lines = createRelationQueue("one2many", undefined);
+    lines.commands = [{ op: "create", values: { quantity: 2 } }];
+    screen = setScreenRelationQueue(screen, "lines", lines);
+    expect(screenValuesForSave(screen, fields)).toEqual({
+      lines: [["create", { quantity: 2 }]],
+    });
   });
 });
