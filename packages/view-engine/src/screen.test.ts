@@ -153,11 +153,34 @@ describe("screen", () => {
     });
     expect(stale).toBe(waitingForSecond);
 
+    const missingId = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
+      name: "no-id-payload",
+    });
+    expect(missingId).toBe(waitingForSecond);
+
     const hydrated = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
       id: 9,
       name: "S-9",
     });
     expect(hydrated.values.name).toBe("S-9");
+  });
+
+  it("saves live relation queues without an Apply step", () => {
+    const fields: Record<string, ViewField> = {
+      lines: field("lines", "one2many"),
+      tags: field("tags", "many2many"),
+    };
+    let screen = createScreen("sale.sale", 7, { name: "S-7" });
+    const lines = createRelationQueue("one2many", undefined);
+    lines.commands = [{ op: "create", values: { quantity: 2 } }];
+    const tags = createRelationQueue("many2many", [1]);
+    tags.ids = [1, 2];
+    screen = setScreenRelationQueue(screen, "lines", lines);
+    screen = setScreenRelationQueue(screen, "tags", tags);
+    expect(screenValuesForSave(screen, fields)).toEqual({
+      lines: [["create", { quantity: 2 }]],
+      tags: [["add", [2]]],
+    });
   });
 
   it("keeps unsaved queues across same-record refetches and resets for another record", () => {

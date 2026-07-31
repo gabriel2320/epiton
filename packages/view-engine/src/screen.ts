@@ -82,7 +82,8 @@ export function hydrateSelectedScreen(
 ): ScreenState {
   if (selectedId == null) return screen;
   const rawId = Number(values.id);
-  if (Number.isFinite(rawId) && rawId !== selectedId) return screen;
+  // Require an explicit finite identity so a late/partial payload cannot land on B.
+  if (!Number.isFinite(rawId) || rawId !== selectedId) return screen;
   return hydrateScreenFromRecord(screen, model, selectedId, values);
 }
 

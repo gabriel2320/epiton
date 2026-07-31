@@ -757,7 +757,7 @@ export function ModelWorkspace(props: {
   const recordQuery = useQuery({
     queryKey: ["model", props.model, selectedId],
     enabled: Boolean(client && selectedId),
-    queryFn: async () => {
+    queryFn: async (): Promise<{ recordId: number; values: RecordValues } | null> => {
       if (!client || !selectedId) return null;
       const fieldNames = [
         ...new Set([
@@ -775,20 +775,24 @@ export function ModelWorkspace(props: {
         [[selectedId], fieldNames],
         rpcContext,
       );
-      return Array.isArray(result) ? (result[0] as RecordValues) : null;
+      const values = Array.isArray(result) ? (result[0] as RecordValues) : null;
+      if (!values) return null;
+      return { recordId: selectedId, values };
     },
   });
 
   useEffect(() => {
-    setScreen(createScreen(props.model, null));
-    setSelectedId(null);
+    const nextId = props.initialSelectedId ?? null;
+    setScreen(screenForSelection(createScreen(props.model, null), props.model, nextId));
+    setSelectedId(nextId);
     setSelectedIds([]);
-  }, [props.model]);
+  }, [props.model, props.initialSelectedId]);
 
   useEffect(() => {
-    const record = recordQuery.data;
-    if (!record) return;
-    setScreen((current) => hydrateSelectedScreen(current, props.model, selectedId, record));
+    const payload = recordQuery.data;
+    if (!payload) return;
+    if (payload.recordId !== selectedId) return;
+    setScreen((current) => hydrateSelectedScreen(current, props.model, selectedId, payload.values));
   }, [recordQuery.data, props.model, selectedId]);
 
   useEffect(() => {
@@ -1012,7 +1016,7 @@ export function ModelWorkspace(props: {
       if (e.key === "Escape" && mode === "write" && !typing) {
         if (!keyHandlersRef.current.confirmDiscard()) return;
         if (recordQuery.data) {
-          setScreen(createScreen(props.model, selectedId, recordQuery.data));
+          setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
         }
         setMode("read");
       }
@@ -1762,7 +1766,7 @@ export function ModelWorkspace(props: {
             onClick={() => {
               if (mode === "write" && !confirmDiscard()) return;
               if (mode === "write" && recordQuery.data) {
-                setScreen(createScreen(props.model, selectedId, recordQuery.data));
+                setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
               }
               setMode(mode === "read" ? "write" : "read");
             }}
