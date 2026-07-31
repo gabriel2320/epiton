@@ -6,11 +6,13 @@
 export {
   createRelationQueue,
   createScreen,
+  hydrateSelectedScreen,
   hydrateScreenFromRecord,
   idsFromRelationValue,
   relationQueueHasChanges,
   relationQueueWireValue,
   screenIsDirty,
+  screenForSelection,
   screenValuesForSave,
   setScreenRelationQueue,
   updateScreenValues,

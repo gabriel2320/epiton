@@ -63,7 +63,8 @@ import {
   type ScreenState,
   createRelationQueue,
   createScreen,
-  hydrateScreenFromRecord,
+  hydrateSelectedScreen,
+  screenForSelection,
   screenIsDirty,
   screenValuesForSave,
   setScreenRelationQueue,
@@ -217,7 +218,7 @@ export function ModelWorkspace(props: {
     const changed = id !== selectedId;
     if (!committed && changed && !confirmDiscard()) return;
     if (!committed && changed) {
-      setScreen(createScreen(props.model, id));
+      setScreen((current) => screenForSelection(current, props.model, id));
     }
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
@@ -787,10 +788,7 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     const record = recordQuery.data;
     if (!record) return;
-    const rawId = Number(record.id);
-    const recordId = Number.isFinite(rawId) ? rawId : selectedId;
-    if (recordId !== selectedId) return;
-    setScreen((current) => hydrateScreenFromRecord(current, props.model, recordId, record));
+    setScreen((current) => hydrateSelectedScreen(current, props.model, selectedId, record));
   }, [recordQuery.data, props.model, selectedId]);
 
   useEffect(() => {
@@ -903,8 +901,12 @@ export function ModelWorkspace(props: {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
+      const currentScreen = screenRef.current;
+      if (currentScreen.recordId !== selectedId) {
+        throw new Error("Selected record is still loading");
+      }
       const fieldMeta = formViewQuery.data?.fields ?? {};
-      const values = screenValuesForSave(screenRef.current, fieldMeta) as JsonObject;
+      const values = screenValuesForSave(currentScreen, fieldMeta) as JsonObject;
       if (selectedId) {
         await client.model(props.model, "write", [[selectedId], values], rpcContext);
         props.onHistory?.("write");

@@ -4,8 +4,10 @@ import {
   createRelationQueue,
   createScreen,
   hydrateScreenFromRecord,
+  hydrateSelectedScreen,
   idsFromRelationValue,
   relationQueueWireValue,
+  screenForSelection,
   screenIsDirty,
   screenValuesForSave,
   setScreenRelationQueue,
@@ -127,6 +129,35 @@ describe("screen", () => {
     expect(second.recordId).toBe(9);
     expect(second.relationQueues).toEqual({});
     expect(screenIsDirty(second)).toBe(false);
+  });
+
+  it("clears record A immediately when the host selects record B", () => {
+    const lines = createRelationQueue("one2many", [8]);
+    lines.commands = [{ op: "write", id: 8, values: { quantity: 4 } }];
+    const first = setScreenRelationQueue(
+      createScreen("sale.sale", 7, { name: "S-7", lines: [8] }),
+      "lines",
+      lines,
+    );
+
+    const waitingForSecond = screenForSelection(first, "sale.sale", 9);
+    expect(waitingForSecond).toEqual(createScreen("sale.sale", 9));
+    expect(screenIsDirty(waitingForSecond)).toBe(false);
+  });
+
+  it("ignores a late record A response while record B is selected", () => {
+    const waitingForSecond = createScreen("sale.sale", 9);
+    const stale = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
+      id: 7,
+      name: "S-7",
+    });
+    expect(stale).toBe(waitingForSecond);
+
+    const hydrated = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
+      id: 9,
+      name: "S-9",
+    });
+    expect(hydrated.values.name).toBe("S-9");
   });
 
   it("keeps unsaved queues across same-record refetches and resets for another record", () => {

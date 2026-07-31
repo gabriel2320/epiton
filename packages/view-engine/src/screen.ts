@@ -43,6 +43,16 @@ export function createScreen(
   };
 }
 
+/** Switch record identity immediately so values and relation queues cannot leak across records. */
+export function screenForSelection(
+  screen: ScreenState,
+  model: string,
+  recordId: number | null,
+): ScreenState {
+  if (screen.model === model && screen.recordId === recordId) return screen;
+  return createScreen(model, recordId);
+}
+
 /**
  * Accept a server snapshot unless it would overwrite unsaved edits for the
  * same record. A different record identity always starts a fresh Screen.
@@ -61,6 +71,19 @@ export function hydrateScreenFromRecord(
     hydrated.relationQueues[fieldName] = createRelationQueue(queue.kind, values[fieldName]);
   }
   return hydrated;
+}
+
+/** Hydrate only the record currently selected by the host; stale query results are ignored. */
+export function hydrateSelectedScreen(
+  screen: ScreenState,
+  model: string,
+  selectedId: number | null,
+  values: RecordValues,
+): ScreenState {
+  if (selectedId == null) return screen;
+  const rawId = Number(values.id);
+  if (Number.isFinite(rawId) && rawId !== selectedId) return screen;
+  return hydrateScreenFromRecord(screen, model, selectedId, values);
 }
 
 export function updateScreenValues(screen: ScreenState, values: RecordValues): ScreenState {

@@ -17,7 +17,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Attachments | `ir.attachment` | Improved | Multi-upload + rename/description + MIME preview |
 | Graph | graph arch | Improved | y operator sum/average/count + arch title |
 | Editable tree | `editable` arch / inline write | Improved | selection/date/m2o + optional= + sum/average footers |
-| O2M / M2M / M2O | field types in view engine | Improved | Screen-owned relation queue; tree+form; nested; M2M delta |
+| O2M / M2M / M2O | field types in view engine | Improved | Parent Screen queue saves without Apply; nested hosts remain local; M2M delta |
 | Revision history | `model.__history__` | Improved | Diff vs draft + resolve write_uid; strip create_* on restore |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |
@@ -42,7 +42,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |
 | Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
-| Screen host | act_window lifecycle + relation queue | Improved | `@epiton/view-engine` ScreenState; parent save via `screenValuesForSave` |
+| Screen host | act_window lifecycle + relation queue | Improved | `ScreenState`; A→B isolation; stale-read guard; parent save via `screenValuesForSave` |
 | Screen search | user domain / ilike | Improved | Field-aware ilike over tree char columns |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |

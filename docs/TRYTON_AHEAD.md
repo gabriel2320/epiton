@@ -20,11 +20,12 @@ Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
-3. Nested O2M/M2M use Screen-owned parent queue (not a full Sao Screen class; still Medium polish vs live nested Screens)
+3. **Full nested Screen lifecycle:** Epitón's parent queue saves O2M/M2M without
+   Apply, but nested hosts still lack Sao's complete validation/navigation bubbling
 
 Recently improved (2026-07-31 cont. 8): saved-filter dialogs, email CC/BCC,
-binary MIME/filename, tree sum/average footers;
-plus attachments depth, graph operators, ↑/↓ nav.
+binary MIME/filename, tree sum/average footers, and a parent-owned Screen queue
+with record-isolation guards; plus attachments depth, graph operators, ↑/↓ nav.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
