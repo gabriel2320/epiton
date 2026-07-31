@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseFieldsViewGet } from "./parse";
-import { flattenTreeRows, treeMeta } from "./tree_hierarchy";
+import { flattenTreeRows, mergeTreeRows, treeMeta } from "./tree_hierarchy";
 
 describe("tree_hierarchy", () => {
   it("detects parent field and field_childs", () => {
@@ -46,5 +46,30 @@ describe("tree_hierarchy", () => {
       [1, 0],
       [2, 1],
     ]);
+  });
+
+  it("marks hasChildren from field_childs hint before lazy load", () => {
+    const rows = [{ id: 1, name: "Root", parent: null, childs: [2, 3] }];
+    const meta = {
+      parentField: "parent",
+      childField: "childs",
+      sequenceField: null,
+      keywordOpen: false,
+      hierarchical: true,
+    };
+    const flat = flattenTreeRows(rows, meta, new Set());
+    expect(flat[0]?.hasChildren).toBe(true);
+  });
+
+  it("merges lazy child rows by id", () => {
+    const merged = mergeTreeRows(
+      [{ id: 1, name: "A" }],
+      [
+        { id: 2, name: "B" },
+        { id: 1, name: "A2" },
+      ],
+    );
+    expect(merged).toHaveLength(2);
+    expect(merged.find((r) => r.id === 1)?.name).toBe("A2");
   });
 });

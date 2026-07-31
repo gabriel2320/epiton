@@ -79,6 +79,7 @@ export {
 } from "./search";
 export {
   flattenTreeRows,
+  mergeTreeRows,
   treeMeta,
   type FlatTreeRow,
   type TreeMeta,

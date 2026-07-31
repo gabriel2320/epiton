@@ -18,6 +18,11 @@ export type FlatTreeRow = {
   hasChildren: boolean;
 };
 
+export type FlattenOptions = {
+  /** Parents known to have no children (after lazy fetch). */
+  emptyParents?: ReadonlySet<number>;
+};
+
 function findTreeNode(arch: ViewNode): ViewNode {
   if (arch.tag === "tree") return arch;
   for (const child of arch.children) {
@@ -78,6 +83,7 @@ export function flattenTreeRows(
   rows: Array<Record<string, unknown>>,
   meta: TreeMeta,
   expanded: ReadonlySet<number>,
+  options: FlattenOptions = {},
 ): FlatTreeRow[] {
   if (!meta.parentField || !rows.length) {
     return rows.map((row) => ({ row, depth: 0, hasChildren: false }));
@@ -117,12 +123,20 @@ export function flattenTreeRows(
     });
   };
 
+  const emptyParents = options.emptyParents ?? new Set<number>();
   const out: FlatTreeRow[] = [];
   const walk = (id: number, depth: number) => {
     const row = byId.get(id);
     if (!row) return;
     const kids = sortIds(children.get(id) ?? []);
-    out.push({ row, depth, hasChildren: kids.length > 0 });
+    const childFieldHint = meta.childField ? row[meta.childField] : null;
+    const hinted =
+      Array.isArray(childFieldHint) &&
+      childFieldHint.map(Number).filter((n) => Number.isFinite(n)).length > 0;
+    // Without field_childs, allow expand until a lazy fetch proves empty.
+    const speculative = !meta.childField && !emptyParents.has(id);
+    const hasChildren = kids.length > 0 || hinted || speculative;
+    out.push({ row, depth, hasChildren });
     if (kids.length && expanded.has(id)) {
       for (const kid of kids) walk(kid, depth + 1);
     }
@@ -130,4 +144,18 @@ export function flattenTreeRows(
 
   for (const id of sortIds(roots)) walk(id, 0);
   return out;
+}
+
+/** Merge base list rows with lazily fetched children (dedupe by id). */
+export function mergeTreeRows(
+  base: Array<Record<string, unknown>>,
+  extras: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const byId = new Map<number, Record<string, unknown>>();
+  for (const row of [...base, ...extras]) {
+    const id = rowId(row);
+    if (id == null) continue;
+    byId.set(id, row);
+  }
+  return [...byId.values()];
 }

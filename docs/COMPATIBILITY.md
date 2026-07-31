@@ -19,7 +19,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Notebook | form notebook pages | Improved | Exclusive tabs (not multi-open details) |
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
 | Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + `validate` required fields |
-| Reports | `report.*.execute` | Implemented | Download/preview + formats; visual analytics companion over same ids |
+| Reports | `report.*.execute` | Improved | pdf/odt/csv/xls/html + pdfjs page/zoom; analytics companion |
 | Attachments | `ir.attachment` | Improved | List + upload + download + delete + drag-and-drop |
 | O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
@@ -33,8 +33,9 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
-| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand/collapse flatten in virtual tree |
+| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy child fetch + soft tree_state |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
+| Email compose | mailto from record | Improved | Compose dialog → mail client |
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
 | Revision history | `model.__history__` | Improved | Read-only History panel when server exposes it |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |

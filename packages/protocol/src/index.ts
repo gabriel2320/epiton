@@ -51,6 +51,7 @@ export {
   type ViewSearchRow,
 } from "./view_search";
 export { loadTranslationCatalog, type TranslationRow } from "./translations";
+export { loadTreeState, saveTreeState } from "./tree_state";
 
 export type JsonRpcId = string | number | null;
 

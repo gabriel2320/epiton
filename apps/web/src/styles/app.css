@@ -705,6 +705,37 @@
   overflow: auto;
 }
 
+.epiton-pdf-preview {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.epiton-pdf-canvas-wrap {
+  overflow: auto;
+  max-height: 32rem;
+  border: 1px solid var(--epiton-border);
+  border-radius: 0.75rem;
+  background: var(--epiton-bg-elevated);
+  padding: 0.5rem;
+}
+
+.epiton-email-compose {
+  max-width: min(28rem, 92vw);
+}
+
+.epiton-email-field {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  font: inherit;
+}
+
+.epiton-email-field textarea {
+  resize: vertical;
+  min-height: 6rem;
+}
+
 .epiton-drawer-trigger,
 .epiton-drawer-close {
   appearance: none;

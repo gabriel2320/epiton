@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { GraphView } from "./GraphView";
+import { PdfPreview } from "./PdfPreview";
 
 /** Download / preview Tryton report payloads + optional visual analytics over the same ids. */
 export function ReportDownload(props: {
@@ -22,9 +23,10 @@ export function ReportDownload(props: {
   const [reportName, setReportName] = useState(props.initialReport ?? "party.label");
   const [idsText, setIdsText] = useState(props.initialIds ?? "1");
   const [modelName, setModelName] = useState(props.initialModel ?? "party.party");
-  const [format, setFormat] = useState<"pdf" | "odt" | "csv">("pdf");
+  const [format, setFormat] = useState<"pdf" | "odt" | "csv" | "xls" | "html">("pdf");
   const [message, setMessage] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMime, setPreviewMime] = useState("application/pdf");
   const [analyticsRows, setAnalyticsRows] = useState<Array<Record<string, unknown>> | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
@@ -81,8 +83,8 @@ export function ReportDownload(props: {
           if (preview) {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setPreviewUrl(url);
+            setPreviewMime(blob.type || "application/pdf");
             setMessage(`Preview ${bytes.length} bytes (${format})`);
-            void import("pdfjs-dist");
             return;
           }
           const a = document.createElement("a");
@@ -142,12 +144,14 @@ export function ReportDownload(props: {
         />
         <select
           value={format}
-          onChange={(e) => setFormat(e.target.value as "pdf" | "odt" | "csv")}
+          onChange={(e) => setFormat(e.target.value as "pdf" | "odt" | "csv" | "xls" | "html")}
           aria-label="Report format"
         >
           <option value="pdf">pdf</option>
           <option value="odt">odt</option>
           <option value="csv">csv</option>
+          <option value="xls">xls</option>
+          <option value="html">html</option>
         </select>
         <Button onClick={() => void run(false)}>Download</Button>
         <Button onClick={() => void run(true)}>Preview</Button>
@@ -158,12 +162,16 @@ export function ReportDownload(props: {
         </Alert>
       ) : null}
       {previewUrl ? (
-        <iframe
-          title="Report preview"
-          src={previewUrl}
-          className="epiton-report-preview"
-          style={{ width: "100%", minHeight: "420px", border: "1px solid var(--epiton-border)" }}
-        />
+        previewMime.includes("pdf") || format === "pdf" ? (
+          <PdfPreview url={previewUrl} title="Report preview" />
+        ) : (
+          <iframe
+            title="Report preview"
+            src={previewUrl}
+            className="epiton-report-preview"
+            style={{ width: "100%", minHeight: "420px", border: "1px solid var(--epiton-border)" }}
+          />
+        )
       ) : null}
 
       <section className="epiton-report-analytics" aria-label="Visual analytics companion">

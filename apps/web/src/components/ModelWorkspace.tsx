@@ -9,8 +9,10 @@ import {
   deleteViewSearch,
   exportModelCsv,
   importModelCsv,
+  loadTreeState,
   loadViewSearches,
   modelHasAccessRows,
+  saveTreeState,
   viewIdForMode,
 } from "@epiton/protocol";
 import {
@@ -37,6 +39,7 @@ import {
   formatOrder,
   inferGraphFields,
   mergeDomains,
+  mergeTreeRows,
   parseFieldsViewGet,
   parseGraphArch,
   renderView,
@@ -53,6 +56,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { CsvImportDialog, applyCsvColumnMapping } from "./CsvImportDialog";
+import { EmailComposeDialog } from "./EmailComposeDialog";
 import { GraphView } from "./GraphView";
 import { ListFormView } from "./ListFormView";
 import { RecordActionsMenu } from "./RecordActionsMenu";
@@ -126,8 +130,12 @@ export function ModelWorkspace(props: {
   const [csvImportText, setCsvImportText] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedTreeIds, setExpandedTreeIds] = useState<Set<number>>(() => new Set());
+  const [lazyTreeRows, setLazyTreeRows] = useState<Array<Record<string, unknown>>>([]);
+  const [emptyTreeParents, setEmptyTreeParents] = useState<Set<number>>(() => new Set());
+  const [emailOpen, setEmailOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const actionCtxOverlay = useMemo(
     () => evalContext(props.actionContext ?? {}, sessionContext),
@@ -351,9 +359,10 @@ export function ModelWorkspace(props: {
         "create_date",
         ...(hierarchy?.parentField ? [hierarchy.parentField] : []),
         ...(hierarchy?.sequenceField ? [hierarchy.sequenceField] : []),
+        ...(hierarchy?.childField ? [hierarchy.childField] : []),
       ]),
     ];
-    return merged.slice(0, 20);
+    return merged.slice(0, 22);
   }, [treeViewQuery.data, props.model]);
 
   const hierarchyMeta = useMemo(
@@ -387,6 +396,8 @@ export function ModelWorkspace(props: {
     setDomainTab(-1);
     setOffset(0);
     setExpandedTreeIds(new Set());
+    setLazyTreeRows([]);
+    setEmptyTreeParents(new Set());
   }, [props.model, props.actionDomains]);
 
   const listQuery = useQuery({
@@ -421,7 +432,10 @@ export function ModelWorkspace(props: {
   });
 
   const flatTree = useMemo(() => {
-    const rows = (listQuery.data ?? []) as Array<Record<string, unknown>>;
+    const rows = mergeTreeRows(
+      (listQuery.data ?? []) as Array<Record<string, unknown>>,
+      lazyTreeRows,
+    );
     if (!hierarchyMeta?.hierarchical) {
       return rows.map((row) => ({
         row,
@@ -430,11 +444,72 @@ export function ModelWorkspace(props: {
         expanded: false,
       }));
     }
-    return flattenTreeRows(rows, hierarchyMeta, expandedTreeIds).map((item) => ({
+    return flattenTreeRows(rows, hierarchyMeta, expandedTreeIds, {
+      emptyParents: emptyTreeParents,
+    }).map((item) => ({
       ...item,
       expanded: expandedTreeIds.has(Number(item.row.id)),
     }));
-  }, [listQuery.data, hierarchyMeta, expandedTreeIds]);
+  }, [listQuery.data, lazyTreeRows, hierarchyMeta, expandedTreeIds, emptyTreeParents]);
+
+  useEffect(() => {
+    if (!client || !session || !hierarchyMeta?.hierarchical) return;
+    let cancelled = false;
+    void loadTreeState(client, props.model, session.userId, rpcContext).then((nodes) => {
+      if (cancelled || !nodes.length) return;
+      setExpandedTreeIds(new Set(nodes));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, session, hierarchyMeta?.hierarchical, props.model, rpcContext]);
+
+  useEffect(() => {
+    if (!client || !session || !hierarchyMeta?.hierarchical) return;
+    if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
+    treeStateTimer.current = setTimeout(() => {
+      void saveTreeState(client, props.model, session.userId, [...expandedTreeIds], rpcContext);
+    }, 600);
+    return () => {
+      if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
+    };
+  }, [client, session, hierarchyMeta?.hierarchical, props.model, expandedTreeIds, rpcContext]);
+
+  async function fetchTreeChildren(parentId: number) {
+    if (!client || !hierarchyMeta?.parentField) return;
+    const already = mergeTreeRows(
+      (listQuery.data ?? []) as Array<Record<string, unknown>>,
+      lazyTreeRows,
+    ).some((row) => {
+      const raw = row[hierarchyMeta.parentField as string];
+      const pid =
+        typeof raw === "number"
+          ? raw
+          : Array.isArray(raw) && typeof raw[0] === "number"
+            ? raw[0]
+            : null;
+      return pid === parentId;
+    });
+    if (already) return;
+    try {
+      const kids = (await client.searchRead(
+        props.model,
+        [[hierarchyMeta.parentField, "=", parentId]],
+        listFields,
+        0,
+        200,
+        hierarchyMeta.sequenceField ? `${hierarchyMeta.sequenceField} ASC` : null,
+        rpcContext,
+      )) as Array<Record<string, unknown>>;
+      if (!kids.length) {
+        setEmptyTreeParents((prev) => new Set(prev).add(parentId));
+        return;
+      }
+      setLazyTreeRows((prev) => mergeTreeRows(prev, kids));
+    } catch {
+      /* soft-fail lazy expand */
+    }
+  }
 
   const countQuery = useQuery({
     queryKey: ["model", props.model, "count", JSON.stringify(listDomain)],
@@ -853,6 +928,13 @@ export function ModelWorkspace(props: {
         onCancel={() => setCsvImportText(null)}
         onConfirm={(mapping) => void confirmCsvImport(mapping)}
       />
+      <EmailComposeDialog
+        open={emailOpen}
+        model={props.model}
+        recordId={selectedId}
+        values={draft}
+        onCancel={() => setEmailOpen(false)}
+      />
       <Panel title={props.model}>
         {domainTabs.length ? (
           <Tabs aria-label="Action domains" className="epiton-domain-tabs">
@@ -1128,7 +1210,10 @@ export function ModelWorkspace(props: {
                 setExpandedTreeIds((prev) => {
                   const next = new Set(prev);
                   if (next.has(id)) next.delete(id);
-                  else next.add(id);
+                  else {
+                    next.add(id);
+                    void fetchTreeChildren(id);
+                  }
                   return next;
                 });
               }}
@@ -1181,6 +1266,9 @@ export function ModelWorkspace(props: {
           </Button>
           <Button disabled={!selectedId} onClick={() => setShowHistory((v) => !v)}>
             History
+          </Button>
+          <Button disabled={!selectedId} onClick={() => setEmailOpen(true)}>
+            Email
           </Button>
         </div>
         <MetaStrip values={draft} />
