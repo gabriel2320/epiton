@@ -1,11 +1,4 @@
-/**
- * Desktop shell uses the web UI via Tauri webview.
- * Session tokens should be persisted with the OS store plugin, not localStorage.
- * The web bundle drives persistence via `apps/web/src/lib/secureSessionBridge.ts`.
- */
-import { Store } from "@tauri-apps/plugin-store";
-
-const STORE_FILE = "epiton-session.json";
+/** Desktop beta keeps Tryton tokens in memory; persistence is intentionally disabled. */
 
 export async function saveSessionSecure(session: {
   login: string;
@@ -14,9 +7,7 @@ export async function saveSessionSecure(session: {
   baseUrl?: string;
   database?: string;
 }): Promise<void> {
-  const store = await Store.load(STORE_FILE);
-  await store.set("session", session);
-  await store.save();
+  void session;
 }
 
 export async function loadSessionSecure(): Promise<{
@@ -26,19 +17,9 @@ export async function loadSessionSecure(): Promise<{
   baseUrl?: string;
   database?: string;
 } | null> {
-  const store = await Store.load(STORE_FILE);
-  const value = await store.get<{
-    login: string;
-    userId: number;
-    session: string;
-    baseUrl?: string;
-    database?: string;
-  }>("session");
-  return value ?? null;
+  return null;
 }
 
 export async function clearSessionSecure(): Promise<void> {
-  const store = await Store.load(STORE_FILE);
-  await store.delete("session");
-  await store.save();
+  // No persistent slot is created by hardened builds.
 }

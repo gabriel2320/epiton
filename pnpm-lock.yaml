@@ -26,6 +26,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@epiton/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@epiton/web':
         specifier: workspace:*
         version: link:../web

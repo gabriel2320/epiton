@@ -11,9 +11,10 @@ pnpm --filter @epiton/mobile open:android   # requires Android Studio
 
 - Adaptive layouts from `@epiton/intelligence` switch to cards under 720px
 - `data-shell="capacitor"` + safe-area CSS insets
-- Session JSON in Capacitor Preferences via web
-  [`secureSessionBridge.ts`](../web/src/lib/secureSessionBridge.ts) (not PHI;
-  synthetic lab only)
+- Session tokens are memory-only; restart requires authentication
+- The web bridge clears legacy Capacitor preference slots and refuses new
+  persistence until an audited native secret-store provider exists
 
-Never put Tryton session tokens in `localStorage`. Full GTK-class native
-widgets remain out of scope.
+Never put Tryton session tokens in `localStorage`, `sessionStorage`, plain
+Capacitor Preferences, or Tauri plugin-store. Full GTK-class native widgets
+remain out of scope.

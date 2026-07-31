@@ -1,17 +1,13 @@
-import { Preferences } from "@capacitor/preferences";
-
-/** Mobile secure session slot (JSON payload; prefer biometric store later). */
-const KEY = "epiton.session.v1";
+/** Mobile beta keeps Tryton tokens in memory; persistence is intentionally disabled. */
 
 export async function saveMobileSession(payload: string): Promise<void> {
-  await Preferences.set({ key: KEY, value: payload });
+  void payload;
 }
 
 export async function loadMobileSession(): Promise<string | null> {
-  const { value } = await Preferences.get({ key: KEY });
-  return value;
+  return null;
 }
 
 export async function clearMobileSession(): Promise<void> {
-  await Preferences.remove({ key: KEY });
+  // No persistent slot is created by hardened builds.
 }
