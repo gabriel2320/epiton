@@ -82,6 +82,10 @@ export function VirtualPartyTable(props: {
   /** Hierarchy metadata aligned 1:1 with `rows` (after flatten). */
   rowMeta?: Array<{ depth: number; hasChildren: boolean; expanded?: boolean }>;
   onToggleExpand?: (id: number) => void;
+  /** Drag sibling onto sibling → reorder callback (Sao sequence). */
+  onReorder?: (draggedId: number, targetId: number) => void;
+  /** Double-click opens record (keyword_open). */
+  onOpen?: (id: number) => void;
   /** When set, sorting is server-driven (no client re-sort). */
   onSortChange?: (sorts: Array<{ id: string; desc: boolean }>) => void;
   onSelect: (id: number) => void;
@@ -89,9 +93,11 @@ export function VirtualPartyTable(props: {
   onCellCommit?: (id: number, field: string, value: unknown) => void;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [dragId, setDragId] = useState<number | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const serverSort = Boolean(props.onSortChange);
   const hierarchical = Boolean(props.rowMeta?.length);
+  const reorderable = Boolean(props.onReorder);
 
   function handleSortingChange(updater: Updater<SortingState>) {
     setSorting((prev) => {
@@ -103,6 +109,33 @@ export function VirtualPartyTable(props: {
 
   const columnDefs = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
     const cols: ColumnDef<Record<string, unknown>>[] = [];
+    if (reorderable) {
+      cols.push({
+        id: "_drag",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const id = Number(row.original.id);
+          return (
+            <span
+              className="epiton-tree-drag"
+              draggable
+              title="Drag to reorder siblings"
+              aria-label={`Reorder ${id}`}
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(e) => {
+                setDragId(id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", String(id));
+              }}
+              onDragEnd={() => setDragId(null)}
+            >
+              ⋮⋮
+            </span>
+          );
+        },
+      });
+    }
     if (hierarchical) {
       cols.push({
         id: "_tree",
@@ -185,6 +218,7 @@ export function VirtualPartyTable(props: {
     props.rowMeta,
     props.onToggleExpand,
     hierarchical,
+    reorderable,
   ]);
 
   const table = useReactTable({
@@ -213,6 +247,11 @@ export function VirtualPartyTable(props: {
       {props.editable ? (
         <p className="epiton-tree-editable-hint" role="note">
           Editable tree — change a cell and blur/Enter to write on trytond
+        </p>
+      ) : null}
+      {reorderable ? (
+        <p className="epiton-tree-editable-hint" role="note">
+          Drag ⋮⋮ to reorder siblings (writes sequence)
         </p>
       ) : null}
       <table className="epiton-table w-full">
@@ -250,6 +289,7 @@ export function VirtualPartyTable(props: {
                   id === props.selectedId
                     ? "bg-[color-mix(in_oklab,var(--epiton-accent)_16%,transparent)]"
                     : "",
+                  dragId === id ? "epiton-tree-row-dragging" : "",
                 )}
                 style={{
                   position: "absolute",
@@ -260,6 +300,19 @@ export function VirtualPartyTable(props: {
                   tableLayout: "fixed",
                 }}
                 onClick={() => props.onSelect(id)}
+                onDoubleClick={() => props.onOpen?.(id)}
+                onDragOver={(e) => {
+                  if (!reorderable) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(e) => {
+                  if (!reorderable) return;
+                  e.preventDefault();
+                  const from = Number(e.dataTransfer.getData("text/plain") || dragId);
+                  setDragId(null);
+                  if (Number.isFinite(from) && from !== id) props.onReorder?.(from, id);
+                }}
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>

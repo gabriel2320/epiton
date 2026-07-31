@@ -342,6 +342,16 @@ export function BoardPane(props: {
                 yKeys={screenQuery.data.yFields.length > 1 ? screenQuery.data.yFields : undefined}
                 height={200}
                 insight={screenQuery.data.insight}
+                onSelectPoint={(label) => {
+                  const hit = (screenQuery.data?.rows ?? []).find((row) => {
+                    const name = String(row.rec_name ?? row.name ?? row.code ?? row.id ?? "");
+                    return name === label || String(row.id) === label;
+                  });
+                  if (!hit || !model) return;
+                  const id = Number(hit.id);
+                  if (!Number.isFinite(id)) return;
+                  selectRow(id, hit);
+                }}
               />
             ) : (
               <p className="epiton-board-pane-empty" role="status">

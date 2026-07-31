@@ -18,6 +18,7 @@ import { MenuTree } from "../components/MenuTree";
 import { PreferencesPanel } from "../components/PreferencesPanel";
 import { ToolDrawer } from "../components/ToolDrawer";
 import { readDeepLink, writeDeepLink } from "../lib/deeplink";
+import { applyShellDataset, setShellTitle } from "../lib/nativeShell";
 import { useAppStore } from "../lib/store";
 
 const ModelWorkspace = lazy(() =>
@@ -75,7 +76,12 @@ export function Shell() {
   const setSession = useAppStore((s) => s.setSession);
   const setClient = useAppStore((s) => s.setClient);
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
+  const connection = useAppStore((s) => s.connection);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    applyShellDataset();
+  }, []);
 
   const deep = readDeepLink();
   const [tabState, setTabState] = useState(() => {
@@ -108,6 +114,10 @@ export function Shell() {
   const selectedId = stack[stack.length - 1]?.id ?? null;
   const topFrame = stack[stack.length - 1];
   const boardMode = isBoardViews(topFrame?.views);
+
+  useEffect(() => {
+    setShellTitle([activeTab?.title ?? active, session?.login, connection.database, "Epiton"]);
+  }, [activeTab?.title, active, session?.login, connection.database]);
 
   const [activeWizard, setActiveWizard] = useState<string | null>(null);
   const [wizardActionId, setWizardActionId] = useState<number | null>(null);

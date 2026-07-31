@@ -18,14 +18,14 @@ Shared truth ──► trytond JSON-RPC
 
 Tryton is still clearly ahead on:
 
-1. **Native desktop/mobile depth** (GTK / device shells)
-2. Full Tryton SMTP email wizards (client uses mailto compose)
-3. Tree DnD sequence writes / richer `tree_state` domains
+1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
+2. Full Tryton SMTP email wizards (client uses mailto + keyword actions)
+3. Richer `tree_state` domain keys beyond model/user
 
-Recently improved (2026-07-31): lazy tree children + tree_state, pdfjs page/zoom,
-email mailto compose, hierarchical expand, menu favorites, board `_actions`/multi-y,
-form-in-pane, view_search, i18n, CSV map, attachment DnD, history, editable tree,
-notebook, wizard, bus.
+Recently improved (2026-07-31): sequence DnD, notebook page memory, graph→filter,
+shell title/safe-area, lazy tree + tree_state, pdfjs, email mailto, hierarchy,
+favorites, `_actions`, form-in-pane, view_search, i18n, CSV map, attachments,
+history, editable tree, notebook, wizard, bus.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -34,20 +34,15 @@ notebook, wizard, bus.
 | **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | **Improved:** tree/graph/form + multi-y graphs | Small | `BoardPane.tsx`, `RecordFormPane.tsx` |
 | **`_actions` cross-filter** | Click graph/list selection filters sibling panes | **Improved:** `_actions` dict + `active_id`; relation heuristics as fallback | Small | `BoardWorkspace` / `BoardPane` |
 | **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** arch + Inline edit toggle; cell → `write` | Small–Medium | `VirtualPartyTable.tsx`, `treeEditable` |
-| **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy child fetch + soft `view_tree_state` | Small | `tree_hierarchy.ts`, `tree_state.ts` |
-
-## P1 — Daily UX & deployment parity
-
-| Area | What Sao/GTK does | What Epitón does today | Gap | Evidence |
-|------|-------------------|-------------------------|-----|----------|
-| **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tab host | Small | `render.tsx` `NotebookHost` |
+| **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy fetch + tree_state + sequence DnD | Small | `tree_hierarchy.ts`, VirtualPartyTable |
+| **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + sessionStorage page memory | Small | `render.tsx` `NotebookHost` |
 | **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
 | **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** `ir.ui.menu.favorite` + star toggle; preset fallback | Small | `Shell.tsx`, `MenuTree.tsx` |
 | **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** login/prefs → `loadTranslationCatalog` + `setCatalog` | Small–Medium | `translations.ts`, `applyClientLanguage` |
 | **Reports** | Broader formats + print pipeline | **Improved:** pdf/odt/csv/xls/html; pdfjs page/zoom preview | Small–Medium | `ReportDownload.tsx`, `PdfPreview.tsx` |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state `execute` before delete; `validate` required fields | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
-| **Mobile / desktop shells** | GTK native; mature Sao desktop habits | Thin Tauri/Capacitor wrappers around web | Large | audit A-05 |
+| **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** title sync + safe-area `data-shell`; still thin hosts | Medium | `nativeShell.ts`, desktop/mobile README |
 
 ## P2 — Polish / niche
 
@@ -75,11 +70,11 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 ## Recommended close order
 
-1. ~~Board embed / `_actions` / multi-y / form-in-pane~~
-2. ~~Editable tree / notebook / wizard / bus / view_search / i18n / CSV / DnD / history~~
-3. ~~Hierarchical tree~~; ~~server favorites~~; ~~lazy children / tree_state~~; ~~pdfjs~~; ~~email mailto~~
-4. Tree sequence DnD; full SMTP email wizards if needed
-5. Thinner desktop/mobile shells
+1. ~~Board embed / `_actions` / multi-y / form-in-pane / graph click filter~~
+2. ~~Editable tree / notebook memory / wizard / bus / view_search / i18n / CSV / DnD / history~~
+3. ~~Hierarchical tree / lazy / tree_state / sequence DnD / favorites / pdfjs / email mailto~~
+4. ~~Shell title + safe-area markers~~
+5. Wire desktop/mobile secure session hydrate into web login; SMTP wizards if needed
 
 ## How to re-check
 

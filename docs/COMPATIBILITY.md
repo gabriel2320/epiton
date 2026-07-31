@@ -16,7 +16,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Calendar | calendar arch + date fields | Implemented | FullCalendar over `search_read` |
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
 | Editable tree | `editable` arch / inline write | Improved | Cell editors → `model.write`; toolbar Inline edit toggle |
-| Notebook | form notebook pages | Improved | Exclusive tabs (not multi-open details) |
+| Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
 | Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + `validate` required fields |
 | Reports | `report.*.execute` | Improved | pdf/odt/csv/xls/html + pdfjs page/zoom; analytics companion |
@@ -33,7 +33,8 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
-| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy child fetch + soft tree_state |
+| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy fetch + soft tree_state + sequence DnD |
+| Shell hosts | Tauri / Capacitor | Improved | Title sync + safe-area; thin native wrappers |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Email compose | mailto from record | Improved | Compose dialog → mail client |
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |

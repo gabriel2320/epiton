@@ -45,6 +45,8 @@ import {
   renderView,
   rowsToCalendarEvents,
   rowsToMultiSeries,
+  sequenceWrites,
+  siblingReorderIds,
   summarizeSeries,
   toTrytonM2M,
   treeColumns,
@@ -474,6 +476,32 @@ export function ModelWorkspace(props: {
       if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
     };
   }, [client, session, hierarchyMeta?.hierarchical, props.model, expandedTreeIds, rpcContext]);
+
+  async function reorderTreeRows(draggedId: number, targetId: number) {
+    if (!client || !hierarchyMeta?.parentField || !hierarchyMeta.sequenceField) return;
+    const all = mergeTreeRows(
+      (listQuery.data ?? []) as Array<Record<string, unknown>>,
+      lazyTreeRows,
+    );
+    const ordered = siblingReorderIds(all, hierarchyMeta.parentField, draggedId, targetId);
+    if (!ordered?.length) {
+      setNotice("Reorder only works among siblings");
+      return;
+    }
+    const field = hierarchyMeta.sequenceField;
+    setNotice("Reordering…");
+    try {
+      for (const { id, sequence } of sequenceWrites(ordered)) {
+        await client.model(props.model, "write", [[id], { [field]: sequence }], rpcContext);
+      }
+      setNotice(`Reordered ${ordered.length} sibling(s)`);
+      props.onHistory?.("tree:reorder");
+      setLazyTreeRows([]);
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Reorder failed");
+    }
+  }
 
   async function fetchTreeChildren(parentId: number) {
     if (!client || !hierarchyMeta?.parentField) return;
@@ -1216,6 +1244,16 @@ export function ModelWorkspace(props: {
                   }
                   return next;
                 });
+              }}
+              onReorder={
+                hierarchyMeta?.sequenceField
+                  ? (from, to) => void reorderTreeRows(from, to)
+                  : undefined
+              }
+              onOpen={(id) => {
+                selectId(id);
+                setMode("read");
+                props.onHistory?.("open");
               }}
               onSortChange={(next) => {
                 setOffset(0);

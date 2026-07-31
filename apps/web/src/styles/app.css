@@ -630,10 +630,22 @@
   padding: 0;
 }
 
-.epiton-tree-indent {
+.epiton-tree-drag {
   display: inline-flex;
-  align-items: center;
-  min-width: 1.5rem;
+  cursor: grab;
+  color: var(--epiton-muted);
+  user-select: none;
+  padding: 0 0.2rem;
+}
+
+.epiton-tree-row-dragging {
+  opacity: 0.55;
+}
+
+html[data-shell="capacitor"],
+html[data-shell="tauri"] {
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0)
+    env(safe-area-inset-left, 0);
 }
 
 .epiton-upload {

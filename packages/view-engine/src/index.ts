@@ -80,6 +80,8 @@ export {
 export {
   flattenTreeRows,
   mergeTreeRows,
+  sequenceWrites,
+  siblingReorderIds,
   treeMeta,
   type FlatTreeRow,
   type TreeMeta,

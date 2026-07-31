@@ -24,10 +24,32 @@ export interface RenderContext {
 function NotebookHost(props: {
   pages: Array<{ key: string; title: string; content: ReactNode }>;
   density: string;
+  storageKey?: string;
 }) {
-  const [active, setActive] = useState(0);
+  const storageKey = props.storageKey ? `epiton.notebook.${props.storageKey}` : null;
+  const [active, setActive] = useState(() => {
+    if (!storageKey) return 0;
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      const n = raw == null ? 0 : Number(raw);
+      return Number.isFinite(n) ? n : 0;
+    } catch {
+      return 0;
+    }
+  });
   const safe = Math.min(active, Math.max(0, props.pages.length - 1));
   const current = props.pages[safe];
+
+  function selectPage(i: number) {
+    setActive(i);
+    if (!storageKey) return;
+    try {
+      sessionStorage.setItem(storageKey, String(i));
+    } catch {
+      /* ignore quota */
+    }
+  }
+
   return createElement(
     "div",
     { className: `epiton-notebook density-${props.density}` },
@@ -44,7 +66,7 @@ function NotebookHost(props: {
             "aria-selected": i === safe,
             className: "epiton-notebook-tab",
             "data-active": i === safe,
-            onClick: () => setActive(i),
+            onClick: () => selectPage(i),
           },
           page.title,
         ),
@@ -389,7 +411,11 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
         ),
       });
     });
-    return createElement(NotebookHost, { pages, density: ctx.density });
+    return createElement(NotebookHost, {
+      pages,
+      density: ctx.density,
+      storageKey: ctx.model ? `${ctx.model}:${pages.map((p) => p.key).join("|")}` : undefined,
+    });
   }
 
   if (node.tag === "form" || node.tag === "sheet" || node.tag === "group" || node.tag === "page") {

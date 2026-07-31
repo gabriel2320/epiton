@@ -27,12 +27,21 @@ export function GraphView(props: {
   yLabel?: string;
   height?: number;
   insight?: SeriesInsight | null;
+  /** Sao board: click a category to cross-filter. */
+  onSelectPoint?: (label: string) => void;
 }) {
   const chartType = props.chartType ?? "vbar";
   const series = props.multi?.length ? props.multi : props.data.map((d) => ({ x: d.x, y: d.y }));
   const yKeys = props.yKeys?.length ? props.yKeys : ["y"];
   const truncated = series.length >= GRAPH_ROW_LIMIT;
   const height = props.height ?? 320;
+
+  function pickLabel(payload: unknown): void {
+    if (!props.onSelectPoint) return;
+    const row = payload as { x?: string; name?: string; payload?: { x?: string } };
+    const label = String(row.payload?.x ?? row.x ?? row.name ?? "");
+    if (label) props.onSelectPoint(label);
+  }
 
   return (
     <div className="epiton-graph" role="img" aria-label="Graph view">
@@ -69,6 +78,10 @@ export function GraphView(props: {
               cy="50%"
               outerRadius={Math.min(110, height / 2 - 20)}
               label
+              onClick={(_, index) => {
+                const row = series[index] as { x?: string } | undefined;
+                if (row?.x) props.onSelectPoint?.(String(row.x));
+              }}
             >
               {series.map((row, i) => (
                 <Cell key={`cell-${String(row.x)}-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -94,6 +107,9 @@ export function GraphView(props: {
                 stroke={PIE_COLORS[i % PIE_COLORS.length]}
                 name={key === "y" ? (props.yLabel ?? "value") : key}
                 dot={false}
+                activeDot={{
+                  onClick: (_: unknown, payload: unknown) => pickLabel(payload),
+                }}
               />
             ))}
           </LineChart>
@@ -121,6 +137,7 @@ export function GraphView(props: {
                 dataKey={key}
                 fill={PIE_COLORS[i % PIE_COLORS.length]}
                 name={key === "y" ? (props.yLabel ?? "value") : key}
+                onClick={(data) => pickLabel(data)}
               />
             ))}
           </BarChart>

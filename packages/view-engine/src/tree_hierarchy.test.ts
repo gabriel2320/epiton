@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseFieldsViewGet } from "./parse";
-import { flattenTreeRows, mergeTreeRows, treeMeta } from "./tree_hierarchy";
+import {
+  flattenTreeRows,
+  mergeTreeRows,
+  sequenceWrites,
+  siblingReorderIds,
+  treeMeta,
+} from "./tree_hierarchy";
 
 describe("tree_hierarchy", () => {
   it("detects parent field and field_childs", () => {
@@ -71,5 +77,21 @@ describe("tree_hierarchy", () => {
     );
     expect(merged).toHaveLength(2);
     expect(merged.find((r) => r.id === 1)?.name).toBe("A2");
+  });
+
+  it("reorders siblings and builds sequence writes", () => {
+    const rows = [
+      { id: 1, parent: null },
+      { id: 2, parent: [1, "R"] },
+      { id: 3, parent: [1, "R"] },
+      { id: 4, parent: [1, "R"] },
+    ];
+    expect(siblingReorderIds(rows, "parent", 4, 2)).toEqual([4, 2, 3]);
+    expect(siblingReorderIds(rows, "parent", 2, 1)).toBeNull();
+    expect(sequenceWrites([4, 2, 3])).toEqual([
+      { id: 4, sequence: 10 },
+      { id: 2, sequence: 20 },
+      { id: 3, sequence: 30 },
+    ]);
   });
 });

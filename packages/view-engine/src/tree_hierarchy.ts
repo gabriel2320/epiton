@@ -159,3 +159,47 @@ export function mergeTreeRows(
   }
   return [...byId.values()];
 }
+
+/**
+ * Reorder siblings when dragging `draggedId` onto `targetId`.
+ * Returns ordered sibling ids (new sequence order) or null if not siblings.
+ */
+export function siblingReorderIds(
+  rows: Array<Record<string, unknown>>,
+  parentField: string,
+  draggedId: number,
+  targetId: number,
+): number[] | null {
+  if (draggedId === targetId) return null;
+  const byId = new Map<number, Record<string, unknown>>();
+  for (const row of rows) {
+    const id = rowId(row);
+    if (id == null) continue;
+    byId.set(id, row);
+  }
+  const drag = byId.get(draggedId);
+  const target = byId.get(targetId);
+  if (!drag || !target) return null;
+  const dragParent = parentIdOf(drag, parentField);
+  const targetParent = parentIdOf(target, parentField);
+  if (dragParent !== targetParent) return null;
+
+  const siblings = [...byId.entries()]
+    .filter(([, row]) => parentIdOf(row, parentField) === dragParent)
+    .map(([id]) => id);
+  const from = siblings.indexOf(draggedId);
+  const to = siblings.indexOf(targetId);
+  if (from < 0 || to < 0) return null;
+  const next = [...siblings];
+  next.splice(from, 1);
+  next.splice(to, 0, draggedId);
+  return next;
+}
+
+/** Sequence values for ordered ids (10, 20, 30…). */
+export function sequenceWrites(
+  orderedIds: number[],
+  step = 10,
+): Array<{ id: number; sequence: number }> {
+  return orderedIds.map((id, i) => ({ id, sequence: (i + 1) * step }));
+}
