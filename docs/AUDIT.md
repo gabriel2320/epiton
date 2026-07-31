@@ -53,18 +53,18 @@ Apps: `web`, `desktop` (Tauri), `mobile` (Capacitor), `gateway` (Rust).
 4. Explicit rejection of parallel Python ORM/report stacks (`docs/TOOLING.md`).
 5. Board analytics + graph arch stay on `search_read` / `fields_view_get`
    (visual only; no client warehouse).
-6. Session tokens not persisted in `localStorage` (only connection baseUrl/db).
+6. Session tokens not in `localStorage` (web memory; Tauri/Capacitor OS store via bridge).
 
 ## Gaps and risks
 
 | ID | Severity | Finding | Mitigation |
 |----|----------|---------|------------|
 | A-01 | High (product claim) | No production PHI/HIS certification | Do not market as Epione; keep GH Phase 4 |
-| A-02 | Medium | Board panes are analytics previews, not full embedded Sao screens | Documented; deepen only if needed |
-| A-03 | Medium | Graph multi-y / `_actions` cross-filter incomplete vs Sao | Track in COMPATIBILITY notes |
+| A-02 | Low | Board panes were analytics-only | **Closed enough:** embedded tree/graph/form + multi-y |
+| A-03 | Low | Graph multi-y / `_actions` incomplete | **Closed enough:** `_actions` + heuristics + multi-y |
 | A-04 | Medium | REST Bearer path “not probed” | Prefer gateway Session; probe before claiming |
-| A-05 | Medium | Desktop/mobile thinner than web | Ship web-first; keep storage rules |
-| A-06 | Low | `pdfjs` imported but iframe preview is primary | Fine for MVP |
+| A-05 | Low | Desktop/mobile thinner than web | **Improved:** secure session hydrate + title/safe-area; still thin hosts |
+| A-06 | Low | pdfjs unused vs iframe | **Closed:** `PdfPreview` page/zoom with iframe fallback |
 | A-07 | Low | Docs were README-thin for agents | This audit + CANON/GOVERNANCE/AGENTS |
 | A-08 | Process | Lab credentials are synthetic defaults | Never reuse in shared/prod envs |
 
@@ -81,7 +81,7 @@ Apps: `web`, `desktop` (Tauri), `mobile` (Capacitor), `gateway` (Rust).
 ## Recommended next batches (human priority)
 
 1. Live lab smoke for board DnD + domain-tab counts against trytond 7.
-2. Deeper embedded board act_windows (tree host) if product needs Sao fidelity.
+2. Richer `ir.ui.view_tree_state` domain keys if product needs Sao fidelity.
 3. Formalize `@epiton/ui` Dialog recipe; retire duplicated Radix wrappers gradually.
 4. Keep GNU Health as probe/matrix only until a dedicated trytond+GH lab exists.
 

@@ -19,6 +19,7 @@ import { PreferencesPanel } from "../components/PreferencesPanel";
 import { ToolDrawer } from "../components/ToolDrawer";
 import { readDeepLink, writeDeepLink } from "../lib/deeplink";
 import { applyShellDataset, setShellTitle } from "../lib/nativeShell";
+import { clearSecureSession } from "../lib/secureSessionBridge";
 import { useAppStore } from "../lib/store";
 
 const ModelWorkspace = lazy(() =>
@@ -397,6 +398,7 @@ export function Shell() {
     try {
       await client?.logout();
     } finally {
+      void clearSecureSession();
       setClient(null);
       setSession(null);
       useAppStore.getState().setPreferences({}, {});

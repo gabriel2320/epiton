@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { type LoginValues, loginSchema } from "../lib/schemas";
+import { saveSecureSession } from "../lib/secureSessionBridge";
 import { useAppStore } from "../lib/store";
 import { applyClientLanguage } from "../lib/translations";
 
@@ -50,6 +51,13 @@ export function LoginPage() {
       await applyClientLanguage(client, lang);
       setClient(client);
       setSession({ login: session.login, userId: session.userId });
+      void saveSecureSession({
+        login: session.login,
+        userId: session.userId,
+        session: session.session,
+        baseUrl: next.baseUrl,
+        database: next.database,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     }

@@ -8,6 +8,7 @@ import {
   createViewSearch,
   deleteViewSearch,
   exportModelCsv,
+  getKeywords,
   importModelCsv,
   loadTreeState,
   loadViewSearches,
@@ -476,6 +477,30 @@ export function ModelWorkspace(props: {
       if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
     };
   }, [client, session, hierarchyMeta?.hierarchical, props.model, expandedTreeIds, rpcContext]);
+
+  async function openEmail() {
+    if (!selectedId) return;
+    if (client && props.onOpenAction) {
+      try {
+        const actions = await getKeywords(
+          client,
+          "form_action",
+          props.model,
+          selectedId,
+          rpcContext,
+        );
+        const hit = actions.find((a) => /mail|email|smtp/i.test(`${a.name} ${a.type} ${a.ref}`));
+        if (hit) {
+          props.onOpenAction(hit.ref, "email");
+          props.onHistory?.("email:keyword");
+          return;
+        }
+      } catch {
+        /* fall through to mailto */
+      }
+    }
+    setEmailOpen(true);
+  }
 
   async function reorderTreeRows(draggedId: number, targetId: number) {
     if (!client || !hierarchyMeta?.parentField || !hierarchyMeta.sequenceField) return;
@@ -1305,7 +1330,7 @@ export function ModelWorkspace(props: {
           <Button disabled={!selectedId} onClick={() => setShowHistory((v) => !v)}>
             History
           </Button>
-          <Button disabled={!selectedId} onClick={() => setEmailOpen(true)}>
+          <Button disabled={!selectedId} onClick={() => void openEmail()}>
             Email
           </Button>
         </div>

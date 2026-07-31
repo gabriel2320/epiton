@@ -8,7 +8,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Area | Tryton contract | Epiton status | Notes |
 |------|-----------------|---------------|-------|
 | JSON-RPC 1.0 | `/{db}/` (Tryton 7 docker) and `/{db}/rpc/` | Implemented (`@epiton/protocol`, auto-fallback) | |
-| Session auth | `Authorization: Session` base64(login:uid:token) | Implemented | Secure storage on Tauri; web keeps token in memory only |
+| Session auth | `Authorization: Session` base64(login:uid:token) | Implemented | Web: memory only; Tauri/Capacitor: OS store via bridge |
 | Login | `common.db.login` | Implemented | Password params dict |
 | Logout | `common.db.logout` | Implemented | |
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
@@ -34,9 +34,9 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy fetch + soft tree_state + sequence DnD |
-| Shell hosts | Tauri / Capacitor | Improved | Title sync + safe-area; thin native wrappers |
+| Shell hosts | Tauri / Capacitor | Improved | Secure session hydrate/persist + title/safe-area |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
-| Email compose | mailto from record | Improved | Compose dialog → mail client |
+| Email compose | mailto / form_action keywords | Improved | Prefer mail keywords; mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
 | Revision history | `model.__history__` | Improved | Read-only History panel when server exposes it |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |

@@ -19,13 +19,13 @@ Shared truth ──► trytond JSON-RPC
 Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
-2. Full Tryton SMTP email wizards (client uses mailto + keyword actions)
-3. Richer `tree_state` domain keys beyond model/user
+2. Richer `tree_state` domain keys beyond model/user
+3. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
 
-Recently improved (2026-07-31): sequence DnD, notebook page memory, graph→filter,
-shell title/safe-area, lazy tree + tree_state, pdfjs, email mailto, hierarchy,
-favorites, `_actions`, form-in-pane, view_search, i18n, CSV map, attachments,
-history, editable tree, notebook, wizard, bus.
+Recently improved (2026-07-31): native secure session hydrate, email keyword→wizard,
+sequence DnD, notebook memory, graph→filter, shell title/safe-area, lazy tree,
+pdfjs, mailto, hierarchy, favorites, `_actions`, form-in-pane, view_search, i18n,
+CSV map, attachments, history, editable tree, notebook, wizard, bus.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -42,14 +42,15 @@ history, editable tree, notebook, wizard, bus.
 | **Reports** | Broader formats + print pipeline | **Improved:** pdf/odt/csv/xls/html; pdfjs page/zoom preview | Small–Medium | `ReportDownload.tsx`, `PdfPreview.tsx` |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state `execute` before delete; `validate` required fields | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
-| **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** title sync + safe-area `data-shell`; still thin hosts | Medium | `nativeShell.ts`, desktop/mobile README |
+| **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** secure session hydrate/persist + title/safe-area; thin hosts | Small–Medium | `secureSessionBridge.ts` |
+
 
 ## P2 — Polish / niche
 
 | Area | What Sao/GTK does | What Epitón does today | Gap |
 |------|-------------------|-------------------------|-----|
 | Attachment drag-and-drop | Drop files onto record | **Improved:** dropzone on Attachments panel | Small |
-| Email compose | Record email wizards / SMTP flows | **Improved:** mailto compose dialog from record fields | Small–Medium |
+| Email compose | Record email wizards / SMTP flows | **Improved:** form_action mail keywords first, mailto fallback | Small |
 | CSV column mapping UI | Map headers → fields before import | **Improved:** mapping dialog before `import_data` | Small |
 | Revision / history browser | Browse `__history__` / revisions | **Improved:** History button → read-only `__history__` peek | Small–Medium |
 | Board multi-y series | Multi-series in dashboard graphs | **Improved:** board pane uses `rowsToMultiSeries` | Small |
@@ -72,9 +73,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 1. ~~Board embed / `_actions` / multi-y / form-in-pane / graph click filter~~
 2. ~~Editable tree / notebook memory / wizard / bus / view_search / i18n / CSV / DnD / history~~
-3. ~~Hierarchical tree / lazy / tree_state / sequence DnD / favorites / pdfjs / email mailto~~
-4. ~~Shell title + safe-area markers~~
-5. Wire desktop/mobile secure session hydrate into web login; SMTP wizards if needed
+3. ~~Hierarchical tree / lazy / tree_state / sequence DnD / favorites / pdfjs / email~~
+4. ~~Shell title + safe-area + secure session hydrate~~
+5. Richer `tree_state` domains; GTK-only plugins remain out of scope
 
 ## How to re-check
 

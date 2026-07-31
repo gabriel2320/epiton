@@ -1,7 +1,9 @@
 # Epiton desktop (Tauri 2)
 
-Wraps `@epiton/web` with a native window. Session tokens should use the OS store
-plugin (`apps/desktop/src/secureSession.ts`) — never `localStorage`.
+Wraps `@epiton/web` with a native window. Session tokens persist via the OS store
+plugin (`@tauri-apps/plugin-store`), driven by the web bridge
+[`secureSessionBridge.ts`](../web/src/lib/secureSessionBridge.ts) — never
+`localStorage`.
 
 ```bash
 pnpm --filter @epiton/desktop dev
@@ -9,13 +11,10 @@ pnpm --filter @epiton/desktop dev
 
 Requires Rust + platform WebView dependencies.
 
-## Sao/GTK habits covered in the web shell
+## Shell depth
 
-The desktop build is intentionally a thin host: menus, trees, boards, wizards,
-and reports live in `@epiton/web`. Native extras today:
-
-- Window title tracks model / user / database (`setShellTitle`)
+- Window title tracks model / user / database
 - `data-shell="tauri"` enables safe-area / chrome CSS
-- Optional secure session helpers under `src/secureSession.ts`
+- Login persists session; App boot hydrates; logout clears store
 
-Still thinner than GTK (no native print plugins). Prefer web parity first.
+Still thinner than GTK (no native print plugins). Prefer web Sao parity first.
