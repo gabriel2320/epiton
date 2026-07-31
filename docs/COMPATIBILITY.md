@@ -33,12 +33,13 @@
 | Copy | `model.*.copy` | Implemented | Selected ids → new records |
 | Keywords | `ir.action.keyword.get_keyword` | Implemented | Relate / Print / Action menus |
 | URL actions | `ir.action.url` | Implemented | Opens external URL (blocks `javascript:`) |
-| Domain tabs | `ir.action.act_window.domain` | Implemented | All + named domain tabs |
+| Domain tabs | `ir.action.act_window.domain` | Implemented | All + named tabs; `count` → `search_count` badges |
 | Page size | client limit | Implemented | 40/80/120/200 selector |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Implemented | widget= arch override + read links |
 | Audit meta | create/write date+uid | Implemented | `MetaStrip` under form toolbar |
 | Shortcuts | Ctrl/Cmd+S Esc T W | Implemented | Save / read / new tab / close tab |
-| UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip |
+| UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip, Alert, ConfirmDialog |
+| Notices | status banners | Implemented | `Alert` tones; delete uses `ConfirmDialog` |
 | Bus | `/{db}/bus` | Implemented | Long-poll + notification panel |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |

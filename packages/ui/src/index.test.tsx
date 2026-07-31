@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MetaStrip, cn } from "./index";
+import { Alert, ConfirmDialog, MetaStrip, cn } from "./index";
 
 describe("@epiton/ui", () => {
   it("joins class names", () => {
@@ -27,5 +27,26 @@ describe("@epiton/ui", () => {
   it("hides meta when empty", () => {
     const html = renderToStaticMarkup(createElement(MetaStrip, { values: {} }));
     expect(html).toBe("");
+  });
+
+  it("renders alert tones", () => {
+    const html = renderToStaticMarkup(createElement(Alert, { tone: "danger" }, "Delete failed"));
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Delete failed");
+  });
+
+  it("renders confirm dialog when open", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConfirmDialog, {
+        open: true,
+        title: "Delete records?",
+        description: "This cannot be undone.",
+        danger: true,
+        onConfirm: () => undefined,
+        onCancel: () => undefined,
+      }),
+    );
+    expect(html).toContain("alertdialog");
+    expect(html).toContain("Delete records?");
   });
 });

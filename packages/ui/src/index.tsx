@@ -26,7 +26,7 @@ const primaryStyle: CSSProperties = {
 
 export function Button(
   props: {
-    children: ReactNode;
+    children?: ReactNode;
     onClick?: () => void;
     type?: "button" | "submit";
     variant?: "default" | "primary" | "danger" | "ghost";
@@ -243,6 +243,90 @@ export function MetaStrip(props: {
       null,
       createElement("dt", null, "Modified"),
       createElement("dd", null, `${modified} · ${writer}`),
+    ),
+  );
+}
+
+/** Inline status / notice banner (shadcn Alert recipe). */
+export function Alert(props: {
+  children: ReactNode;
+  tone?: "default" | "accent" | "danger" | "muted";
+  className?: string;
+  role?: "status" | "alert";
+}) {
+  const tone = props.tone ?? "default";
+  return createElement(
+    "div",
+    {
+      role: props.role ?? (tone === "danger" ? "alert" : "status"),
+      className: cx("epiton-ui-alert", `epiton-ui-alert-${tone}`, props.className),
+    },
+    props.children,
+  );
+}
+
+/** Native modal confirm — replaces window.confirm for destructive actions. */
+export function ConfirmDialog(props: {
+  open: boolean;
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!props.open) return null;
+  return createElement(
+    "div",
+    {
+      className: "epiton-ui-confirm-root",
+      role: "presentation",
+      onClick: props.onCancel,
+      onKeyDown: (e: { key: string }) => {
+        if (e.key === "Escape") props.onCancel();
+      },
+    },
+    createElement(
+      "div",
+      {
+        className: "epiton-ui-confirm",
+        role: "alertdialog",
+        "aria-modal": true,
+        "aria-labelledby": "epiton-confirm-title",
+        "aria-describedby": props.description ? "epiton-confirm-desc" : undefined,
+        onClick: (e: { stopPropagation: () => void }) => e.stopPropagation(),
+      },
+      createElement(
+        "h2",
+        { id: "epiton-confirm-title", className: "epiton-ui-confirm-title" },
+        props.title,
+      ),
+      props.description
+        ? createElement(
+            "p",
+            { id: "epiton-confirm-desc", className: "epiton-ui-confirm-desc" },
+            props.description,
+          )
+        : null,
+      createElement(
+        "div",
+        { className: "epiton-ui-confirm-actions" },
+        createElement(
+          Button,
+          { type: "button", onClick: props.onCancel },
+          props.cancelLabel ?? "Cancel",
+        ),
+        createElement(
+          Button,
+          {
+            type: "button",
+            variant: props.danger ? "danger" : "primary",
+            onClick: props.onConfirm,
+          },
+          props.confirmLabel ?? "Confirm",
+        ),
+      ),
     ),
   );
 }

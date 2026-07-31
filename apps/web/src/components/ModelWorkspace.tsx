@@ -10,7 +10,17 @@ import {
   modelHasAccessRows,
   viewIdForMode,
 } from "@epiton/protocol";
-import { Badge, Button, MetaStrip, Panel, StateBlock, Tab, Tabs } from "@epiton/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmDialog,
+  MetaStrip,
+  Panel,
+  StateBlock,
+  Tab,
+  Tabs,
+} from "@epiton/ui";
 import {
   type RecordValues,
   type ViewField,
@@ -42,6 +52,13 @@ import { VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
+
+function noticeTone(message: string): "default" | "accent" | "danger" | "muted" {
+  if (/fail|error|before running|nothing selected/i.test(message)) return "danger";
+  if (/…|\.\.\.|importing|exporting|copying|running/i.test(message)) return "muted";
+  if (/saved|ok|exported|imported|copied/i.test(message)) return "accent";
+  return "default";
+}
 
 function normalizeIds(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
@@ -92,6 +109,7 @@ export function ModelWorkspace(props: {
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(80);
   const [domainTab, setDomainTab] = useState(-1);
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -354,6 +372,44 @@ export function ModelWorkspace(props: {
     },
   });
 
+  const domainCountQuery = useQuery({
+    queryKey: [
+      "model",
+      props.model,
+      "domain-tab-counts",
+      JSON.stringify(resolvedActionDomain),
+      JSON.stringify(domainTabs),
+    ],
+    enabled: Boolean(client && domainTabs.some((tab) => tab.count)),
+    staleTime: 30_000,
+    queryFn: async () => {
+      if (!client) return {} as Record<number, number>;
+      const counts: Record<number, number> = {};
+      await Promise.all(
+        domainTabs.map(async (tab, index) => {
+          if (!tab.count) return;
+          const tabDomain = evalDomain(tab.domain ?? [], {
+            ...sessionContext,
+            ...actionCtxOverlay,
+          });
+          const domain = mergeDomains(resolvedActionDomain, tabDomain);
+          try {
+            const result = await client.model(
+              props.model,
+              "search_count",
+              [domain as never[]],
+              rpcContext,
+            );
+            if (typeof result === "number") counts[index] = result;
+          } catch {
+            /* optional Sao badge — ignore failures */
+          }
+        }),
+      );
+      return counts;
+    },
+  });
+
   const recordQuery = useQuery({
     queryKey: ["model", props.model, selectedId],
     enabled: Boolean(client && selectedId),
@@ -526,7 +582,6 @@ export function ModelWorkspace(props: {
   const deleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       if (!client || !ids.length) throw new Error("Nothing selected");
-      if (!globalThis.confirm(`Delete ${ids.length} ${props.model} record(s)?`)) return;
       await client.model(props.model, "delete", [ids], rpcContext);
       props.onHistory?.("delete");
     },
@@ -534,9 +589,23 @@ export function ModelWorkspace(props: {
       selectId(null);
       setSelectedIds([]);
       setDraft({});
+      setPendingDeleteIds(null);
+      setNotice("Deleted");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
+    onError: (err) => {
+      setPendingDeleteIds(null);
+      setNotice(err instanceof Error ? err.message : "Delete failed");
+    },
   });
+
+  function requestDelete(ids: number[]) {
+    if (!ids.length) {
+      setNotice("Nothing selected");
+      return;
+    }
+    setPendingDeleteIds(ids);
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -625,6 +694,17 @@ export function ModelWorkspace(props: {
 
   return (
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
+      <ConfirmDialog
+        open={pendingDeleteIds != null}
+        title={`Delete ${pendingDeleteIds?.length ?? 0} ${props.model} record(s)?`}
+        description="This permanently removes the selected records on the Tryton server."
+        confirmLabel="Delete"
+        danger
+        onCancel={() => setPendingDeleteIds(null)}
+        onConfirm={() => {
+          if (pendingDeleteIds?.length) deleteMutation.mutate(pendingDeleteIds);
+        }}
+      />
       <Panel title={props.model}>
         {domainTabs.length ? (
           <Tabs aria-label="Action domains" className="epiton-domain-tabs">
@@ -647,6 +727,9 @@ export function ModelWorkspace(props: {
                 }}
               >
                 {tab.name}
+                {tab.count && domainCountQuery.data?.[index] != null
+                  ? ` (${domainCountQuery.data[index]})`
+                  : ""}
               </Tab>
             ))}
           </Tabs>
@@ -664,9 +747,7 @@ export function ModelWorkspace(props: {
             variant="danger"
             disabled={!selectedIds.length && !selectedId}
             onClick={() =>
-              deleteMutation.mutate(
-                selectedIds.length ? selectedIds : selectedId ? [selectedId] : [],
-              )
+              requestDelete(selectedIds.length ? selectedIds : selectedId ? [selectedId] : [])
             }
           >
             Delete{selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
@@ -818,8 +899,8 @@ export function ModelWorkspace(props: {
       </Panel>
 
       <Panel title={selectedId ? `${props.model} #${selectedId}` : `${props.model} form`}>
-        {aclWarning ? <p role="status">{aclWarning.message}</p> : null}
-        {notice ? <p role="status">{notice}</p> : null}
+        {aclWarning ? <Alert tone="muted">{aclWarning.message}</Alert> : null}
+        {notice ? <Alert tone={noticeTone(notice)}>{notice}</Alert> : null}
         <div className="epiton-toolbar">
           <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>Mode: {mode}</Button>
           <Badge tone={mode === "write" ? "accent" : "muted"}>{mode}</Badge>
@@ -833,7 +914,7 @@ export function ModelWorkspace(props: {
           <Button
             variant="danger"
             disabled={!selectedId}
-            onClick={() => selectedId && deleteMutation.mutate([selectedId])}
+            onClick={() => selectedId && requestDelete([selectedId])}
           >
             Delete
           </Button>
@@ -928,11 +1009,7 @@ export function ModelWorkspace(props: {
             }}
           />
         ) : null}
-        {saveMutation.isError ? (
-          <p role="alert" style={{ color: "var(--epiton-danger)" }}>
-            {saveMutation.error.message}
-          </p>
-        ) : null}
+        {saveMutation.isError ? <Alert tone="danger">{saveMutation.error.message}</Alert> : null}
       </Panel>
     </div>
   );
