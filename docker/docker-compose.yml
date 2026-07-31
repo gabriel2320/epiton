@@ -46,13 +46,31 @@ services:
     environment:
       EPITON_UPSTREAM: http://tryton:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8080
-      EPITON_STRICT_ACL: "true"
+      EPITON_STRICT_ACL: "false"
       EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       EPITON_TRUST_PROXY: "false"
+      EPITON_MAX_BODY_BYTES: "16777216"
+      EPITON_LOGIN_LIMIT_PER_MINUTE: "20"
+      EPITON_UPSTREAM_TIMEOUT_SECS: "120"
     ports:
       - "8080:8080"
 
-  # Optional Tryton 8 lab: `pnpm lab:up:8` (separate DB volume; stops 7 stack first).
+  # Test-only reference client. Never part of the Epiton runtime or production stack.
+  proteus7:
+    profiles: ["oracle7"]
+    build:
+      context: ./proteus
+      args:
+        PROTEUS_VERSION: 7.0.3
+    image: epiton/proteus-oracle:7.0.3
+    environment:
+      EPITON_PROTEUS_URL: http://admin:admin@tryton:8000/epiton_lab/
+      EPITON_TRYTON_SERIES: "7.0"
+      EPITON_RECEIPT_DIR: /receipts
+    volumes:
+      - ../tests/compat/receipts:/receipts
+
+  # Supported Tryton 8 tier: `pnpm lab:up:8` (separate database and gateway).
   db8:
     profiles: ["tryton8"]
     image: postgres:16-alpine
@@ -87,7 +105,7 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - ./trytond.conf:/etc/tryton/trytond.conf:ro
+      - ./trytond.8.conf:/etc/tryton/trytond.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000'"]
       interval: 10s
@@ -105,11 +123,29 @@ services:
     environment:
       EPITON_UPSTREAM: http://tryton8:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8081
-      EPITON_STRICT_ACL: "true"
+      EPITON_STRICT_ACL: "false"
       EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       EPITON_TRUST_PROXY: "false"
+      EPITON_MAX_BODY_BYTES: "16777216"
+      EPITON_LOGIN_LIMIT_PER_MINUTE: "20"
+      EPITON_UPSTREAM_TIMEOUT_SECS: "120"
     ports:
       - "8081:8081"
+
+  # Test-only reference client for the Tryton 8 compatibility tier.
+  proteus8:
+    profiles: ["oracle8"]
+    build:
+      context: ./proteus
+      args:
+        PROTEUS_VERSION: 8.0.0
+    image: epiton/proteus-oracle:8.0.0
+    environment:
+      EPITON_PROTEUS_URL: http://admin:admin@tryton8:8000/epiton_lab8/rpc/
+      EPITON_TRYTON_SERIES: "8.0"
+      EPITON_RECEIPT_DIR: /receipts
+    volumes:
+      - ../tests/compat/receipts:/receipts
 
 volumes:
   epiton_pg:
