@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "@epiton/ui/styles.css";
+
+@theme {
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+  --color-epiton-bg: #0f1419;
+  --color-epiton-elevated: #1a222c;
+  --color-epiton-fg: #f2efe8;
+  --color-epiton-muted: #9aa7b5;
+  --color-epiton-accent: #3dd6c6;
+  --color-epiton-ember: #f0a05a;
+  --color-epiton-danger: #ff6b6b;
+  --color-epiton-border: #2a3542;
+}
+
+[data-theme="light"] {
+  --color-epiton-bg: #f6f1e8;
+  --color-epiton-elevated: #fffdf8;
+  --color-epiton-fg: #17202a;
+  --color-epiton-muted: #5b6b7c;
+  --color-epiton-accent: #0f8f82;
+  --color-epiton-ember: #c56a2a;
+  --color-epiton-danger: #c0392b;
+  --color-epiton-border: #d9d0c2;
+}

@@ -52,6 +52,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
+        .route("/{db}/", any(proxy_rpc_root))
         .route("/{db}/rpc/", any(proxy_rpc))
         .route("/{db}/bus", any(proxy_bus))
         .layer(TraceLayer::new_for_http())
@@ -65,12 +66,33 @@ async fn main() {
     axum::serve(listener, app).await.expect("serve");
 }
 
+async fn proxy_rpc_root(
+    State(state): State<AppState>,
+    Path(db): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    proxy_rpc_inner(state, db, method, headers, body, false).await
+}
+
 async fn proxy_rpc(
     State(state): State<AppState>,
     Path(db): Path<String>,
     method: Method,
     headers: HeaderMap,
     body: Bytes,
+) -> Response {
+    proxy_rpc_inner(state, db, method, headers, body, true).await
+}
+
+async fn proxy_rpc_inner(
+    state: AppState,
+    db: String,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+    use_rpc_suffix: bool,
 ) -> Response {
     let correlation = headers
         .get("x-correlation-id")
@@ -84,11 +106,7 @@ async fn proxy_rpc(
 
     if rpc_method.as_deref() == Some("common.db.login") {
         if !rate_limit(&state, &client_ip(&headers)) {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                "login rate limited",
-            )
-                .into_response();
+            return (StatusCode::TOO_MANY_REQUESTS, "login rate limited").into_response();
         }
     }
 
@@ -100,7 +118,11 @@ async fn proxy_rpc(
         }
     }
 
-    let url = format!("{}/{}/rpc/", state.upstream.trim_end_matches('/'), db);
+    let url = if use_rpc_suffix {
+        format!("{}/{}/rpc/", state.upstream.trim_end_matches('/'), db)
+    } else {
+        format!("{}/{}/", state.upstream.trim_end_matches('/'), db)
+    };
     match forward(&state, method, &url, headers, body, &correlation, rpc_method.as_deref()).await {
         Ok(resp) => resp,
         Err(err) => {

@@ -2,7 +2,7 @@
 
 | Area | Tryton contract | Epiton status | Notes |
 |------|-----------------|---------------|-------|
-| JSON-RPC 1.0 | `/{db}/rpc/` | Implemented (`@epiton/protocol`) | Content-Type application/json |
+| JSON-RPC 1.0 | `/{db}/` (Tryton 7 docker) and `/{db}/rpc/` | Implemented (`@epiton/protocol`, auto-fallback) | |
 | Session auth | `Authorization: Session` base64(login:uid:token) | Implemented | Secure storage on Tauri |
 | Login | `common.db.login` | Implemented | Password params dict |
 | Logout | `common.db.logout` | Implemented | |

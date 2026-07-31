@@ -9,6 +9,7 @@ import { Button } from "@epiton/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AttachmentsPanel } from "../components/AttachmentsPanel";
+import { BusBanner } from "../components/BusBanner";
 import { CommandPalette } from "../components/CommandPalette";
 import { PartyWorkspace } from "../components/PartyWorkspace";
 import { ReportDownload } from "../components/ReportDownload";
@@ -156,6 +157,7 @@ export function Shell() {
             <Button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
               Theme: {theme}
             </Button>
+            <BusBanner />
           </div>
           <Button onClick={logout}>Logout</Button>
         </div>

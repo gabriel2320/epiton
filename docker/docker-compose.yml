@@ -16,7 +16,8 @@ services:
       retries: 10
 
   tryton:
-    image: tryton/tryton:7.0
+    build: .
+    image: epiton/tryton-lab:7.0
     depends_on:
       db:
         condition: service_healthy
@@ -29,9 +30,6 @@ services:
       - "8000:8000"
     volumes:
       - ./trytond.conf:/etc/tryton/trytond.conf:ro
-    command: >
-      bash -c "trytond-admin -c /etc/tryton/trytond.conf -d epiton_lab --all -vv
-      && trytond -c /etc/tryton/trytond.conf"
 
 volumes:
   epiton_pg:

@@ -1,3 +1,9 @@
+import { sessionAuthorization } from "./auth";
+
+export { sessionAuthorization } from "./auth";
+export { pollBus } from "./bus";
+export { BusClient, type BusMessage } from "./busClient";
+
 export type JsonRpcId = string | number | null;
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -49,6 +55,12 @@ export interface EpitonClientOptions {
   fetchImpl?: typeof fetch;
   /** Optional correlation id factory for gateway audit */
   correlationId?: () => string;
+  /**
+   * RPC path under the database.
+   * Tryton docs use `rpc`; some 7.x docker deployments expose JSON-RPC at `/{db}/`.
+   * Default: auto (`""` then `"rpc"` on first 405).
+   */
+  rpcSuffix?: "" | "rpc" | "auto";
 }
 
 export class TrytonRpcError extends Error {
@@ -64,11 +76,7 @@ export class TrytonRpcError extends Error {
 }
 
 function encodeSessionAuthorization(session: TrytonSession): string {
-  const raw = `${session.login}:${session.userId}:${session.session}`;
-  const bytes = new TextEncoder().encode(raw);
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return `Session ${btoa(binary)}`;
+  return sessionAuthorization(session);
 }
 
 function parseSeries(version: string | null): ServerCapabilities["series"] {
@@ -87,12 +95,19 @@ export class EpitonClient {
   private readonly correlationId?: () => string;
   private session: TrytonSession | null = null;
   private capabilities: ServerCapabilities | null = null;
+  private rpcSuffix: "" | "rpc";
 
   constructor(options: EpitonClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.database = options.database;
     this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.correlationId = options.correlationId;
+    const suffix = options.rpcSuffix ?? "auto";
+    this.rpcSuffix = suffix === "rpc" ? "rpc" : "";
+    if (suffix === "auto") {
+      // Prefer bare /{db}/ (observed on tryton/tryton:7.0); fall back in dispatch on 405.
+      this.rpcSuffix = "";
+    }
   }
 
   getSession(): TrytonSession | null {
@@ -108,7 +123,8 @@ export class EpitonClient {
   }
 
   rpcUrl(): string {
-    return `${this.baseUrl}/${encodeURIComponent(this.database)}/rpc/`;
+    const db = encodeURIComponent(this.database);
+    return this.rpcSuffix === "rpc" ? `${this.baseUrl}/${db}/rpc/` : `${this.baseUrl}/${db}/`;
   }
 
   async detectCapabilities(): Promise<ServerCapabilities> {
@@ -243,11 +259,20 @@ export class EpitonClient {
       headers.Authorization = encodeSessionAuthorization(this.session);
     }
 
-    const response = await this.fetchImpl(this.rpcUrl(), {
+    let response = await this.fetchImpl(this.rpcUrl(), {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
+
+    if (response.status === 405 && this.rpcSuffix === "") {
+      this.rpcSuffix = "rpc";
+      response = await this.fetchImpl(this.rpcUrl(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+    }
 
     if (!response.ok) {
       throw new TrytonRpcError(`HTTP ${response.status}`, response.status);
@@ -270,15 +295,4 @@ export class EpitonClient {
 
 export function createClient(options: EpitonClientOptions): EpitonClient {
   return new EpitonClient(options);
-}
-
-export { pollBus } from "./bus";
-
-/** Encode Session header the same way EpitonClient does (for bus/desktop). */
-export function sessionAuthorization(session: TrytonSession): string {
-  const raw = `${session.login}:${session.userId}:${session.session}`;
-  const bytes = new TextEncoder().encode(raw);
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return `Session ${btoa(binary)}`;
 }

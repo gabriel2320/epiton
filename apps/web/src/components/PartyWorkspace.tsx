@@ -8,9 +8,12 @@ import {
 } from "@epiton/view-engine";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
+import { VirtualPartyTable } from "./VirtualPartyTable";
 
 export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
+  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
   const queryClient = useQueryClient();
@@ -139,7 +142,7 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
 
   return (
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
-      <Panel title="Parties">
+      <Panel title={t("party.title")}>
         <div className="epiton-toolbar">
           <Button
             variant="primary"
@@ -150,55 +153,42 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
               props.onHistory("new");
             }}
           >
-            New
+            {t("party.new")}
           </Button>
-          <Button onClick={() => listQuery.refetch()}>Refresh</Button>
+          <Button onClick={() => listQuery.refetch()}>{t("party.refresh")}</Button>
         </div>
         <StateBlock
           state={listState}
           message={listQuery.isError ? listQuery.error.message : "No parties yet"}
         >
-          <table className="epiton-table">
-            <thead>
-              <tr>
-                {columns.map((c) => (
-                  <th key={c.name}>{c.string}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(listQuery.data ?? []).map((row) => (
-                <tr
-                  key={String(row.id)}
-                  onClick={() => {
-                    setSelectedId(Number(row.id));
-                    setMode("read");
-                    props.onHistory("open");
-                  }}
-                >
-                  {columns.map((c) => (
-                    <td key={c.name}>{String(row[c.name] ?? "")}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <VirtualPartyTable
+            rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
+            columns={columns}
+            selectedId={selectedId}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setMode("read");
+              props.onHistory("open");
+            }}
+          />
         </StateBlock>
       </Panel>
 
       <Panel title={selectedId ? `Party #${selectedId}` : "Party form"}>
         {aclWarning ? <p role="status">{aclWarning.message}</p> : null}
         <div className="epiton-toolbar">
-          <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>Mode: {mode}</Button>
+          <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>
+            {t("party.mode")}: {mode}
+          </Button>
           <Button
             variant="primary"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
           >
-            Save
+            {t("party.save")}
           </Button>
           <Button variant="danger" disabled={!selectedId} onClick={() => deleteMutation.mutate()}>
-            Delete
+            {t("party.delete")}
           </Button>
         </div>
         {formViewQuery.data
