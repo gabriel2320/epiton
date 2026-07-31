@@ -39,4 +39,29 @@ describe("view-engine", () => {
   it("ignores unused TREE_ARCH constant shape", () => {
     expect(TREE_ARCH.includes("form")).toBe(true);
   });
+
+  it("parses Sao wizard execute payloads", async () => {
+    const { parseWizardPayload } = await import("./index");
+    const parsed = parseWizardPayload({
+      view: {
+        state: "start",
+        fields_view: {
+          arch: `<form><field name="module"/></form>`,
+          fields: { module: { type: "char", string: "Module" } },
+        },
+        defaults: { module: "party" },
+        values: { module: "company" },
+        buttons: [
+          { state: "end", string: "Cancel", default: false },
+          { state: "upgrade", string: "Start Upgrade", default: true },
+        ],
+      },
+    });
+    expect(parsed.ended).toBe(false);
+    expect(parsed.state).toBe("start");
+    expect(parsed.view?.fields.module?.type).toBe("char");
+    expect(parsed.defaults?.module).toBe("party");
+    expect(parsed.values?.module).toBe("company");
+    expect(parsed.buttons.map((b) => b.state)).toEqual(["end", "upgrade"]);
+  });
 });

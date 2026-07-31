@@ -4,7 +4,15 @@ export { sessionAuthorization } from "./auth";
 export { pollBus } from "./bus";
 export { BusClient, type BusMessage } from "./busClient";
 export { modelHasAccessRows } from "./acl";
-export { resolveWorkspaceModel } from "./actions";
+export { resolveAction, resolveWorkspaceModel, type ResolvedAction } from "./actions";
+export {
+  wizardCreate,
+  wizardDataForState,
+  wizardDelete,
+  wizardExecute,
+  type WizardExecuteResult,
+  type WizardSession,
+} from "./wizards";
 
 export type JsonRpcId = string | number | null;
 

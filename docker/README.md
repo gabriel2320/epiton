@@ -17,6 +17,8 @@ Epiton web defaults:
 
 No real personal or clinical data. Fixtures under `tests/compat/fixtures` are synthetic JSON-RPC traces.
 
+GNU Health is **not** in the default image. See `docs/GNU_HEALTH.md` and `pnpm gh:check`.
+
 ## Smoke
 
 ```bash

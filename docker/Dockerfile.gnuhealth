@@ -1,0 +1,23 @@
+# Optional GNU Health-oriented trytond image (scaffold).
+#
+# Full GNU Health stacks are large and version-pinned to specific Tryton series.
+# This Dockerfile documents the intended shape; build only when you have the
+# matching `gnuhealth` / `trytond_health*` wheels for series 7.0.
+#
+#   docker build -f docker/Dockerfile.gnuhealth -t epiton/tryton-gh:7.0 docker/
+#
+# Prefer composing against an existing GH trytond rather than baking PHI-capable
+# modules into the default Epiton lab image.
+
+FROM epiton/tryton-lab:7.0
+
+USER root
+# Placeholder — replace with pinned GNU Health packages for your series, e.g.:
+# RUN pip3 install --break-system-packages --no-cache-dir \
+#       "gnuhealth == <version matching tryton 7.0>"
+#
+# Or mount a local checkout:
+#   volumes: ["./vendor/health:/opt/health:ro"]
+
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

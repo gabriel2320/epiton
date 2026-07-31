@@ -17,6 +17,7 @@
     "lab:down": "docker compose -f docker/docker-compose.yml down",
     "lab:smoke": "bash docker/smoke-rpc.sh",
     "lab:smoke:live": "pnpm --filter @epiton/protocol build && node scripts/lab-smoke.mjs",
+    "gh:check": "pnpm --filter @epiton/protocol build && node scripts/gh-models-check.mjs",
     "gateway:smoke": "curl -fsS http://127.0.0.1:8080/healthz"
   },
   "devDependencies": {

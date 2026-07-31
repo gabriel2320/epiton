@@ -5,7 +5,7 @@ import {
   unifiedSearch,
   workspaceFavorites,
 } from "@epiton/intelligence";
-import { resolveWorkspaceModel } from "@epiton/protocol";
+import { resolveAction } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -31,6 +31,8 @@ export function Shell() {
   const setClient = useAppStore((s) => s.setClient);
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
   const [active, setActive] = useState("party.party");
+  const [activeWizard, setActiveWizard] = useState<string | null>(null);
+  const [wizardActionId, setWizardActionId] = useState<number | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ model: string; action: string }>>([]);
 
@@ -67,6 +69,12 @@ export function Shell() {
         return [
           { id: 1, name: "Parties", action: "party.party", keywords: ["party"] },
           { id: 2, name: "Companies", action: "company.company", keywords: ["company"] },
+          {
+            id: 3,
+            name: "Activate modules",
+            action: "ir.module.activate_upgrade",
+            keywords: ["wizard", "module"],
+          },
         ] satisfies MenuItem[];
       }
     },
@@ -78,16 +86,25 @@ export function Shell() {
   async function openWorkspace(actionOrModel: string, source: string) {
     if (!client) {
       setActive(actionOrModel);
+      setActiveWizard(null);
       return;
     }
     setWorkspaceNotice(null);
-    const model = await resolveWorkspaceModel(client, actionOrModel);
-    if (!model) {
-      setWorkspaceNotice(`No form workspace for ${actionOrModel} (${source})`);
+    const resolved = await resolveAction(client, actionOrModel);
+    if (resolved.kind === "model") {
+      setActiveWizard(null);
+      setWizardActionId(null);
+      setActive(resolved.model);
+      setHistory((h) => [...h, { model: resolved.model, action: source }]);
       return;
     }
-    setActive(model);
-    setHistory((h) => [...h, { model, action: source }]);
+    if (resolved.kind === "wizard") {
+      setActiveWizard(resolved.wizard);
+      setWizardActionId(resolved.actionId);
+      setHistory((h) => [...h, { model: resolved.wizard, action: `wizard:${source}` }]);
+      return;
+    }
+    setWorkspaceNotice(`No workspace for ${actionOrModel}: ${resolved.reason}`);
   }
 
   async function logout() {
@@ -115,7 +132,7 @@ export function Shell() {
             <li key={f}>
               <button
                 type="button"
-                data-active={active === f}
+                data-active={active === f && !activeWizard}
                 onClick={() => void openWorkspace(f, "favorite")}
               >
                 {f}
@@ -129,7 +146,6 @@ export function Shell() {
             <li key={m.id}>
               <button
                 type="button"
-                data-active={active === m.action || (m.action?.includes(active) ?? false)}
                 onClick={() => {
                   if (m.action) void openWorkspace(m.action, "menu");
                 }}
@@ -212,7 +228,13 @@ export function Shell() {
         )}
 
         <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
-          <WizardStepper />
+          <WizardStepper
+            key={activeWizard ?? "manual-wizard"}
+            initialWizard={activeWizard}
+            actionId={wizardActionId}
+            activeModel={active}
+            autoStart={Boolean(activeWizard)}
+          />
           <AttachmentsPanel model={active} />
           <ReportDownload />
         </div>

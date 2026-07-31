@@ -32,6 +32,36 @@ Epiton view-engine exposes a registry (`clinicalWidgetRegistry`) for GH relation
 
 Enable via workspace preset **Clinical (GH)** in the shell (`useClinicalWidgets`).
 
+## Lab bootstrap (no PHI)
+
+Default `docker/` lab ships party/company only — **not** GNU Health.
+
+1. Point Epiton at a Tryton 7.x server that already has `health_*` / `gnuhealth.*` modules installed, **or**
+2. Build the optional scaffold image (fill in pinned wheels first):
+
+```bash
+# after editing docker/Dockerfile.gnuhealth with real package pins
+docker build -f docker/Dockerfile.gnuhealth -t epiton/tryton-gh:7.0 docker/
+```
+
+3. Probe models (synthetic admin only):
+
+```bash
+pnpm --filter @epiton/protocol build
+pnpm gh:check
+```
+
+`gh:check` exits `2` when no GH models are present (expected on the stock lab), `0` when at least one opens via `fields_view_get`.
+
+Compose profile sketch (optional override):
+
+```yaml
+# docker-compose.gnuhealth.yml (local override — do not commit secrets)
+services:
+  tryton:
+    image: epiton/tryton-gh:7.0
+```
+
 ## Rules
 
 - No real PHI in fixtures or screenshots.
