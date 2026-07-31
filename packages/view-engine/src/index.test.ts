@@ -50,6 +50,17 @@ describe("view-engine", () => {
     expect(parsed.fields.party?.domain).toEqual([["active", "=", true]]);
   });
 
+  it("applies arch widget= overrides to field type", () => {
+    const parsed = parseFieldsViewGet({
+      arch: `<form><field name="website" widget="url"/><note string="Hint"/></form>`,
+      fields: {
+        website: { type: "char", string: "Website" },
+      },
+    });
+    expect(parsed.fields.website?.widget).toBe("url");
+    expect(parsed.fields.website?.type).toBe("url");
+  });
+
   it("rejects empty xml", () => {
     expect(() => parseXml("")).toThrow();
   });

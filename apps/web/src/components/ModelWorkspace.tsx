@@ -3,6 +3,7 @@ import {
   type JsonObject,
   type JsonValue,
   applyFieldChange,
+  copyRecords,
   exportModelCsv,
   importModelCsv,
   modelHasAccessRows,
@@ -33,6 +34,7 @@ import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { GraphView } from "./GraphView";
 import { ListFormView } from "./ListFormView";
+import { RecordActionsMenu } from "./RecordActionsMenu";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { VirtualPartyTable } from "./VirtualPartyTable";
@@ -67,6 +69,8 @@ export function ModelWorkspace(props: {
   onHistory?: (action: string) => void;
   onSelectedIdChange?: (id: number | null) => void;
   onPushRelated?: (model: string, id: number | null) => void;
+  /** Open keyword / related action refs in the shell. */
+  onOpenAction?: (ref: string, source: string) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
@@ -153,6 +157,25 @@ export function ModelWorkspace(props: {
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Import failed");
+    }
+  }
+
+  async function copySelected() {
+    if (!client) return;
+    const ids = selectedIds.length ? selectedIds : selectedId != null ? [selectedId] : [];
+    if (!ids.length) return;
+    setNotice("Copying…");
+    try {
+      const created = await copyRecords(client, props.model, ids, {}, rpcContext);
+      setNotice(`Copied → ${created.join(", ") || "ok"}`);
+      props.onHistory?.("copy");
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      if (created[0] != null) {
+        selectId(created[0]);
+        setMode("write");
+      }
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Copy failed");
     }
   }
 
@@ -581,6 +604,12 @@ export function ModelWorkspace(props: {
             Delete{selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
           </Button>
           <Button
+            disabled={!client || (!selectedIds.length && !selectedId)}
+            onClick={() => void copySelected()}
+          >
+            Copy
+          </Button>
+          <Button
             disabled={!client || (!selectedIds.length && !selectedId && !listQuery.data?.length)}
             onClick={() => void exportCsv()}
           >
@@ -722,7 +751,17 @@ export function ModelWorkspace(props: {
           >
             Delete
           </Button>
+          <Button disabled={!client || !selectedId} onClick={() => void copySelected()}>
+            Copy
+          </Button>
         </div>
+        {props.onOpenAction ? (
+          <RecordActionsMenu
+            model={props.model}
+            recordId={selectedId}
+            onOpen={(ref, source) => props.onOpenAction?.(ref, source)}
+          />
+        ) : null}
         {formViewQuery.data
           ? renderView(formViewQuery.data, {
               values: draft,

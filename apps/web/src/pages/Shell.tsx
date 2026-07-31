@@ -545,6 +545,7 @@ export function Shell() {
                 pushFrame(model, id);
                 setHistory((h) => [...h, { model, action: "stack:push" }]);
               }}
+              onOpenAction={(ref, source) => void openWorkspace(ref, source)}
               onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
             />
           </Suspense>

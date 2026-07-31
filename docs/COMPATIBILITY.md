@@ -30,9 +30,11 @@
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |
-| Form widgets | reference/dict/timedelta/url/email/password/progressbar | Partial | Core set beyond Sao MVP |
+| Copy | `model.*.copy` | Implemented | Selected ids → new records |
+| Keywords | `ir.action.keyword.get_keyword` | Implemented | Relate / Print / Action menus |
+| Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Implemented | widget= arch override + read links |
 | Wizard actions | execute `actions` | Implemented | `wizardActionRefs` → openWorkspace |
-| Bus | `/{db}/bus` | Long-poll `BusClient` + shell banner | Capability probed |
+| Bus | `/{db}/bus` | Implemented | Long-poll + notification panel |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |
 | CSP | Web security headers | Prod hardened | Prefer web→gateway so `connect-src 'self'` |

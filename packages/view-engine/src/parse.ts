@@ -42,6 +42,8 @@ export interface ViewField {
   relation?: string;
   selection?: Array<[string, string]>;
   help?: string;
+  /** Arch widget= override (email, url, password, …). */
+  widget?: string;
   /** Static or PYSON-encoded domain from fields_view_get. */
   domain?: unknown;
   on_change?: string[];
@@ -210,6 +212,14 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
         string: node.attrs.string,
         confirm: node.attrs.confirm,
       });
+    }
+    if (node.tag === "field" && node.attrs.name) {
+      const field = fields[node.attrs.name];
+      if (field && node.attrs.widget) {
+        field.widget = node.attrs.widget;
+        const widgetType = mapFieldType(node.attrs.widget);
+        if (widgetType !== "unknown") field.type = widgetType;
+      }
     }
     for (const child of node.children) walk(child);
   };

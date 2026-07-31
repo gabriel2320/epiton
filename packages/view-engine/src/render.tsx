@@ -281,14 +281,34 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     });
   }
 
+  const effectiveType = field.widget || field.type;
+  if (effectiveType === "email" && ctx.mode === "read" && value) {
+    const mail = String(value);
+    return createElement("a", { className: "epiton-email", href: `mailto:${mail}` }, mail);
+  }
+  if (effectiveType === "url" && ctx.mode === "read" && value) {
+    const href = String(value);
+    if (href.startsWith("javascript:")) return href;
+    return createElement(
+      "a",
+      {
+        className: "epiton-url",
+        href,
+        target: "_blank",
+        rel: "noopener noreferrer",
+      },
+      href,
+    );
+  }
+
   const inputType =
     field.type === "integer" || field.type === "float" || field.type === "numeric"
       ? "number"
-      : field.type === "password"
+      : effectiveType === "password"
         ? "password"
-        : field.type === "email"
+        : effectiveType === "email"
           ? "email"
-          : field.type === "url"
+          : effectiveType === "url"
             ? "url"
             : "text";
 
@@ -385,6 +405,14 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       "div",
       { className: "epiton-label" },
       node.attrs.string ?? node.attrs.name ?? node.text ?? "",
+    );
+  }
+
+  if (node.tag === "note") {
+    return createElement(
+      "aside",
+      { className: "epiton-note", role: "note" },
+      node.attrs.string ?? node.text ?? "",
     );
   }
 

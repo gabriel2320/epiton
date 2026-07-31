@@ -31,6 +31,13 @@ export { csvEscape, exportModelCsv, rowsToCsv } from "./export_csv";
 export { importModelCsv, parseCsv } from "./import_csv";
 export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
 export { resolveBoardAction } from "./board";
+export { copyRecords } from "./copy";
+export {
+  getKeywords,
+  getRecordKeywords,
+  type ActionKeyword,
+  type KeywordAction,
+} from "./keywords";
 
 export type JsonRpcId = string | number | null;
 

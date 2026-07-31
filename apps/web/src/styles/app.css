@@ -279,6 +279,51 @@
   font-size: 0.9rem;
 }
 
+.epiton-bus {
+  position: relative;
+}
+
+.epiton-bus-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  min-width: 16rem;
+  max-width: 22rem;
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+  background: var(--epiton-bg);
+  padding: 0.65rem 0.75rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.epiton-action-group {
+  margin-bottom: 0.75rem;
+}
+
+.epiton-action-group h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--epiton-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.epiton-note {
+  border-left: 3px solid var(--epiton-accent);
+  padding: 0.45rem 0.7rem;
+  margin: 0.5rem 0;
+  color: var(--epiton-muted);
+  background: color-mix(in srgb, var(--epiton-accent) 8%, var(--epiton-bg));
+}
+
+.epiton-email,
+.epiton-url {
+  color: var(--epiton-accent);
+}
+
 .epiton-progress {
   display: flex;
   align-items: center;
