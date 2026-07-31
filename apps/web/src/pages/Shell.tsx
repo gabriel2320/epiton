@@ -65,6 +65,7 @@ function makeTab(frame: ActionFrame): WorkspaceTab {
 export function Shell() {
   const client = useAppStore((s) => s.client);
   const session = useAppStore((s) => s.session);
+  const sessionContext = useAppStore((s) => s.sessionContext);
   const preset = useAppStore((s) => s.preset);
   const setPreset = useAppStore((s) => s.setPreset);
   const density = useAppStore((s) => s.density);
@@ -174,16 +175,26 @@ export function Shell() {
         const rows = await client.searchRead(
           "ir.ui.menu",
           [["active", "=", true]],
-          ["name", "parent", "action"],
+          ["name", "parent", "action", "favorite"],
           0,
           200,
         );
-        return rows.map((r) => ({
-          id: Number(r.id),
-          name: String(r.name ?? r.id),
-          parent: (r.parent as number | null) ?? null,
-          action: r.action ? String(r.action) : null,
-        })) satisfies MenuItem[];
+        return rows.map((r) => {
+          const parentRaw = r.parent;
+          const parent =
+            typeof parentRaw === "number"
+              ? parentRaw
+              : Array.isArray(parentRaw) && typeof parentRaw[0] === "number"
+                ? parentRaw[0]
+                : null;
+          return {
+            id: Number(r.id),
+            name: String(r.name ?? r.id),
+            parent,
+            action: r.action ? String(r.action) : null,
+            favorite: Boolean(r.favorite),
+          } satisfies MenuItem;
+        });
       } catch {
         return [
           { id: 1, name: "Parties", action: "party.party", keywords: ["party"] },
@@ -199,8 +210,25 @@ export function Shell() {
     },
   });
 
-  const favorites = workspaceFavorites(preset);
+  const favorites = useMemo(() => {
+    const server = (menusQuery.data ?? [])
+      .filter((m) => m.favorite && m.action)
+      .map((m) => ({ label: m.name, action: String(m.action) }));
+    if (server.length) return server;
+    return workspaceFavorites(preset).map((f) => ({ label: f, action: f }));
+  }, [menusQuery.data, preset]);
+
   const suggestions = suggestNextActions(history);
+
+  async function toggleMenuFavorite(id: number, next: boolean) {
+    if (!client) return;
+    try {
+      await client.model("ir.ui.menu", "write", [[id], { favorite: next }], sessionContext);
+      await menusQuery.refetch();
+    } catch {
+      /* ACL may block menu writes — ignore */
+    }
+  }
 
   async function prefetchModel(actionOrModel: string) {
     if (!client) return;
@@ -378,14 +406,14 @@ export function Shell() {
         <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>Favorites</h3>
         <ul className="epiton-menu-list">
           {favorites.map((f) => (
-            <li key={f}>
+            <li key={`${f.label}:${f.action}`}>
               <button
                 type="button"
-                data-active={active === f && !activeWizard}
-                onMouseEnter={() => void prefetchModel(f)}
-                onClick={(e) => void openWorkspace(f, "favorite", e.metaKey || e.ctrlKey)}
+                data-active={active === f.action && !activeWizard}
+                onMouseEnter={() => void prefetchModel(f.action)}
+                onClick={(e) => void openWorkspace(f.action, "favorite", e.metaKey || e.ctrlKey)}
               >
-                {f}
+                {f.label}
               </button>
             </li>
           ))}
@@ -395,6 +423,7 @@ export function Shell() {
           items={menusQuery.data ?? []}
           onOpen={(action) => void openWorkspace(action, "menu")}
           onPrefetch={(action) => void prefetchModel(action)}
+          onToggleFavorite={(id, next) => void toggleMenuFavorite(id, next)}
         />
         {suggestions.length ? (
           <>

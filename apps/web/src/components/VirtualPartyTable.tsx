@@ -79,6 +79,9 @@ export function VirtualPartyTable(props: {
   selectedId: number | null;
   selectedIds?: number[];
   editable?: boolean;
+  /** Hierarchy metadata aligned 1:1 with `rows` (after flatten). */
+  rowMeta?: Array<{ depth: number; hasChildren: boolean; expanded?: boolean }>;
+  onToggleExpand?: (id: number) => void;
   /** When set, sorting is server-driven (no client re-sort). */
   onSortChange?: (sorts: Array<{ id: string; desc: boolean }>) => void;
   onSelect: (id: number) => void;
@@ -88,6 +91,7 @@ export function VirtualPartyTable(props: {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
   const serverSort = Boolean(props.onSortChange);
+  const hierarchical = Boolean(props.rowMeta?.length);
 
   function handleSortingChange(updater: Updater<SortingState>) {
     setSorting((prev) => {
@@ -99,6 +103,38 @@ export function VirtualPartyTable(props: {
 
   const columnDefs = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
     const cols: ColumnDef<Record<string, unknown>>[] = [];
+    if (hierarchical) {
+      cols.push({
+        id: "_tree",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const id = Number(row.original.id);
+          const meta = props.rowMeta?.[row.index];
+          const depth = meta?.depth ?? 0;
+          const hasChildren = Boolean(meta?.hasChildren);
+          return (
+            <span className="epiton-tree-indent" style={{ paddingLeft: `${depth * 0.85}rem` }}>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  className="epiton-menu-toggle"
+                  aria-label={`Expand ${id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    props.onToggleExpand?.(id);
+                  }}
+                >
+                  {meta?.expanded ? "▾" : "▸"}
+                </button>
+              ) : (
+                <span className="epiton-menu-toggle-spacer" />
+              )}
+            </span>
+          );
+        },
+      });
+    }
     if (props.onToggleSelect) {
       cols.push({
         id: "_select",
@@ -140,7 +176,16 @@ export function VirtualPartyTable(props: {
       });
     }
     return cols;
-  }, [props.columns, props.onToggleSelect, props.selectedIds, props.editable, props.onCellCommit]);
+  }, [
+    props.columns,
+    props.onToggleSelect,
+    props.selectedIds,
+    props.editable,
+    props.onCellCommit,
+    props.rowMeta,
+    props.onToggleExpand,
+    hierarchical,
+  ]);
 
   const table = useReactTable({
     data: props.rows,

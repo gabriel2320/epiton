@@ -33,6 +33,7 @@ import {
   clinicalWidgetRegistry,
   evalContext,
   evalDomain,
+  flattenTreeRows,
   formatOrder,
   inferGraphFields,
   mergeDomains,
@@ -45,6 +46,7 @@ import {
   toTrytonM2M,
   treeColumns,
   treeEditable,
+  treeMeta,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -123,6 +125,7 @@ export function ModelWorkspace(props: {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
   const [csvImportText, setCsvImportText] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [expandedTreeIds, setExpandedTreeIds] = useState<Set<number>>(() => new Set());
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -335,6 +338,7 @@ export function ModelWorkspace(props: {
 
   const listFields = useMemo(() => {
     const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
+    const hierarchy = treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null;
     const merged = [
       ...new Set([
         "id",
@@ -345,10 +349,17 @@ export function ModelWorkspace(props: {
         "date",
         "appointment_date",
         "create_date",
+        ...(hierarchy?.parentField ? [hierarchy.parentField] : []),
+        ...(hierarchy?.sequenceField ? [hierarchy.sequenceField] : []),
       ]),
     ];
-    return merged.slice(0, 16);
-  }, [treeViewQuery.data]);
+    return merged.slice(0, 20);
+  }, [treeViewQuery.data, props.model]);
+
+  const hierarchyMeta = useMemo(
+    () => (treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null),
+    [treeViewQuery.data, props.model],
+  );
 
   const resolvedActionDomain = useMemo(
     () => evalDomain(props.actionDomain ?? [], { ...sessionContext, ...actionCtxOverlay }),
@@ -375,6 +386,7 @@ export function ModelWorkspace(props: {
     void props.actionDomains;
     setDomainTab(-1);
     setOffset(0);
+    setExpandedTreeIds(new Set());
   }, [props.model, props.actionDomains]);
 
   const listQuery = useQuery({
@@ -407,6 +419,22 @@ export function ModelWorkspace(props: {
       }
     },
   });
+
+  const flatTree = useMemo(() => {
+    const rows = (listQuery.data ?? []) as Array<Record<string, unknown>>;
+    if (!hierarchyMeta?.hierarchical) {
+      return rows.map((row) => ({
+        row,
+        depth: 0,
+        hasChildren: false,
+        expanded: false,
+      }));
+    }
+    return flattenTreeRows(rows, hierarchyMeta, expandedTreeIds).map((item) => ({
+      ...item,
+      expanded: expandedTreeIds.has(Number(item.row.id)),
+    }));
+  }, [listQuery.data, hierarchyMeta, expandedTreeIds]);
 
   const countQuery = useQuery({
     queryKey: ["model", props.model, "count", JSON.stringify(listDomain)],
@@ -1081,12 +1109,29 @@ export function ModelWorkspace(props: {
             />
           ) : (
             <VirtualPartyTable
-              rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
+              rows={flatTree.map((item) => item.row)}
+              rowMeta={
+                hierarchyMeta?.hierarchical
+                  ? flatTree.map((item) => ({
+                      depth: item.depth,
+                      hasChildren: item.hasChildren,
+                      expanded: item.expanded,
+                    }))
+                  : undefined
+              }
               columns={columns}
               selectedId={selectedId}
               selectedIds={selectedIds}
               editable={treeIsEditable}
               onCellCommit={(id, field, value) => void commitTreeCell(id, field, value)}
+              onToggleExpand={(id) => {
+                setExpandedTreeIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                });
+              }}
               onSortChange={(next) => {
                 setOffset(0);
                 setSorts(next);

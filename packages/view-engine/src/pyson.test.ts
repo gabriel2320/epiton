@@ -75,9 +75,47 @@ describe("pyson JSON __class__", () => {
     expect(evalPyson("And(Eval('a'), Eval('b'))", { a: true, b: true })).toBe(true);
   });
 
-  it("evaluates context with Eval", () => {
-    expect(
-      evalContext({ company: { __class__: "Eval", v: "company", d: null } }, { company: 4 }),
-    ).toEqual({ company: 4 });
+  it("evaluates nested Get on _actions (board cross-filter)", () => {
+    const ctx = {
+      _actions: {
+        "party.act_party": { active_id: 42, active_ids: [42], active_model: "party.party" },
+      },
+    };
+    const activeId = evalPysonNode(
+      {
+        __class__: "Get",
+        v: {
+          __class__: "Get",
+          v: { __class__: "Eval", v: "_actions", d: {} },
+          k: "party.act_party",
+          d: {},
+        },
+        k: "active_id",
+        d: null,
+      },
+      ctx,
+    );
+    expect(activeId).toBe(42);
+    const domain = evalDomain(
+      [
+        [
+          "party",
+          "=",
+          {
+            __class__: "Get",
+            v: {
+              __class__: "Get",
+              v: { __class__: "Eval", v: "_actions", d: {} },
+              k: "party.act_party",
+              d: {},
+            },
+            k: "active_id",
+            d: null,
+          },
+        ],
+      ],
+      ctx,
+    );
+    expect(domain).toEqual([["party", "=", 42]]);
   });
 });

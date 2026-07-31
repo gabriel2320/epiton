@@ -78,6 +78,12 @@ export {
   mergeDomains,
 } from "./search";
 export {
+  flattenTreeRows,
+  treeMeta,
+  type FlatTreeRow,
+  type TreeMeta,
+} from "./tree_hierarchy";
+export {
   evalContext,
   evalDomain,
   evalPyson,

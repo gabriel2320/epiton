@@ -9,6 +9,7 @@ import {
   mergeDomains,
   parseFieldsViewGet,
   parseGraphArch,
+  rowsToMultiSeries,
   summarizeSeries,
   treeColumns,
 } from "@epiton/view-engine";
@@ -23,10 +24,16 @@ const PREVIEW_LIMIT = 60;
 
 export type BoardSelection = {
   paneId: string;
+  actionKey: string;
   model: string;
   id: number;
   label: string;
 };
+
+export type BoardActionsCtx = Record<
+  string,
+  { active_id: number; active_ids: number[]; active_model: string }
+>;
 
 /** Embedded interactive pane for one board action (Tryton-backed). */
 export function BoardPane(props: {
@@ -38,6 +45,8 @@ export function BoardPane(props: {
   dragging?: boolean;
   /** Sao-like active record from another pane (`active_id` / cross-filter). */
   activeSelection?: BoardSelection | null;
+  /** Sao `_actions` dict keyed by board action name. */
+  actionsCtx?: BoardActionsCtx;
   onSelectRecord?: (selection: BoardSelection | null) => void;
 }) {
   const client = useAppStore((s) => s.client);
@@ -68,22 +77,35 @@ export function BoardPane(props: {
     if (resolved?.kind === "model") {
       Object.assign(base, evalContext(resolved.context ?? {}, sessionContext));
     }
+    base._actions = { ...(props.actionsCtx ?? {}) };
     if (foreignActive) {
       base.active_id = foreignActive.id;
       base.active_ids = [foreignActive.id];
       base.active_model = foreignActive.model;
+      const key = foreignActive.actionKey;
+      const bag = {
+        active_id: foreignActive.id,
+        active_ids: [foreignActive.id],
+        active_model: foreignActive.model,
+      };
+      (base._actions as BoardActionsCtx)[key] = bag;
     } else {
       base.active_id = null;
       base.active_ids = [];
       base.active_model = null;
     }
     return base;
-  }, [sessionContext, resolved, foreignActive]);
+  }, [sessionContext, resolved, foreignActive, props.actionsCtx]);
 
   const domain = useMemo(() => {
     if (resolved?.kind !== "model") return [] as unknown[];
     const actionDomain = evalDomain(resolved.domain ?? [], evalBag);
     if (!foreignActive) return actionDomain;
+    // Prefer domains that already reference Eval('_actions', …) / active_id.
+    const encoded = JSON.stringify(resolved.domain ?? null);
+    if (encoded.includes("_actions") || encoded.includes("active_id")) {
+      return actionDomain;
+    }
     if (foreignActive.model === model) {
       return mergeDomains(actionDomain, [["id", "=", foreignActive.id]]);
     }
@@ -178,6 +200,7 @@ export function BoardPane(props: {
       }
 
       const data = aggregateGraphData(rows, xField, yField);
+      const multi = yFields.length > 1 ? rowsToMultiSeries(rows, xField, yFields) : undefined;
       return {
         count,
         columns,
@@ -187,6 +210,7 @@ export function BoardPane(props: {
         yField,
         yFields,
         data,
+        multi,
         insight: summarizeSeries(data),
         title: resolved?.kind === "model" ? resolved.name : undefined,
       };
@@ -227,7 +251,13 @@ export function BoardPane(props: {
     if (!model) return;
     setLocalSelectedId(id);
     const label = String(row.rec_name ?? row.name ?? id);
-    props.onSelectRecord?.({ paneId: props.paneId, model, id, label });
+    props.onSelectRecord?.({
+      paneId: props.paneId,
+      actionKey: props.actionName,
+      model,
+      id,
+      label,
+    });
   }
 
   return (
@@ -303,9 +333,10 @@ export function BoardPane(props: {
                 onSelect={selectRow}
                 onOpen={openRecord}
               />
-            ) : screenQuery.data?.data.length ? (
+            ) : screenQuery.data?.data.length || screenQuery.data?.multi?.length ? (
               <GraphView
                 data={screenQuery.data.data}
+                multi={screenQuery.data.multi}
                 chartType={screenQuery.data.chartType}
                 yLabel={screenQuery.data.yField}
                 yKeys={screenQuery.data.yFields.length > 1 ? screenQuery.data.yFields : undefined}

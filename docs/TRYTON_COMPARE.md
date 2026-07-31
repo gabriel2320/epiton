@@ -36,7 +36,7 @@ Epitón aims for **wire + UX parity**, not a GPL reimplementation.
 | Board views | Dashboard modules | Host ready | Lab: no board views installed |
 | Unauth `common.server.version` | Varies | Soft probe | Lab returns empty/401 pre-login |
 | Full embedded Sao board screens | Yes | Partial (analytics panes) | Product gap A-02 |
-| `_actions` cross-filter | Yes | Not yet | Documented gap |
+| `_actions` cross-filter | Yes | Improved (`_actions` + heuristics) | BoardWorkspace |
 | REST Bearer | Optional apps | Not probed | Prefer Session + gateway |
 
 ## How to run the suites
@@ -93,7 +93,7 @@ PYSON + O2M/M2M + board/graph parse).
 See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 
 1. Deeper embedded board act_window hosts (tree inside pane).
-2. Graph/`_actions` cross-filtering between board panes.
+2. ~~Graph/`_actions` cross-filtering between board panes.~~
 3. Editable tree (`editable` arch).
 4. Hierarchical trees, saved searches, notebook tabs, translation wiring.
 5. Wizard final-execute/validate; bus → open/invalidate; richer reports.

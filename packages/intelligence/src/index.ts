@@ -10,6 +10,7 @@ export interface MenuItem {
   parent?: number | string | null;
   action?: string | null;
   keywords?: string[];
+  favorite?: boolean;
 }
 
 export interface RecentRecord {

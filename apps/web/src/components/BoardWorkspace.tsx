@@ -8,7 +8,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
-import { BoardPane, type BoardSelection } from "./BoardPane";
+import { type BoardActionsCtx, BoardPane, type BoardSelection } from "./BoardPane";
 
 function layoutStorageKey(model: string): string {
   return `epiton.board.order.${model}`;
@@ -44,10 +44,12 @@ export function BoardWorkspace(props: {
   const [order, setOrder] = useState<string[]>(() => loadOrder(props.model));
   const [dragId, setDragId] = useState<string | null>(null);
   const [activeSelection, setActiveSelection] = useState<BoardSelection | null>(null);
+  const [actionsCtx, setActionsCtx] = useState<BoardActionsCtx>({});
 
   useEffect(() => {
     setOrder(loadOrder(props.model));
     setActiveSelection(null);
+    setActionsCtx({});
   }, [props.model]);
 
   const boardQuery = useQuery({
@@ -121,12 +123,18 @@ export function BoardWorkspace(props: {
     <Panel title={`Board · ${props.model}`}>
       <div className="epiton-board-toolbar">
         <p className="epiton-board-hint" role="note">
-          Embedded tree/graph panes (Tryton `search_read`). Select a row to cross-filter siblings
-          via `active_id` / relation heuristics. Drag handles rearrange layout.
+          Embedded tree/graph/form panes. Selection feeds Sao `_actions` + `active_id` for sibling
+          domains; relation-name heuristics remain as fallback. Drag handles rearrange layout.
         </p>
         <div className="epiton-board-toolbar-actions">
           {activeSelection ? (
-            <Button variant="ghost" onClick={() => setActiveSelection(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setActiveSelection(null);
+                setActionsCtx({});
+              }}
+            >
               Clear filter ({activeSelection.model}#{activeSelection.id})
             </Button>
           ) : null}
@@ -169,7 +177,21 @@ export function BoardWorkspace(props: {
                 onOpenRecord={props.onOpenRecord}
                 dragging={dragId === tile.id}
                 activeSelection={activeSelection}
-                onSelectRecord={setActiveSelection}
+                actionsCtx={actionsCtx}
+                onSelectRecord={(selection) => {
+                  setActiveSelection(selection);
+                  if (!selection) {
+                    setActionsCtx({});
+                    return;
+                  }
+                  setActionsCtx({
+                    [selection.actionKey]: {
+                      active_id: selection.id,
+                      active_ids: [selection.id],
+                      active_model: selection.model,
+                    },
+                  });
+                }}
               />
             </li>
           ))}

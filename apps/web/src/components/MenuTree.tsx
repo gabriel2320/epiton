@@ -27,9 +27,11 @@ function MenuNode(props: {
   depth: number;
   onOpen: (action: string) => void;
   onPrefetch?: (action: string) => void;
+  onToggleFavorite?: (id: number, next: boolean) => void;
 }) {
   const [open, setOpen] = useState(props.depth < 1);
   const hasChildren = props.node.children.length > 0;
+  const menuId = Number(props.node.id);
 
   return (
     <li>
@@ -46,6 +48,20 @@ function MenuNode(props: {
         ) : (
           <span className="epiton-menu-toggle-spacer" />
         )}
+        {props.onToggleFavorite && Number.isFinite(menuId) ? (
+          <button
+            type="button"
+            className="epiton-menu-fav"
+            aria-label={props.node.favorite ? "Unfavorite" : "Favorite"}
+            aria-pressed={Boolean(props.node.favorite)}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onToggleFavorite?.(menuId, !props.node.favorite);
+            }}
+          >
+            {props.node.favorite ? "★" : "☆"}
+          </button>
+        ) : null}
         <button
           type="button"
           onMouseEnter={() => {
@@ -68,6 +84,7 @@ function MenuNode(props: {
               depth={props.depth + 1}
               onOpen={props.onOpen}
               onPrefetch={props.onPrefetch}
+              onToggleFavorite={props.onToggleFavorite}
             />
           ))}
         </ul>
@@ -80,6 +97,7 @@ export function MenuTree(props: {
   items: MenuItem[];
   onOpen: (action: string) => void;
   onPrefetch?: (action: string) => void;
+  onToggleFavorite?: (id: number, next: boolean) => void;
   limit?: number;
 }) {
   const roots = useMemo(() => {
@@ -97,6 +115,7 @@ export function MenuTree(props: {
           depth={0}
           onOpen={props.onOpen}
           onPrefetch={props.onPrefetch}
+          onToggleFavorite={props.onToggleFavorite}
         />
       ))}
     </ul>

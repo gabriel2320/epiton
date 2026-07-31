@@ -62,6 +62,8 @@ export interface ParsedView {
   arch: ViewNode;
   fields: Record<string, ViewField>;
   buttons: Array<{ name: string; string?: string; confirm?: string }>;
+  /** Tryton fields_view_get field_childs (One2Many of children). */
+  fieldChilds?: string | null;
 }
 
 function decodeEntities(value: string): string {
@@ -225,7 +227,16 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
   };
   walk(arch);
 
-  return { type, arch, fields, buttons };
+  return {
+    type,
+    arch,
+    fields,
+    buttons,
+    fieldChilds:
+      typeof payload.field_childs === "string" && payload.field_childs.trim()
+        ? payload.field_childs.trim()
+        : null,
+  };
 }
 
 export function collectFieldNames(node: ViewNode): string[] {

@@ -32,7 +32,9 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
-| Board | board arch + actions | Improved | Tree/graph/form panes + DnD + `active_id` cross-filter |
+| Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
+| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand/collapse flatten in virtual tree |
+| Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
 | Revision history | `model.__history__` | Improved | Read-only History panel when server exposes it |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |
