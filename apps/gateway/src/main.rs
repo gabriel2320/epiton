@@ -209,3 +209,21 @@ fn rate_limit(state: &AppState, ip: &str) -> bool {
     entry.push(now);
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rate_limit_allows_under_threshold() {
+        let state = AppState {
+            upstream: "http://127.0.0.1:8000".into(),
+            strict_acl: false,
+            http: reqwest::Client::new(),
+            login_hits: Arc::new(Mutex::new(HashMap::new())),
+        };
+        for _ in 0..5 {
+            assert!(rate_limit(&state, "127.0.0.1"));
+        }
+    }
+}

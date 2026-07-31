@@ -10,7 +10,7 @@ faster, safer, adaptive UI.
 
 - TypeScript monorepo (pnpm + Turborepo + Biome)
 - React 19 + Vite + Tailwind CSS 4
-- `@epiton/protocol` — Tryton JSON-RPC Session client
+- `@epiton/protocol` — Tryton JSON-RPC Session client (`/{db}/` + `/rpc/` fallback)
 - `@epiton/view-engine` — Tryton XML views → React
 - `@epiton/intelligence` — local search, suggestions, adaptive layouts
 - Tauri 2 desktop, Capacitor mobile, Axum gateway
@@ -25,7 +25,9 @@ pnpm --filter @epiton/web dev
 Trytond lab:
 
 ```bash
-cd docker && docker compose up -d
+pnpm lab:up
+pnpm lab:smoke
+pnpm lab:smoke:live
 ```
 
 Default lab credentials are documented in `docker/README.md` (synthetic only).

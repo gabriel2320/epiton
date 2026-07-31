@@ -3,6 +3,7 @@ import { sessionAuthorization } from "./auth";
 export { sessionAuthorization } from "./auth";
 export { pollBus } from "./bus";
 export { BusClient, type BusMessage } from "./busClient";
+export { modelHasAccessRows } from "./acl";
 
 export type JsonRpcId = string | number | null;
 

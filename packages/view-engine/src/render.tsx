@@ -189,6 +189,15 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
     );
   }
 
+  if (node.tag === "calendar" || node.tag === "graph" || node.tag === "board") {
+    return createElement(
+      "div",
+      { className: `epiton-${node.tag}-placeholder`, role: "status" },
+      `${node.tag} view — adaptive renderer pending full Sao parity`,
+      node.children.map((c, i) => createElement("div", { key: i }, renderNode(c, view, ctx))),
+    );
+  }
+
   if (node.tag === "newline" || node.tag === "separator") {
     return createElement("hr", { className: `epiton-${node.tag}` });
   }

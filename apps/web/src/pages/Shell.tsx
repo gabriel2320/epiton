@@ -13,7 +13,7 @@ import { BusBanner } from "../components/BusBanner";
 import { CommandPalette } from "../components/CommandPalette";
 import { PartyWorkspace } from "../components/PartyWorkspace";
 import { ReportDownload } from "../components/ReportDownload";
-import { WizardHost } from "../components/WizardHost";
+import { WizardStepper } from "../components/WizardStepper";
 import { useAppStore } from "../lib/store";
 
 export function Shell() {
@@ -174,7 +174,7 @@ export function Shell() {
         )}
 
         <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
-          <WizardHost />
+          <WizardStepper />
           <AttachmentsPanel model="party.party" />
           <ReportDownload />
         </div>

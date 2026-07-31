@@ -6,7 +6,8 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 
 export function VirtualPartyTable(props: {
@@ -16,6 +17,7 @@ export function VirtualPartyTable(props: {
   onSelect: (id: number) => void;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const columnDefs = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () =>
@@ -36,10 +38,21 @@ export function VirtualPartyTable(props: {
     getSortedRowModel: getSortedRowModel(),
   });
 
+  const rows = table.getRowModel().rows;
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 36,
+    overscan: 12,
+  });
+
   return (
-    <div className="max-h-[480px] overflow-auto rounded-xl border border-[var(--epiton-border)]">
+    <div
+      ref={parentRef}
+      className="max-h-[480px] overflow-auto rounded-xl border border-[var(--epiton-border)]"
+    >
       <table className="epiton-table w-full">
-        <thead className="sticky top-0 bg-[var(--epiton-bg-elevated)]">
+        <thead className="sticky top-0 bg-[var(--epiton-bg-elevated)] z-10">
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => (
@@ -57,13 +70,27 @@ export function VirtualPartyTable(props: {
             </tr>
           ))}
         </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => {
+        <tbody style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            if (!row) return null;
             const id = Number(row.original.id);
             return (
               <tr
                 key={row.id}
-                className={cn(selectedClass(id === props.selectedId))}
+                className={cn(
+                  id === props.selectedId
+                    ? "bg-[color-mix(in_oklab,var(--epiton-accent)_16%,transparent)]"
+                    : "",
+                )}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  transform: `translateY(${virtualRow.start}px)`,
+                  width: "100%",
+                  display: "table",
+                  tableLayout: "fixed",
+                }}
                 onClick={() => props.onSelect(id)}
               >
                 {row.getVisibleCells().map((cell) => (
@@ -76,8 +103,4 @@ export function VirtualPartyTable(props: {
       </table>
     </div>
   );
-}
-
-function selectedClass(selected: boolean): string {
-  return selected ? "bg-[color-mix(in_oklab,var(--epiton-accent)_16%,transparent)]" : "";
 }

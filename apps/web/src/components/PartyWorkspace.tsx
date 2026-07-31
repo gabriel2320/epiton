@@ -1,7 +1,9 @@
 import { strictAclCoach } from "@epiton/intelligence";
+import { modelHasAccessRows } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
+  type ViewField,
   parseFieldsViewGet,
   renderView,
   treeColumns,
@@ -10,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
+import { RelationLinesEditor } from "./RelationLinesEditor";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
 export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
@@ -20,6 +23,7 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [draft, setDraft] = useState<RecordValues>({ name: "" });
   const [mode, setMode] = useState<"read" | "write">("read");
+  const [relationField, setRelationField] = useState<ViewField | null>(null);
 
   const listQuery = useQuery({
     queryKey: ["party.party", "list"],
@@ -125,13 +129,22 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
     },
   });
 
+  const aclQuery = useQuery({
+    queryKey: ["party.party", "acl"],
+    enabled: Boolean(client),
+    queryFn: async () => {
+      if (!client) return null;
+      return modelHasAccessRows(client, "party.party");
+    },
+  });
+
   const columns = useMemo(
     () =>
       treeViewQuery.data ? treeColumns(treeViewQuery.data) : [{ name: "name", string: "Name" }],
     [treeViewQuery.data],
   );
 
-  const aclWarning = strictAclCoach("party.party", null);
+  const aclWarning = strictAclCoach("party.party", aclQuery.data ?? null);
   const listState = listQuery.isLoading
     ? "loading"
     : listQuery.isError
@@ -198,11 +211,25 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
               density,
               onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
               onButton: (name) => props.onHistory(`button:${name}`),
-              onOpenRelation: (field) => props.onHistory(`relation:${field.name}`),
+              onOpenRelation: (field) => {
+                setRelationField(field);
+                props.onHistory(`relation:${field.name}`);
+              },
             })
           : recordQuery.isLoading
             ? "Loading…"
             : null}
+        {relationField ? (
+          <RelationLinesEditor
+            field={relationField}
+            value={draft[relationField.name]}
+            mode={mode}
+            onCommit={(next) => {
+              setDraft((d) => ({ ...d, [relationField.name]: next }));
+              setRelationField(null);
+            }}
+          />
+        ) : null}
         {saveMutation.isError ? (
           <p role="alert" style={{ color: "var(--epiton-danger)" }}>
             {saveMutation.error.message}

@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "lab:up": "docker compose -f docker/docker-compose.yml up -d --build",
     "lab:down": "docker compose -f docker/docker-compose.yml down",
-    "lab:smoke": "bash docker/smoke-rpc.sh"
+    "lab:smoke": "bash docker/smoke-rpc.sh",
+    "lab:smoke:live": "pnpm --filter @epiton/protocol build && node scripts/lab-smoke.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
