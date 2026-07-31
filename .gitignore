@@ -17,3 +17,4 @@ apps/mobile/ios/
 *.local
 .idea/
 .vscode/
+test-results/
