@@ -4,12 +4,14 @@ import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type ParsedView,
   type RecordValues,
+  type ViewField,
   parseFieldsViewGet,
   renderView,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { RelationSearch } from "./RelationSearch";
 
 /** Embedded O2M line form: create or edit related values before queuing commands. */
 export function RelationLineForm(props: {
@@ -18,6 +20,7 @@ export function RelationLineForm(props: {
   context?: JsonObject;
   onCancel: () => void;
   onSave: (values: RecordValues, lineId: number | null) => void;
+  onOpenRelated?: (model: string, id: number) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
@@ -25,6 +28,9 @@ export function RelationLineForm(props: {
   const rpcContext: JsonObject = { ...sessionContext, ...(props.context ?? {}) };
   const [draft, setDraft] = useState<RecordValues>({});
   const [viewError, setViewError] = useState<string | null>(null);
+  const [relationField, setRelationField] = useState<ViewField | null>(null);
+  const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
+  const [buttonNotice, setButtonNotice] = useState<string | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -154,6 +160,32 @@ export function RelationLineForm(props: {
     }, 250);
   }
 
+  async function runButton(name: string, meta?: { type?: string }) {
+    if (!client) return;
+    const buttonType = (meta?.type ?? "").toLowerCase();
+    if (buttonType === "action") {
+      setButtonNotice(`Action buttons open from the parent workspace (${name})`);
+      return;
+    }
+    if (props.lineId == null) {
+      setButtonNotice("Queue/save the line before running buttons");
+      return;
+    }
+    setButtonNotice(`Running ${name}…`);
+    try {
+      await client.model(props.model, name, [[props.lineId]], {
+        ...rpcContext,
+        active_id: props.lineId,
+        active_ids: [props.lineId],
+        active_model: props.model,
+      });
+      setButtonNotice(`Button ${name} OK`);
+      await recordQuery.refetch();
+    } catch (err) {
+      setButtonNotice(err instanceof Error ? err.message : "Button failed");
+    }
+  }
+
   const state =
     viewQuery.isLoading || (editing && recordQuery.isLoading)
       ? "loading"
@@ -178,8 +210,54 @@ export function RelationLineForm(props: {
               density,
               model: props.model,
               onChange: handleChange,
+              onButton: (name, meta) => void runButton(name, meta),
+              onOpenRelation: (field, value, domain) => {
+                setRelationField(field);
+                setRelationDomain(domain);
+                if (
+                  field.type === "many2one" &&
+                  field.relation &&
+                  Array.isArray(value) &&
+                  typeof value[0] === "number" &&
+                  props.onOpenRelated
+                ) {
+                  props.onOpenRelated(field.relation, value[0]);
+                }
+              },
             })
           : null}
+        {relationField?.type === "many2one" || relationField?.type === "many2many" ? (
+          <RelationSearch
+            field={relationField}
+            recordValues={draft}
+            domain={relationDomain}
+            mode="write"
+            onCancel={() => {
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+            onPick={(id, recName) => {
+              if (relationField.type === "many2one") {
+                handleChange(relationField.name, [id, recName]);
+              } else {
+                const prev = Array.isArray(draft[relationField.name])
+                  ? (draft[relationField.name] as unknown[])
+                  : [];
+                const ids = prev
+                  .map((item) => (Array.isArray(item) ? Number(item[0]) : Number(item)))
+                  .filter((n) => Number.isFinite(n));
+                if (!ids.includes(id)) ids.push(id);
+                handleChange(
+                  relationField.name,
+                  ids.map((n) => [n, n === id ? recName : String(n)]),
+                );
+              }
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+          />
+        ) : null}
+        {buttonNotice ? <p role="status">{buttonNotice}</p> : null}
         <div className="epiton-toolbar">
           <Button
             variant="primary"

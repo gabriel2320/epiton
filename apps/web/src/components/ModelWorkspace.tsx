@@ -295,19 +295,9 @@ export function ModelWorkspace(props: {
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
-      try {
-        return parseFieldsViewGet(
-          await client.fieldsViewGet(props.model, formViewId, "form", rpcContext),
-        );
-      } catch {
-        return parseFieldsViewGet({
-          arch: `<form><group string="${props.model}"><field name="name"/><field name="active"/></group></form>`,
-          fields: {
-            name: { type: "char", string: "Name", required: true },
-            active: { type: "boolean", string: "Active" },
-          },
-        });
-      }
+      return parseFieldsViewGet(
+        await client.fieldsViewGet(props.model, formViewId, "form", rpcContext),
+      );
     },
   });
 
@@ -317,19 +307,9 @@ export function ModelWorkspace(props: {
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
-      try {
-        return parseFieldsViewGet(
-          await client.fieldsViewGet(props.model, treeViewId, "tree", rpcContext),
-        );
-      } catch {
-        return parseFieldsViewGet({
-          arch: `<tree><field name="rec_name"/><field name="name"/></tree>`,
-          fields: {
-            rec_name: { type: "char", string: "Name" },
-            name: { type: "char", string: "Name" },
-          },
-        });
-      }
+      return parseFieldsViewGet(
+        await client.fieldsViewGet(props.model, treeViewId, "tree", rpcContext),
+      );
     },
   });
 
@@ -1492,7 +1472,9 @@ export function ModelWorkspace(props: {
           ) : viewMode === "list-form" ? (
             <ListFormView
               rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
+              view={listFormViewQuery.data}
               columns={columns}
+              density={density}
               selectedId={selectedId}
               onSelect={(id) => {
                 selectId(id);
@@ -1590,6 +1572,18 @@ export function ModelWorkspace(props: {
 
       <Panel title={selectedId ? `${props.model} #${selectedId}` : `${props.model} form`}>
         {aclWarning ? <Alert tone="muted">{aclWarning.message}</Alert> : null}
+        {formViewQuery.isError ? (
+          <Alert tone="danger">
+            Form view failed:{" "}
+            {formViewQuery.error instanceof Error ? formViewQuery.error.message : "unknown"}
+          </Alert>
+        ) : null}
+        {treeViewQuery.isError ? (
+          <Alert tone="danger">
+            Tree view failed:{" "}
+            {treeViewQuery.error instanceof Error ? treeViewQuery.error.message : "unknown"}
+          </Alert>
+        ) : null}
         {notice ? <Alert tone={noticeTone(notice)}>{notice}</Alert> : null}
         <div className="epiton-toolbar">
           <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>Mode: {mode}</Button>

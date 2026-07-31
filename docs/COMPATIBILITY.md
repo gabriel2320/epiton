@@ -32,14 +32,15 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | CSV export | `export_data` / `export_data_domain` | Improved | Field picker dialog before export |
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
-| Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
 | Shell hosts | Tauri / Capacitor | Improved | Secure session hydrate/persist + title/safe-area |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Email compose | mailto / form_action keywords | Improved | Prefer mail keywords; mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
-| List-form | list-form arch | Implemented | Card list host over `search_read` |
+| List-form | list-form arch | Improved | Card host renders list-form arch via `renderView` |
+| Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |
+| Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
@@ -49,7 +50,6 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | URL actions | `ir.action.url` | Implemented | Opens external URL (blocks `javascript:`) |
 | Domain tabs | `ir.action.act_window.domain` | Improved | Named tabs + count badges + sessionStorage memory |
 | Page size | client limit | Implemented | 40/80/120/200 selector |
-| Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Implemented | widget= arch override + read links |
 | Audit meta | create/write date+uid | Implemented | `MetaStrip` under form toolbar |
 | Shortcuts | Ctrl/Cmd+S Esc T W | Implemented | Save / read / new tab / close tab |
 | UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip, Alert, ConfirmDialog |

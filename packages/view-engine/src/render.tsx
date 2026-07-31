@@ -145,17 +145,42 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   if (field.type === "reference") {
     const modelPart = Array.isArray(value) ? String(value[0] ?? "") : "";
     const idPart = Array.isArray(value) ? String(value[1] ?? "") : "";
+    const models = field.selection?.length
+      ? field.selection
+      : ([[modelPart || "", modelPart || "model"]] as Array<[string, string]>);
     return createElement(
       "div",
       { className: "epiton-reference" },
-      createElement("input", {
-        ...common,
-        id: `${common.id}-model`,
-        placeholder: "model.name",
-        value: modelPart,
-        onChange: (e: { target: { value: string } }) =>
-          ctx.onChange?.(field.name, [e.target.value, idPart ? Number(idPart) || idPart : null]),
-      }),
+      field.selection?.length
+        ? createElement(
+            "select",
+            {
+              ...common,
+              id: `${common.id}-model`,
+              value: modelPart,
+              "aria-label": `${field.string ?? field.name} model`,
+              onChange: (e: { target: { value: string } }) =>
+                ctx.onChange?.(field.name, [
+                  e.target.value,
+                  idPart ? Number(idPart) || idPart : null,
+                ]),
+            },
+            createElement("option", { value: "" }, "— model —"),
+            models.map(([k, label]) =>
+              createElement("option", { key: k || label, value: k }, label || k),
+            ),
+          )
+        : createElement("input", {
+            ...common,
+            id: `${common.id}-model`,
+            placeholder: "model.name",
+            value: modelPart,
+            onChange: (e: { target: { value: string } }) =>
+              ctx.onChange?.(field.name, [
+                e.target.value,
+                idPart ? Number(idPart) || idPart : null,
+              ]),
+          }),
       createElement("input", {
         ...common,
         id: `${common.id}-id`,
@@ -165,6 +190,29 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         onChange: (e: { target: { value: string } }) =>
           ctx.onChange?.(field.name, [modelPart, e.target.value ? Number(e.target.value) : null]),
       }),
+      ctx.mode === "read" && modelPart && idPart
+        ? createElement(
+            "button",
+            {
+              type: "button",
+              className: "epiton-button",
+              onClick: () => {
+                const id = Number(idPart);
+                if (!Number.isFinite(id)) return;
+                ctx.onOpenRelation?.(
+                  {
+                    name: field.name,
+                    type: "many2one",
+                    string: field.string,
+                    relation: modelPart,
+                  },
+                  [id, idPart],
+                );
+              },
+            },
+            "Open",
+          )
+        : null,
     );
   }
 
@@ -354,7 +402,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   }
   if (effectiveType === "url" && ctx.mode === "read" && value) {
     const href = String(value);
-    if (href.startsWith("javascript:")) return href;
+    if (href.startsWith("javascript:")) return "(blocked javascript: URL)";
     return createElement(
       "a",
       {
@@ -367,6 +415,35 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     );
   }
 
+  if (effectiveType === "url" && ctx.mode === "write") {
+    const href = value == null ? "" : String(value);
+    const blocked = href.toLowerCase().startsWith("javascript:");
+    return createElement(
+      "div",
+      { className: "epiton-url-edit" },
+      createElement("input", {
+        ...common,
+        type: "url",
+        value: href,
+        "aria-invalid": blocked || undefined,
+        onChange: (e: { target: { value: string } }) => {
+          const next = e.target.value;
+          if (next.toLowerCase().startsWith("javascript:")) return;
+          ctx.onChange?.(field.name, next);
+        },
+      }),
+      blocked
+        ? createElement("span", { className: "epiton-field-label" }, "javascript: blocked")
+        : href
+          ? createElement(
+              "a",
+              { href, target: "_blank", rel: "noopener noreferrer", className: "epiton-url" },
+              "Open",
+            )
+          : null,
+    );
+  }
+
   const inputType =
     field.type === "integer" || field.type === "float" || field.type === "numeric"
       ? "number"
@@ -374,9 +451,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         ? "password"
         : effectiveType === "email"
           ? "email"
-          : effectiveType === "url"
-            ? "url"
-            : "text";
+          : "text";
 
   return createElement("input", {
     ...common,

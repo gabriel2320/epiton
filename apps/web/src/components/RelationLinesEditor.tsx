@@ -170,6 +170,7 @@ export function RelationLinesEditor(props: {
           lineId={lineForm === "create" ? null : lineForm}
           onCancel={() => setLineForm(null)}
           onSave={queueLine}
+          onOpenRelated={props.onOpenLine}
         />
       ) : null}
       {searchOpen && props.field.relation ? (

@@ -1,10 +1,16 @@
 import { type JsonObject, buildSessionContext, reloadSessionPreferences } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
-import { type RecordValues, parseFieldsViewGet, renderView } from "@epiton/view-engine";
+import {
+  type RecordValues,
+  type ViewField,
+  parseFieldsViewGet,
+  renderView,
+} from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { applyClientLanguage } from "../lib/translations";
+import { RelationSearch } from "./RelationSearch";
 
 /** Preferences form from res.user fields_view_get (preferences context). */
 export function PreferencesPanel() {
@@ -18,6 +24,8 @@ export function PreferencesPanel() {
   const [draft, setDraft] = useState<RecordValues>({ ...preferences });
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
   const [message, setMessage] = useState("Load preferences form from server");
+  const [relationField, setRelationField] = useState<ViewField | null>(null);
+  const [viewError, setViewError] = useState<string | null>(null);
 
   const viewQuery = useQuery({
     queryKey: ["res.user", "preferences-view"],
@@ -26,21 +34,16 @@ export function PreferencesPanel() {
     queryFn: async () => {
       if (!client) return null;
       try {
+        setViewError(null);
         return parseFieldsViewGet(
           await client.fieldsViewGet("res.user", null, "form", {
             ...sessionContext,
             preferences: true,
           }),
         );
-      } catch {
-        return parseFieldsViewGet({
-          arch: `<form><group string="Preferences"><field name="company"/><field name="language"/><field name="employee"/></group></form>`,
-          fields: {
-            company: { type: "many2one", string: "Company", relation: "company.company" },
-            language: { type: "char", string: "Language" },
-            employee: { type: "many2one", string: "Employee" },
-          },
-        });
+      } catch (err) {
+        setViewError(err instanceof Error ? err.message : "preferences view failed");
+        return null;
       }
     },
   });
@@ -101,11 +104,20 @@ export function PreferencesPanel() {
     }
   }
 
-  const blockState = status === "idle" ? (viewQuery.isLoading ? "loading" : "empty") : status;
+  const blockState =
+    status === "idle"
+      ? viewQuery.isLoading
+        ? "loading"
+        : viewError
+          ? "error"
+          : viewQuery.data
+            ? "data"
+            : "empty"
+      : status;
 
   return (
     <Panel title="Preferences">
-      <StateBlock state={blockState} message={message}>
+      <StateBlock state={blockState} message={viewError ?? message}>
         {viewQuery.data ? (
           renderView(viewQuery.data, {
             values: draft,
@@ -113,33 +125,27 @@ export function PreferencesPanel() {
             density,
             model: "res.user",
             onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
+            onOpenRelation: (field) => setRelationField(field),
           })
         ) : (
-          <div
-            className="epiton-toolbar"
-            style={{ flexDirection: "column", alignItems: "stretch" }}
-          >
-            <label>
-              Company id
-              <input
-                value={String(draft.company ?? "")}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, company: Number(e.target.value) || e.target.value }))
-                }
-                inputMode="numeric"
-                aria-label="Company id"
-              />
-            </label>
-            <label>
-              Language
-              <input
-                value={String(draft.language ?? "")}
-                onChange={(e) => setDraft((d) => ({ ...d, language: e.target.value }))}
-                aria-label="Language"
-              />
-            </label>
-          </div>
+          <p className="text-sm text-[var(--epiton-muted)]" role="status">
+            {viewError
+              ? "Preferences form unavailable — use Reload after fixing ACL/view."
+              : "Waiting for preferences form…"}
+          </p>
         )}
+        {relationField ? (
+          <RelationSearch
+            field={relationField}
+            recordValues={draft}
+            mode="write"
+            onCancel={() => setRelationField(null)}
+            onPick={(id, recName) => {
+              setDraft((d) => ({ ...d, [relationField.name]: [id, recName] }));
+              setRelationField(null);
+            }}
+          />
+        ) : null}
         <div className="epiton-toolbar">
           <Button variant="primary" onClick={() => void save()}>
             Save

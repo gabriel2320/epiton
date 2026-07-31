@@ -1,9 +1,13 @@
 import { Panel } from "@epiton/ui";
+import { type ParsedView, type RecordValues, renderView } from "@epiton/view-engine";
 
-/** Compact list-form host: one card per row with labeled fields. */
+/** Compact list-form host: one card per row rendered from list-form arch. */
 export function ListFormView(props: {
   rows: Array<Record<string, unknown>>;
+  /** When present, render Sao list-form widgets per card. */
+  view?: ParsedView | null;
   columns: Array<{ name: string; string: string }>;
+  density?: "compact" | "comfortable";
   selectedId: number | null;
   onSelect: (id: number) => void;
 }) {
@@ -20,12 +24,26 @@ export function ListFormView(props: {
               onClick={() => Number.isFinite(id) && props.onSelect(id)}
             >
               <strong>#{Number.isFinite(id) ? id : "—"}</strong>
-              {props.columns.map((col) => (
-                <div key={col.name} className="epiton-list-form-field">
-                  <span className="epiton-field-label">{col.string}</span>
-                  <span>{formatCell(row[col.name])}</span>
+              {props.view ? (
+                <div
+                  className="epiton-list-form-view"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {renderView(props.view, {
+                    values: row as RecordValues,
+                    mode: "read",
+                    density: props.density ?? "compact",
+                  })}
                 </div>
-              ))}
+              ) : (
+                props.columns.map((col) => (
+                  <div key={col.name} className="epiton-list-form-field">
+                    <span className="epiton-field-label">{col.string}</span>
+                    <span>{formatCell(row[col.name])}</span>
+                  </div>
+                ))
+              )}
             </button>
           </li>
         );

@@ -22,9 +22,9 @@ Tryton is still clearly ahead on:
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
 3. Nested O2M/M2M as *full* Sao screens (line forms now run on_change; still command-queue, not embedded tree/form screens)
 
-Recently improved (2026-07-31 cont. 2): tree row buttons, editable m2o cells, editable New row,
-history field peek/restore, relation line on_change; plus polymorphic actions, M2M deltas,
-bus depth, CSV export picker, domain-tab memory, tree_state domains, calendar, wizards.
+Recently improved (2026-07-31 cont. 3): line-form M2O/buttons, no fake form/tree arches,
+list-form `renderView` cards, reference model picker, URL javascript block, prefs RelationSearch;
+plus tree buttons, history restore, polymorphic actions, calendar, wizards.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -80,8 +80,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 7. ~~Form button action routing + attachment links + PYSON ops + `common.db.list`~~
 8. ~~Polymorphic `ir.action`; O2M/M2M labels+deltas; button active_ids; bus depth; CSV export picker; domain-tab memory~~
 9. ~~Tree buttons; editable m2o; New row; history peek/restore; line on_change~~
-10. GTK-only plugins remain out of scope; full nested Sao relation screens remain Medium polish
-11. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
+10. ~~Line-form M2O/buttons; real form/tree errors; list-form renderView; reference/url; prefs relations~~
+11. GTK-only plugins remain out of scope; full nested Sao relation screens remain Medium polish
+12. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 
