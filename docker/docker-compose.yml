@@ -49,10 +49,68 @@ services:
       EPITON_STRICT_ACL: "true"
       EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       EPITON_TRUST_PROXY: "false"
-      EPITON_TRUST_PROXY: "false"
-      EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
     ports:
       - "8080:8080"
 
+  # Optional Tryton 8 lab: `pnpm lab:up:8` (separate DB volume; stops 7 stack first).
+  db8:
+    profiles: ["tryton8"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: epiton_lab8
+      POSTGRES_USER: tryton
+      POSTGRES_PASSWORD: tryton
+    ports:
+      - "5434:5432"
+    volumes:
+      - epiton_pg8:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tryton -d epiton_lab8"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  tryton8:
+    profiles: ["tryton8"]
+    build:
+      context: .
+      dockerfile: Dockerfile.8
+    image: epiton/tryton-lab:8.0
+    depends_on:
+      db8:
+        condition: service_healthy
+    environment:
+      DB_HOSTNAME: db8
+      DB_USER: tryton
+      DB_PASSWORD: tryton
+      DB_NAME: epiton_lab8
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./trytond.conf:/etc/tryton/trytond.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  gateway8:
+    profiles: ["tryton8"]
+    build: ../apps/gateway
+    image: epiton/gateway:0.1
+    depends_on:
+      tryton8:
+        condition: service_started
+    environment:
+      EPITON_UPSTREAM: http://tryton8:8000
+      EPITON_GATEWAY_BIND: 0.0.0.0:8081
+      EPITON_STRICT_ACL: "true"
+      EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
+      EPITON_TRUST_PROXY: "false"
+    ports:
+      - "8081:8081"
+
 volumes:
   epiton_pg:
+  epiton_pg8:

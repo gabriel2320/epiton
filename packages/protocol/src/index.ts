@@ -13,6 +13,12 @@ export {
   type WizardExecuteResult,
   type WizardSession,
 } from "./wizards";
+export {
+  applyFieldChange,
+  buildOnChangeArgs,
+  type FieldOnChangeMeta,
+  type OnChangeValues,
+} from "./onchange";
 
 export type JsonRpcId = string | number | null;
 

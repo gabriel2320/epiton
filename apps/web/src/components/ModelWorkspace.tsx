@@ -1,5 +1,5 @@
 import { strictAclCoach } from "@epiton/intelligence";
-import { modelHasAccessRows } from "@epiton/protocol";
+import { applyFieldChange, modelHasAccessRows } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
@@ -14,11 +14,12 @@ import {
   treeColumns,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { GraphView } from "./GraphView";
 import { RelationLinesEditor } from "./RelationLinesEditor";
+import { RelationSearch } from "./RelationSearch";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
@@ -32,6 +33,8 @@ export function ModelWorkspace(props: {
   initialSelectedId?: number | null;
   onHistory?: (action: string) => void;
   onSelectedIdChange?: (id: number | null) => void;
+  /** Open a related model as a stacked workspace (breadcrumbs). */
+  onPushRelated?: (model: string, id: number | null) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
@@ -40,8 +43,10 @@ export function ModelWorkspace(props: {
   const [draft, setDraft] = useState<RecordValues>({});
   const [mode, setMode] = useState<"read" | "write">("read");
   const [relationField, setRelationField] = useState<ViewField | null>(null);
+  const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"tree" | "calendar" | "graph">("tree");
+  const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
@@ -158,6 +163,12 @@ export function ModelWorkspace(props: {
     props.onSelectedIdChange?.(props.initialSelectedId);
   }, [props.initialSelectedId, props.onSelectedIdChange]);
 
+  useEffect(() => {
+    return () => {
+      if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    };
+  }, []);
+
   const aclQuery = useQuery({
     queryKey: ["model", props.model, "acl"],
     enabled: Boolean(client),
@@ -167,6 +178,33 @@ export function ModelWorkspace(props: {
       return modelHasAccessRows(client, props.model);
     },
   });
+
+  function scheduleOnChange(name: string, nextDraft: RecordValues) {
+    if (!client || mode !== "write") return;
+    const fields = formViewQuery.data?.fields;
+    if (!fields) return;
+    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    onChangeTimer.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const patch = await applyFieldChange(client, props.model, fields, nextDraft, name);
+          if (Object.keys(patch).length === 0) return;
+          setDraft((d) => ({ ...d, ...patch }));
+          props.onHistory?.(`on_change:${name}`);
+        } catch (err) {
+          setNotice(err instanceof Error ? err.message : "on_change failed");
+        }
+      })();
+    }, 280);
+  }
+
+  function handleFieldChange(name: string, value: unknown) {
+    setDraft((d) => {
+      const next = { ...d, [name]: value };
+      scheduleOnChange(name, next);
+      return next;
+    });
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -181,6 +219,9 @@ export function ModelWorkspace(props: {
         else if (raw == null || raw === "") values[key] = null;
         else if (typeof raw === "number" || typeof raw === "boolean") values[key] = raw;
         else if (typeof raw === "string") values[key] = raw;
+        else if (Array.isArray(raw) && raw.length >= 1 && typeof raw[0] === "number") {
+          values[key] = raw[0];
+        }
       }
       if (selectedId) {
         await client.model(props.model, "write", [[selectedId], values], {});
@@ -348,11 +389,22 @@ export function ModelWorkspace(props: {
               density,
               model: props.model,
               widgets,
-              onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
+              onChange: handleFieldChange,
               onButton: (name) => void runButton(name),
-              onOpenRelation: (field) => {
+              onOpenRelation: (field, value, domain) => {
                 setRelationField(field);
+                setRelationDomain(domain);
                 props.onHistory?.(`relation:${field.name}`);
+                if (
+                  field.type === "many2one" &&
+                  field.relation &&
+                  Array.isArray(value) &&
+                  typeof value[0] === "number" &&
+                  props.onPushRelated &&
+                  mode === "read"
+                ) {
+                  props.onPushRelated(field.relation, value[0]);
+                }
               },
               onBinaryDownload: (field, value) => {
                 if (typeof value !== "string" || value.startsWith("javascript:")) return;
@@ -373,7 +425,28 @@ export function ModelWorkspace(props: {
           : recordQuery.isLoading
             ? "Loading…"
             : null}
-        {relationField ? (
+        {relationField?.type === "many2one" ? (
+          <RelationSearch
+            field={relationField}
+            recordValues={draft}
+            domain={relationDomain}
+            mode={mode}
+            onCancel={() => {
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+            onPick={(id, recName) => {
+              const nextVal: [number, string] = [id, recName];
+              setDraft((d) => {
+                const next = { ...d, [relationField.name]: nextVal };
+                scheduleOnChange(relationField.name, next);
+                return next;
+              });
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+          />
+        ) : relationField ? (
           <RelationLinesEditor
             field={relationField}
             value={draft[relationField.name]}
@@ -381,6 +454,7 @@ export function ModelWorkspace(props: {
             onCommit={(next) => {
               setDraft((d) => ({ ...d, [relationField.name]: next }));
               setRelationField(null);
+              setRelationDomain(undefined);
             }}
           />
         ) : null}

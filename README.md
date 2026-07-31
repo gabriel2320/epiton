@@ -28,6 +28,8 @@ Trytond lab:
 pnpm lab:up
 pnpm lab:smoke
 pnpm lab:smoke:live
+# Optional Tryton 8 (port 8001 / gateway 8081):
+# pnpm lab:up:8
 ```
 
 Default lab credentials are documented in `docker/README.md` (synthetic only).

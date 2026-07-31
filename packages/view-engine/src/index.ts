@@ -48,7 +48,15 @@ export {
   type CalendarEventRow,
 } from "./calendar";
 export { GRAPH_ROW_LIMIT, inferGraphFields, rowsToGraphData } from "./graph";
-export { evalPyson, resolveStatesAttr, type FieldStates, type PysonContext } from "./pyson";
+export {
+  evalDomain,
+  evalPyson,
+  evalPysonNode,
+  resolveStatesAttr,
+  type FieldStates,
+  type PysonContext,
+  type PysonNode,
+} from "./pyson";
 export { formatTrytonDate, parseTrytonDateInput } from "./dates";
 
 export interface WizardButton {

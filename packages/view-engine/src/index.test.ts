@@ -32,6 +32,24 @@ describe("view-engine", () => {
     expect(parsed.fields.lines?.type).toBe("one2many");
   });
 
+  it("parses on_change and domain metadata", () => {
+    const parsed = parseFieldsViewGet({
+      arch: `<form><field name="party"/></form>`,
+      fields: {
+        party: {
+          type: "many2one",
+          relation: "party.party",
+          on_change: ["party"],
+          on_change_with: ["company"],
+          domain: [["active", "=", true]],
+        },
+      },
+    });
+    expect(parsed.fields.party?.on_change).toEqual(["party"]);
+    expect(parsed.fields.party?.on_change_with).toEqual(["company"]);
+    expect(parsed.fields.party?.domain).toEqual([["active", "=", true]]);
+  });
+
   it("rejects empty xml", () => {
     expect(() => parseXml("")).toThrow();
   });

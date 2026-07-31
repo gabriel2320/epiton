@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { formatTrytonDate, parseTrytonDateInput } from "./dates";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
-import { resolveStatesAttr } from "./pyson";
+import { evalDomain, resolveStatesAttr } from "./pyson";
 
 export type RecordValues = Record<string, unknown>;
 
@@ -15,7 +15,7 @@ export interface RenderContext {
   widgets?: WidgetRegistry;
   onChange?: (name: string, value: unknown) => void;
   onButton?: (name: string) => void;
-  onOpenRelation?: (field: ViewField, value: unknown) => void;
+  onOpenRelation?: (field: ViewField, value: unknown, domain?: unknown[]) => void;
   onBinaryDownload?: (field: ViewField, value: unknown) => void;
   renderField?: (field: ViewField, value: unknown) => ReactNode;
 }
@@ -109,6 +109,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
 
   if (field.type === "one2many" || field.type === "many2many") {
     const rows = Array.isArray(value) ? value : [];
+    const domain = evalDomain(field.domain ?? [], ctx.values);
     return createElement(
       "div",
       { className: "epiton-o2m", "data-relation": field.relation ?? "" },
@@ -117,7 +118,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         "button",
         {
           type: "button",
-          onClick: () => ctx.onOpenRelation?.(field, value),
+          onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
         "Open lines",
       ),
@@ -126,6 +127,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
 
   if (field.type === "many2one") {
     const display = Array.isArray(value) ? String(value[1] ?? value[0] ?? "") : String(value ?? "");
+    const domain = evalDomain(field.domain ?? [], ctx.values);
     return createElement(
       "div",
       { className: "epiton-m2o" },
@@ -139,8 +141,17 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         "button",
         {
           type: "button",
+          disabled: ctx.mode === "read",
+          onClick: () => ctx.onOpenRelation?.(field, value, domain),
+        },
+        "Search",
+      ),
+      createElement(
+        "button",
+        {
+          type: "button",
           disabled: value == null,
-          onClick: () => ctx.onOpenRelation?.(field, value),
+          onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
         "Open",
       ),
@@ -210,8 +221,17 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
     const states = resolveStatesAttr(node.attrs.states, ctx.values);
     if (states.invisible) return null;
     const value = ctx.values[name];
+    let domain = field.domain;
+    if (node.attrs.domain) {
+      try {
+        domain = JSON.parse(node.attrs.domain.replace(/'/g, '"')) as unknown;
+      } catch {
+        domain = field.domain;
+      }
+    }
     const fieldWithFlags: ViewField = {
       ...field,
+      domain,
       readonly: field.readonly || states.readonly,
       required: field.required || states.required,
     };

@@ -31,6 +31,12 @@ const ReportDownload = lazy(() =>
   import("../components/ReportDownload").then((m) => ({ default: m.ReportDownload })),
 );
 
+interface ActionFrame {
+  model: string;
+  id: number | null;
+  label: string;
+}
+
 export function Shell() {
   const client = useAppStore((s) => s.client);
   const session = useAppStore((s) => s.session);
@@ -46,8 +52,11 @@ export function Shell() {
   const queryClient = useQueryClient();
 
   const deep = readDeepLink();
-  const [active, setActive] = useState(deep.model ?? "party.party");
-  const [selectedId, setSelectedId] = useState<number | null>(deep.id);
+  const [stack, setStack] = useState<ActionFrame[]>([
+    { model: deep.model ?? "party.party", id: deep.id, label: deep.model ?? "party.party" },
+  ]);
+  const active = stack[stack.length - 1]?.model ?? "party.party";
+  const selectedId = stack[stack.length - 1]?.id ?? null;
   const [activeWizard, setActiveWizard] = useState<string | null>(null);
   const [wizardActionId, setWizardActionId] = useState<number | null>(null);
   const [activeReport, setActiveReport] = useState<string | null>(null);
@@ -56,6 +65,17 @@ export function Shell() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+
+  function setSelectedId(id: number | null) {
+    setStack((s) => {
+      if (!s.length) return s;
+      const copy = [...s];
+      const top = copy[copy.length - 1];
+      if (!top) return s;
+      copy[copy.length - 1] = { ...top, id };
+      return copy;
+    });
+  }
 
   useEffect(() => {
     writeDeepLink(active, selectedId);
@@ -131,9 +151,21 @@ export function Shell() {
     });
   }
 
+  function replaceRoot(model: string, id: number | null = null) {
+    setStack([{ model, id, label: model }]);
+  }
+
+  function pushFrame(model: string, id: number | null) {
+    setStack((s) => [...s, { model, id, label: id != null ? `${model}#${id}` : model }]);
+  }
+
+  function popTo(index: number) {
+    setStack((s) => s.slice(0, index + 1));
+  }
+
   async function openWorkspace(actionOrModel: string, source: string) {
     if (!client) {
-      setActive(actionOrModel);
+      replaceRoot(actionOrModel);
       setActiveWizard(null);
       return;
     }
@@ -143,8 +175,7 @@ export function Shell() {
       setActiveWizard(null);
       setWizardActionId(null);
       setActiveReport(null);
-      setActive(resolved.model);
-      setSelectedId(null);
+      replaceRoot(resolved.model, null);
       setHistory((h) => [...h, { model: resolved.model, action: source }]);
       return;
     }
@@ -287,6 +318,30 @@ export function Shell() {
           <Button onClick={logout}>Logout</Button>
         </div>
 
+        <nav className="epiton-breadcrumbs" aria-label="Action stack">
+          {stack.map((frame, index) => (
+            <span key={`${frame.model}-${index}`}>
+              {index > 0 ? <span aria-hidden="true"> / </span> : null}
+              <button
+                type="button"
+                className="epiton-breadcrumb"
+                data-active={index === stack.length - 1}
+                onClick={() => popTo(index)}
+              >
+                {frame.id != null ? `${frame.model} #${frame.id}` : frame.label}
+              </button>
+            </span>
+          ))}
+          {stack.length > 1 ? (
+            <Button
+              onClick={() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s))}
+              aria-label="Back"
+            >
+              Back
+            </Button>
+          ) : null}
+        </nav>
+
         {workspaceNotice ? (
           <p role="status" style={{ color: "var(--epiton-muted)" }}>
             {workspaceNotice}
@@ -310,11 +365,15 @@ export function Shell() {
         ) : (
           <Suspense fallback={<p role="status">Loading workspace…</p>}>
             <ModelWorkspace
-              key={active}
+              key={`${active}:${stack.length}`}
               model={active}
               initialSelectedId={selectedId}
               useClinicalWidgets={preset === "clinical"}
               onSelectedIdChange={setSelectedId}
+              onPushRelated={(model, id) => {
+                pushFrame(model, id);
+                setHistory((h) => [...h, { model, action: "stack:push" }]);
+              }}
               onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
             />
           </Suspense>

@@ -16,16 +16,31 @@
 | Attachments | `ir.attachment` | Implemented | Scoped to selected `recordId` |
 | O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Nested editors |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
-| PYSON states | `invisible`/`readonly`/`required` | Partial | Eval/Not/Bool/Equal subset |
+| PYSON states | `invisible`/`readonly`/`required` | Implemented | JSON `__class__` + string Eval/Not/And/Or/If/Get/In/Date |
+| Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M |
+| on_change | `on_change_*` / `on_change_with` | Implemented | Debounced in `ModelWorkspace` |
+| Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
 | Bus | `/{db}/bus` | Long-poll `BusClient` + shell banner | Capability probed |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |
 | CSP | Web security headers | Prod hardened | Prefer web→gateway so `connect-src 'self'` |
-| Series 7.0 LTS | Docker lab image | Lab compose | |
-| Series 8.x | Capability detect | `common.server.version` | |
+| Series 7.0 LTS | Docker lab image | Default `pnpm lab:up` | CI smoke |
+| Series 8.x | Capability detect + lab profile | `pnpm lab:up:8` → :8001 / gateway :8081 | Separate Postgres volume |
 | Sao coexistence | Same trytond | Supported | Do not share browser storage blindly |
 | Proteus / XML-RPC | Server-side | Out of Epiton UI scope | |
 | GNU Health | `health_*` modules | Matrix in `docs/GNU_HEALTH.md` | Phase 4 |
+
+## Tryton 8 lab profile
+
+Default compose stays on **Tryton 7.0** (CI). Optional series 8:
+
+```bash
+pnpm lab:up:8          # db8 + tryton8 (:8001) + gateway8 (:8081)
+# Login database: epiton_lab8
+pnpm lab:down          # tears down default + tryton8 profile
+```
+
+`detectCapabilities()` still classifies `8.x` via `common.server.version`.
 
 ## Security deployment note
 

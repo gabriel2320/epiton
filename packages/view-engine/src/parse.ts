@@ -34,6 +34,10 @@ export interface ViewField {
   relation?: string;
   selection?: Array<[string, string]>;
   help?: string;
+  /** Static or PYSON-encoded domain from fields_view_get. */
+  domain?: unknown;
+  on_change?: string[];
+  on_change_with?: string[];
 }
 
 export interface ViewNode {
@@ -173,6 +177,11 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
       help: typeof meta.help === "string" ? meta.help : undefined,
       selection: Array.isArray(meta.selection)
         ? (meta.selection as Array<[string, string]>)
+        : undefined,
+      domain: meta.domain,
+      on_change: Array.isArray(meta.on_change) ? meta.on_change.map(String) : undefined,
+      on_change_with: Array.isArray(meta.on_change_with)
+        ? meta.on_change_with.map(String)
         : undefined,
     };
   }
