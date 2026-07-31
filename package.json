@@ -18,6 +18,7 @@
     "lab:down": "docker compose -f docker/docker-compose.yml --profile tryton8 down",
     "lab:smoke": "bash docker/smoke-rpc.sh",
     "lab:smoke:live": "pnpm --filter @epiton/protocol build && node scripts/lab-smoke.mjs",
+    "compat:live": "pnpm --filter @epiton/protocol build && pnpm --filter @epiton/view-engine build && node scripts/compat-live.mjs",
     "gh:check": "pnpm --filter @epiton/protocol build && node scripts/gh-models-check.mjs",
     "analyze": "pnpm --filter @epiton/web build && echo 'Open apps/web/dist/stats.html'",
     "check:bundle": "node scripts/check-bundle.mjs",

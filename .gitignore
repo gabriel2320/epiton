@@ -10,6 +10,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+tests/compat/receipts/
 apps/desktop/src-tauri/target/
 apps/gateway/target/
 apps/mobile/android/

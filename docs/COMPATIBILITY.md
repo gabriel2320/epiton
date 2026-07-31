@@ -2,6 +2,7 @@
 
 Canonical parity table. Authority and agent rails: [`CANON.md`](CANON.md),
 [`GOVERNANCE.md`](GOVERNANCE.md), [`../AGENTS.md`](../AGENTS.md).
+Live evidence vs Tryton lab: [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md) (`pnpm compat:live`).
 
 | Area | Tryton contract | Epiton status | Notes |
 |------|-----------------|---------------|-------|
@@ -73,4 +74,6 @@ Session tokens must not be written to `localStorage` (only `epiton.connection` b
 
 ## Fixtures
 
-Synthetic traces live in `tests/compat/fixtures/`. Replay against a live lab with Epiton client when docker is up.
+Synthetic traces live in `tests/compat/fixtures/`. Offline replay:
+`pnpm --filter @epiton/compat test`. Live matrix against docker lab:
+`pnpm compat:live` (see [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)).

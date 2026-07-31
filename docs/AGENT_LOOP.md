@@ -31,6 +31,8 @@ Daily speed path for agents. Authority and rails live in
 | Lab down | `pnpm lab:down` |
 | RPC smoke (shell) | `pnpm lab:smoke` |
 | RPC smoke (live client) | `pnpm lab:smoke:live` |
+| Live compat matrix | `pnpm compat:live` |
+| Offline compat fixtures | `pnpm --filter @epiton/compat test` |
 | Gateway health | `pnpm gateway:smoke` |
 | GH model probe | `pnpm gh:check` |
 | Gateway tests | `cd apps/gateway && cargo test` |
