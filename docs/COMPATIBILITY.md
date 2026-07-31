@@ -32,6 +32,10 @@
 | defaults | `default_get` | Implemented | On New |
 | Copy | `model.*.copy` | Implemented | Selected ids → new records |
 | Keywords | `ir.action.keyword.get_keyword` | Implemented | Relate / Print / Action menus |
+| URL actions | `ir.action.url` | Implemented | Opens external URL (blocks `javascript:`) |
+| Domain tabs | `ir.action.act_window.domain` | Implemented | All + named domain tabs |
+| Page size | client limit | Implemented | 40/80/120/200 selector |
+| Shortcuts | Ctrl/Cmd+S, Esc | Implemented | Save in write mode; Esc → read |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Implemented | widget= arch override + read links |
 | Wizard actions | execute `actions` | Implemented | `wizardActionRefs` → openWorkspace |
 | Bus | `/{db}/bus` | Implemented | Long-poll + notification panel |

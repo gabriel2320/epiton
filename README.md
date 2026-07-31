@@ -15,6 +15,12 @@ faster, safer, adaptive UI.
 - `@epiton/intelligence` — local search, suggestions, adaptive layouts
 - Tauri 2 desktop, Capacitor mobile, Axum gateway
 
+## Tooling decisions
+
+See [`docs/TOOLING.md`](docs/TOOLING.md) for evaluations of SQLAlchemy, Pydantic,
+Alembic, NumPy, WeasyPrint, ReportLab, FastAPI, Tailwind, and shadcn (spoiler:
+keep Tailwind; reject Python ORM/report stacks for the client runtime).
+
 ## Quick start
 
 ```bash

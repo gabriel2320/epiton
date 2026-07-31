@@ -4,7 +4,13 @@ export { sessionAuthorization } from "./auth";
 export { pollBus } from "./bus";
 export { BusClient, type BusMessage } from "./busClient";
 export { modelHasAccessRows } from "./acl";
-export { resolveAction, resolveWorkspaceModel, type ResolvedAction } from "./actions";
+export {
+  openActionUrl,
+  resolveAction,
+  resolveWorkspaceModel,
+  type ActWindowDomainTab,
+  type ResolvedAction,
+} from "./actions";
 export {
   wizardCreate,
   wizardDataForState,

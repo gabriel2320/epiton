@@ -5,7 +5,7 @@ import {
   unifiedSearch,
   workspaceFavorites,
 } from "@epiton/intelligence";
-import { type JsonValue, resolveAction, wizardActionRefs } from "@epiton/protocol";
+import { type JsonValue, openActionUrl, resolveAction, wizardActionRefs } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -40,6 +40,7 @@ interface ActionFrame {
   domain?: JsonValue;
   context?: JsonValue;
   views?: Array<[number | null, string]>;
+  domains?: Array<{ name: string; domain: JsonValue; count?: boolean }>;
 }
 
 interface WorkspaceTab {
@@ -230,6 +231,7 @@ export function Shell() {
       domain?: JsonValue;
       context?: JsonValue;
       views?: Array<[number | null, string]>;
+      domains?: ActionFrame["domains"];
       label?: string;
     },
   ) {
@@ -241,6 +243,7 @@ export function Shell() {
         domain: extras?.domain,
         context: extras?.context,
         views: extras?.views,
+        domains: extras?.domains,
       },
     ]);
   }
@@ -293,6 +296,7 @@ export function Shell() {
         domain: resolved.domain,
         context: resolved.context,
         views: resolved.views,
+        domains: resolved.domains,
       };
       if (asNewTab) openNewTab(frame);
       else replaceRoot(resolved.model, null, frame);
@@ -310,6 +314,16 @@ export function Shell() {
       setActiveReport(resolved.report);
       setReportOpen(true);
       setHistory((h) => [...h, { model: resolved.report, action: `report:${source}` }]);
+      return;
+    }
+    if (resolved.kind === "url") {
+      const ok = openActionUrl(resolved.url);
+      setWorkspaceNotice(
+        ok
+          ? `Opened URL: ${resolved.name ?? resolved.url}`
+          : `Blocked or failed URL action: ${resolved.url}`,
+      );
+      setHistory((h) => [...h, { model: resolved.url, action: `url:${source}` }]);
       return;
     }
     setWorkspaceNotice(`No workspace for ${actionOrModel}: ${resolved.reason}`);
@@ -539,6 +553,7 @@ export function Shell() {
               actionDomain={topFrame?.domain}
               actionContext={topFrame?.context}
               actionViews={topFrame?.views}
+              actionDomains={topFrame?.domains}
               useClinicalWidgets={preset === "clinical"}
               onSelectedIdChange={setSelectedId}
               onPushRelated={(model, id) => {

@@ -1,5 +1,6 @@
 import { strictAclCoach } from "@epiton/intelligence";
 import {
+  type ActWindowDomainTab,
   type JsonObject,
   type JsonValue,
   applyFieldChange,
@@ -40,7 +41,7 @@ import { RelationSearch } from "./RelationSearch";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
-const PAGE_SIZE = 80;
+const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
 
 function normalizeIds(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
@@ -66,6 +67,7 @@ export function ModelWorkspace(props: {
   actionDomain?: JsonValue;
   actionContext?: JsonValue;
   actionViews?: Array<[number | null, string]>;
+  actionDomains?: ActWindowDomainTab[];
   onHistory?: (action: string) => void;
   onSelectedIdChange?: (id: number | null) => void;
   onPushRelated?: (model: string, id: number | null) => void;
@@ -87,6 +89,8 @@ export function ModelWorkspace(props: {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(80);
+  const [domainTab, setDomainTab] = useState(-1);
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -277,12 +281,27 @@ export function ModelWorkspace(props: {
     [props.actionDomain, sessionContext, actionCtxOverlay],
   );
 
+  const domainTabs = props.actionDomains ?? [];
+  const activeTabDomain = useMemo(() => {
+    if (domainTab < 0) return [];
+    const tab = domainTabs[domainTab];
+    if (!tab) return [];
+    return evalDomain(tab.domain ?? [], { ...sessionContext, ...actionCtxOverlay });
+  }, [domainTabs, domainTab, sessionContext, actionCtxOverlay]);
+
   const listDomain = useMemo(() => {
     const search = buildSearchDomain(searchQuery);
-    return mergeDomains(resolvedActionDomain, search);
-  }, [resolvedActionDomain, searchQuery]);
+    return mergeDomains(mergeDomains(resolvedActionDomain, activeTabDomain), search);
+  }, [resolvedActionDomain, activeTabDomain, searchQuery]);
 
   const order = useMemo(() => formatOrder(sorts), [sorts]);
+
+  useEffect(() => {
+    void props.model;
+    void props.actionDomains;
+    setDomainTab(-1);
+    setOffset(0);
+  }, [props.model, props.actionDomains]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -292,6 +311,7 @@ export function ModelWorkspace(props: {
       listFields.join(","),
       JSON.stringify(listDomain),
       offset,
+      pageSize,
       order ?? "",
     ],
     enabled: Boolean(client && treeViewQuery.isSuccess),
@@ -304,20 +324,12 @@ export function ModelWorkspace(props: {
           listDomain as never[],
           listFields,
           offset,
-          PAGE_SIZE,
+          pageSize,
           order,
           rpcContext,
         );
       } catch {
-        return await client.searchRead(
-          props.model,
-          [],
-          ["id"],
-          offset,
-          PAGE_SIZE,
-          null,
-          rpcContext,
-        );
+        return await client.searchRead(props.model, [], ["id"], offset, pageSize, null, rpcContext);
       }
     },
   });
@@ -517,6 +529,28 @@ export function ModelWorkspace(props: {
     },
   });
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (mode === "write") saveMutation.mutate();
+        return;
+      }
+      if (e.key === "Escape" && mode === "write" && !typing) {
+        setMode("read");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, saveMutation]);
+
   async function runButton(name: string) {
     if (!client || !selectedId) {
       setNotice("Select a record before running a button");
@@ -578,11 +612,42 @@ export function ModelWorkspace(props: {
   const total = countQuery.data;
   const canPrev = offset > 0;
   const canNext =
-    total != null ? offset + PAGE_SIZE < total : (listQuery.data?.length ?? 0) >= PAGE_SIZE;
+    total != null ? offset + pageSize < total : (listQuery.data?.length ?? 0) >= pageSize;
 
   return (
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
       <Panel title={props.model}>
+        {domainTabs.length ? (
+          <div className="epiton-domain-tabs" role="tablist" aria-label="Action domains">
+            <button
+              type="button"
+              role="tab"
+              data-active={domainTab < 0}
+              aria-selected={domainTab < 0}
+              onClick={() => {
+                setDomainTab(-1);
+                setOffset(0);
+              }}
+            >
+              All
+            </button>
+            {domainTabs.map((tab, index) => (
+              <button
+                key={`${tab.name}-${index}`}
+                type="button"
+                role="tab"
+                data-active={domainTab === index}
+                aria-selected={domainTab === index}
+                onClick={() => {
+                  setDomainTab(index);
+                  setOffset(0);
+                }}
+              >
+                {tab.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="epiton-toolbar">
           <Button variant="primary" onClick={() => void startNew()}>
             New
@@ -664,7 +729,7 @@ export function ModelWorkspace(props: {
           </Button>
         </div>
         <div className="epiton-toolbar">
-          <Button disabled={!canPrev} onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}>
+          <Button disabled={!canPrev} onClick={() => setOffset((o) => Math.max(0, o - pageSize))}>
             Prev
           </Button>
           <span className="text-sm text-[var(--epiton-muted)]" role="status">
@@ -672,9 +737,26 @@ export function ModelWorkspace(props: {
             {total != null ? ` / ${total}` : ""}
             {order ? ` · ${order}` : ""}
           </span>
-          <Button disabled={!canNext} onClick={() => setOffset((o) => o + PAGE_SIZE)}>
+          <Button disabled={!canNext} onClick={() => setOffset((o) => o + pageSize)}>
             Next
           </Button>
+          <label className="text-sm text-[var(--epiton-muted)]">
+            Limit{" "}
+            <select
+              value={pageSize}
+              aria-label="Page size"
+              onChange={(e) => {
+                setOffset(0);
+                setPageSize(Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
+              }}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <StateBlock
           state={listState}

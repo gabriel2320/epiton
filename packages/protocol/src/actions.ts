@@ -1,5 +1,11 @@
 import type { EpitonClient, JsonObject, JsonValue } from "./index";
 
+export interface ActWindowDomainTab {
+  name: string;
+  domain: JsonValue;
+  count?: boolean;
+}
+
 export type ResolvedAction =
   | {
       kind: "model";
@@ -11,9 +17,12 @@ export type ResolvedAction =
       /** Dict or PYSON-encoded context string from act_window. */
       context?: JsonValue;
       views?: Array<[number | null, string]>;
+      /** Optional domain tabs from ir.action.act_window.domain. */
+      domains?: ActWindowDomainTab[];
     }
   | { kind: "wizard"; wizard: string; actionId: number | null }
   | { kind: "report"; report: string; actionId: number | null }
+  | { kind: "url"; url: string; name?: string; actionId: number | null }
   | { kind: "unsupported"; ref: string; reason: string };
 
 function asObject(value: unknown): JsonObject | undefined {
@@ -54,8 +63,34 @@ function parseViews(raw: unknown): Array<[number | null, string]> | undefined {
   return out.length ? out : undefined;
 }
 
+async function loadActWindowDomains(
+  client: EpitonClient,
+  actWindowId: number,
+): Promise<ActWindowDomainTab[] | undefined> {
+  try {
+    const rows = await client.searchRead(
+      "ir.action.act_window.domain",
+      [["act_window", "=", actWindowId]],
+      ["name", "domain", "count"],
+      0,
+      40,
+      "sequence ASC",
+    );
+    const tabs: ActWindowDomainTab[] = [];
+    for (const row of rows) {
+      const name = typeof row.name === "string" ? row.name : undefined;
+      const domain = parseDomainField(row.domain);
+      if (!name || domain === undefined) continue;
+      tabs.push({ name, domain, count: Boolean(row.count) });
+    }
+    return tabs.length ? tabs : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Resolve a menu/action reference to a workspace model, wizard, or report.
+ * Resolve a menu/action reference to a workspace model, wizard, report, or URL.
  */
 export async function resolveAction(
   client: EpitonClient,
@@ -133,6 +168,7 @@ export async function resolveAction(
       const row = rows[0];
       const model = row?.res_model;
       if (typeof model === "string" && model.length > 0) {
+        const domains = await loadActWindowDomains(client, id);
         return {
           kind: "model",
           model,
@@ -141,6 +177,7 @@ export async function resolveAction(
           domain: parseDomainField(row?.domain),
           context: parseDomainField(row?.context) ?? asObject(row?.context),
           views: parseViews(row?.views),
+          domains,
         };
       }
       return { kind: "unsupported", ref: raw, reason: "act_window missing res_model" };
@@ -187,6 +224,30 @@ export async function resolveAction(
     }
   }
 
+  if (type === "ir.action.url") {
+    try {
+      const rows = await client.searchRead(
+        "ir.action.url",
+        [["id", "=", id]],
+        ["url", "name"],
+        0,
+        1,
+      );
+      const url = rows[0]?.url;
+      if (typeof url === "string" && url.length > 0) {
+        return {
+          kind: "url",
+          url,
+          name: typeof rows[0]?.name === "string" ? rows[0].name : undefined,
+          actionId: id,
+        };
+      }
+      return { kind: "unsupported", ref: raw, reason: "url action missing url" };
+    } catch {
+      return { kind: "unsupported", ref: raw, reason: "url action lookup failed" };
+    }
+  }
+
   return { kind: "unsupported", ref: raw, reason: `unsupported action type ${type}` };
 }
 
@@ -197,4 +258,15 @@ export async function resolveWorkspaceModel(
 ): Promise<string | null> {
   const resolved = await resolveAction(client, actionOrModel);
   return resolved.kind === "model" ? resolved.model : null;
+}
+
+/** Safe external open for ir.action.url (blocks javascript:). */
+export function openActionUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.toLowerCase().startsWith("javascript:")) return false;
+  if (typeof globalThis.open === "function") {
+    globalThis.open(trimmed, "_blank", "noopener,noreferrer");
+    return true;
+  }
+  return false;
 }

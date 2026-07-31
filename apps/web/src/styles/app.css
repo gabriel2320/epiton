@@ -324,6 +324,29 @@
   color: var(--epiton-accent);
 }
 
+.epiton-domain-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.epiton-domain-tabs button {
+  appearance: none;
+  border: 1px solid var(--epiton-border);
+  background: var(--epiton-bg);
+  color: var(--epiton-fg);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.epiton-domain-tabs button[data-active="true"] {
+  border-color: var(--epiton-accent);
+  background: color-mix(in srgb, var(--epiton-accent) 14%, var(--epiton-bg));
+}
+
 .epiton-progress {
   display: flex;
   align-items: center;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveAction, resolveWorkspaceModel } from "./actions";
+import { openActionUrl, resolveAction, resolveWorkspaceModel } from "./actions";
 import { EpitonClient } from "./index";
 
 function clientWithFetch(fetchImpl: typeof fetch) {
@@ -51,6 +51,15 @@ describe("resolveAction", () => {
   it("resolves act_window references with domain/context", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
+      if (body.method === "model.ir.action.act_window.domain.search_read") {
+        return new Response(
+          JSON.stringify({
+            id: 1,
+            result: [{ name: "Active", domain: '[["active", "=", true]]', count: true }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
       expect(body.method).toBe("model.ir.action.act_window.search_read");
       return new Response(
         JSON.stringify({
@@ -84,6 +93,26 @@ describe("resolveAction", () => {
         [null, "tree"],
         [null, "form"],
       ],
+      domains: [{ name: "Active", domain: [["active", "=", true]], count: true }],
+    });
+  });
+
+  it("resolves url actions", async () => {
+    const fetchImpl = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          id: 1,
+          result: [{ id: 5, url: "https://example.test/docs", name: "Docs" }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
+    await expect(resolveAction(client, "ir.action.url,5")).resolves.toEqual({
+      kind: "url",
+      url: "https://example.test/docs",
+      name: "Docs",
+      actionId: 5,
     });
   });
 
@@ -122,5 +151,10 @@ describe("resolveAction", () => {
     await expect(resolveAction(client, "ir.action.act_window")).resolves.toMatchObject({
       kind: "unsupported",
     });
+  });
+
+  it("blocks javascript: urls", () => {
+    expect(openActionUrl("javascript:alert(1)")).toBe(false);
+    expect(openActionUrl("")).toBe(false);
   });
 });
