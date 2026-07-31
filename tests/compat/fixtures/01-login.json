@@ -1,0 +1,10 @@
+{
+  "name": "login",
+  "request": {
+    "method": "common.db.login",
+    "params": ["admin", { "password": "admin" }, "en"]
+  },
+  "response": {
+    "result": [1, "synthetic-session-token"]
+  }
+}

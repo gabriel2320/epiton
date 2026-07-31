@@ -1,0 +1,26 @@
+{
+  "name": "@epiton/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "pnpm --filter @epiton/web build",
+    "sync": "pnpm build:web && npx cap sync",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'mobile tests run via web package'",
+    "build": "echo 'Use pnpm sync to prepare native shells'"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0",
+    "@epiton/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "typescript": "^5.7.2"
+  }
+}

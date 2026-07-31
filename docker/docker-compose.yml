@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: epiton_lab
+      POSTGRES_USER: tryton
+      POSTGRES_PASSWORD: tryton
+    ports:
+      - "5433:5432"
+    volumes:
+      - epiton_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tryton -d epiton_lab"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  tryton:
+    image: tryton/tryton:7.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOSTNAME: db
+      DB_USER: tryton
+      DB_PASSWORD: tryton
+      DB_NAME: epiton_lab
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./trytond.conf:/etc/tryton/trytond.conf:ro
+    command: >
+      bash -c "trytond-admin -c /etc/tryton/trytond.conf -d epiton_lab --all -vv
+      && trytond -c /etc/tryton/trytond.conf"
+
+volumes:
+  epiton_pg:

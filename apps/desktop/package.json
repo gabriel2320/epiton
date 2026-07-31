@@ -1,0 +1,22 @@
+{
+  "name": "@epiton/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "echo 'Use pnpm build:tauri when Rust toolchain is available'",
+    "build:tauri": "tauri build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'desktop tests run via web package'"
+  },
+  "dependencies": {
+    "@epiton/web": "workspace:*",
+    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-store": "^2.2.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "typescript": "^5.7.2"
+  }
+}

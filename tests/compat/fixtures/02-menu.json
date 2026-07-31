@@ -1,0 +1,10 @@
+{
+  "name": "menu-search",
+  "request": {
+    "method": "model.ir.ui.menu.search_read",
+    "params": [[["active", "=", true]], 0, 80, null, ["name", "parent", "action"], {}]
+  },
+  "response": {
+    "result": [{ "id": 1, "name": "Parties", "parent": null, "action": "ir.action.act_window,10" }]
+  }
+}

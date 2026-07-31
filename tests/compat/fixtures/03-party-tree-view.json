@@ -1,0 +1,16 @@
+{
+  "name": "party-tree-view",
+  "request": {
+    "method": "model.party.party.fields_view_get",
+    "params": [null, "tree", {}]
+  },
+  "response": {
+    "result": {
+      "arch": "<tree><field name=\"name\"/><field name=\"code\"/></tree>",
+      "fields": {
+        "name": { "type": "char", "string": "Name" },
+        "code": { "type": "char", "string": "Code" }
+      }
+    }
+  }
+}

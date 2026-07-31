@@ -1,0 +1,32 @@
+{
+  "productName": "Epiton",
+  "version": "0.1.0",
+  "identifier": "app.epiton.desktop",
+  "build": {
+    "frontendDist": "../../web/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm --filter @epiton/web dev",
+    "beforeBuildCommand": "pnpm --filter @epiton/web build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Epiton",
+        "width": 1280,
+        "height": 840,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http: https:; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  },
+  "plugins": {
+    "store": {}
+  }
+}

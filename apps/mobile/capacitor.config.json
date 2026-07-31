@@ -1,0 +1,11 @@
+{
+  "appId": "app.epiton.mobile",
+  "appName": "Epiton",
+  "webDir": "../web/dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Preferences": {}
+  }
+}

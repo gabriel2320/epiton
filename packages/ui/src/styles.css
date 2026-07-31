@@ -1,0 +1,51 @@
+:root {
+  --epiton-bg: #0f1419;
+  --epiton-bg-elevated: #1a222c;
+  --epiton-fg: #f2efe8;
+  --epiton-muted: #9aa7b5;
+  --epiton-accent: #3dd6c6;
+  --epiton-accent-2: #f0a05a;
+  --epiton-danger: #ff6b6b;
+  --epiton-border: #2a3542;
+  --epiton-radius: 14px;
+  --epiton-font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --epiton-font-body: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+[data-theme="light"] {
+  --epiton-bg: #f6f1e8;
+  --epiton-bg-elevated: #fffdf8;
+  --epiton-fg: #17202a;
+  --epiton-muted: #5b6b7c;
+  --epiton-accent: #0f8f82;
+  --epiton-accent-2: #c56a2a;
+  --epiton-danger: #c0392b;
+  --epiton-border: #d9d0c2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--epiton-font-body);
+  background: radial-gradient(1200px 600px at 10% -10%, rgb(61 214 198 / 18%), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgb(240 160 90 / 14%), transparent 50%),
+    var(--epiton-bg);
+  color: var(--epiton-fg);
+}
+
+h1,
+h2,
+.epiton-brand {
+  font-family: var(--epiton-font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}

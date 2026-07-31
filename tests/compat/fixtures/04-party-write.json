@@ -1,0 +1,10 @@
+{
+  "name": "party-form-write",
+  "request": {
+    "method": "model.party.party.write",
+    "params": [[1], { "name": "Acme Synthetic" }, {}]
+  },
+  "response": {
+    "result": true
+  }
+}
