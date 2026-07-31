@@ -1,25 +1,40 @@
-# Epiton
+# Epitón
 
-Modern, multiplatform, Tryton-compatible business client platform.
+Modern, multiplatform, **Tryton-compatible** business client.
 
-Epiton keeps the Tryton JSON-RPC contract so existing Tryton modules and apps
-(including GNU Health later) keep working, while replacing Sao/GTK with a
-faster, safer, adaptive UI.
+Epitón keeps the Tryton JSON-RPC Session contract so existing Tryton modules
+(and later GNU Health) keep working, while replacing Sao/GTK with a faster,
+safer, adaptive UI. **trytond remains the system of record.**
+
+> Epitón is not Epione HIS. It does not store clinical truth and does not claim
+> PHI production readiness. See [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md).
+
+## Documentation map (canon)
+
+| Doc | Purpose |
+|-----|---------|
+| [`AGENTS.md`](AGENTS.md) | Hard rails for AI coding agents |
+| [`docs/CANON.md`](docs/CANON.md) | Sources of truth and doc authority |
+| [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | PHI, license, promotion, approvals |
+| [`docs/AGENT_LOOP.md`](docs/AGENT_LOOP.md) | Daily gates and “continua” loop |
+| [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | Sao/Tryton parity matrix |
+| [`docs/TOOLING.md`](docs/TOOLING.md) | Library allow/deny (SQLAlchemy, shadcn, …) |
+| [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) | On-device search/suggestions (no auto-writes) |
+| [`docs/GNU_HEALTH.md`](docs/GNU_HEALTH.md) | GNU Health probe matrix (Phase 4) |
+| [`docs/BRAND.md`](docs/BRAND.md) | Brand brief |
+| [`docs/AUDIT.md`](docs/AUDIT.md) | Point-in-time audit (2026-07-31) |
+| [`apps/gateway/README.md`](apps/gateway/README.md) | Axum gateway |
+| [`docker/README.md`](docker/README.md) | Synthetic trytond lab |
 
 ## Stack
 
 - TypeScript monorepo (pnpm + Turborepo + Biome)
 - React 19 + Vite + Tailwind CSS 4
-- `@epiton/protocol` — Tryton JSON-RPC Session client (`/{db}/` + `/rpc/` fallback)
-- `@epiton/view-engine` — Tryton XML views → React
+- `@epiton/protocol` — Tryton JSON-RPC Session (`/{db}/` + `/rpc/` fallback)
+- `@epiton/view-engine` — Tryton XML views → React (+ graph/board analytics helpers)
+- `@epiton/ui` — shared primitives
 - `@epiton/intelligence` — local search, suggestions, adaptive layouts
 - Tauri 2 desktop, Capacitor mobile, Axum gateway
-
-## Tooling decisions
-
-See [`docs/TOOLING.md`](docs/TOOLING.md) for evaluations of SQLAlchemy, Pydantic,
-Alembic, NumPy, WeasyPrint, ReportLab, FastAPI, Tailwind, and shadcn (spoiler:
-keep Tailwind; reject Python ORM/report stacks for the client runtime).
 
 ## Quick start
 
@@ -28,7 +43,7 @@ pnpm install
 pnpm --filter @epiton/web dev
 ```
 
-Trytond lab:
+Trytond lab (synthetic only):
 
 ```bash
 pnpm lab:up
@@ -38,8 +53,42 @@ pnpm lab:smoke:live
 # pnpm lab:up:8
 ```
 
-Default lab credentials are documented in `docker/README.md` (synthetic only).
+Default lab credentials: [`docker/README.md`](docker/README.md).
+
+Gateway (optional, preferred for production CSP):
+
+```bash
+pnpm lab:up          # includes gateway on :8080 when composed
+pnpm gateway:smoke
+```
+
+## Agent / AI usage
+
+1. Read [`AGENTS.md`](AGENTS.md) before editing.
+2. Follow [`docs/AGENT_LOOP.md`](docs/AGENT_LOOP.md) for gates.
+3. Treat [`docs/CANON.md`](docs/CANON.md) + [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md)
+   as authority for SoT, PHI, and license.
+4. Update [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) when parity status changes.
+5. Do not introduce rejected libraries from [`docs/TOOLING.md`](docs/TOOLING.md).
+
+Minimum close-out:
+
+```bash
+pnpm lint && pnpm test && pnpm --filter @epiton/web build && pnpm check:bundle
+```
+
+## Architecture (one glance)
+
+```text
+Web / Desktop / Mobile  →  @epiton/protocol (Session RPC)
+                        →  apps/gateway (optional)
+                        →  trytond  →  PostgreSQL
+```
+
+Client analytics (boards/graphs) only visualize `search_read` / graph arch.
+They are not a second database.
 
 ## License
 
-Apache-2.0 for Epiton code. trytond remains GPL-3; Epiton does not copy Sao/GTK source.
+Apache-2.0 for Epitón code. trytond remains GPL-3; Epitón does not copy Sao/GTK
+source. Wire-level compatibility ≠ code derivation.

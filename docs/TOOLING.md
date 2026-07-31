@@ -5,6 +5,9 @@ Epitón is a **Tryton-compatible client**. Clinical/business truth stays on
 **React + TypeScript**. New libraries must not create a second source of truth
 or a parallel Python stack beside trytond.
 
+Canon: [`CANON.md`](CANON.md) · Governance: [`GOVERNANCE.md`](GOVERNANCE.md) ·
+Agents: [`../AGENTS.md`](../AGENTS.md).
+
 ## Verdict matrix
 
 | Library | Role people hope for | Epitón verdict | Why |

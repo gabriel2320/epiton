@@ -1,6 +1,7 @@
 # Epiton intelligence layer
 
 All intelligence runs on-device or in the gateway. Business truth stays in Tryton modules.
+Governance: never auto-write — see [`GOVERNANCE.md`](GOVERNANCE.md) and [`../AGENTS.md`](../AGENTS.md).
 
 ## Features
 

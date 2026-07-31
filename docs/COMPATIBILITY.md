@@ -1,4 +1,7 @@
-# Epiton ↔ Tryton compatibility matrix
+# Epitón ↔ Tryton compatibility matrix
+
+Canonical parity table. Authority and agent rails: [`CANON.md`](CANON.md),
+[`GOVERNANCE.md`](GOVERNANCE.md), [`../AGENTS.md`](../AGENTS.md).
 
 | Area | Tryton contract | Epiton status | Notes |
 |------|-----------------|---------------|-------|
