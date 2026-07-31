@@ -590,3 +590,41 @@ export function treeColumns(view: ParsedView): TreeColumn[] {
   walk(view.arch);
   return cols;
 }
+
+/** Tree-arch buttons (Activate/Post/…) for row action columns. */
+export function treeButtons(
+  view: ParsedView,
+): Array<{ name: string; string?: string; type?: string; confirm?: string }> {
+  const out: Array<{ name: string; string?: string; type?: string; confirm?: string }> = [];
+  const walk = (n: ViewNode) => {
+    if (n.tag === "button" && n.attrs.name) {
+      out.push({
+        name: n.attrs.name,
+        string: n.attrs.string,
+        type: n.attrs.type,
+        confirm: n.attrs.confirm,
+      });
+    }
+    for (const c of n.children) walk(c);
+  };
+  walk(view.arch);
+  return out;
+}
+
+/** Sao editable placement when set on `<tree editable="top|bottom">`. */
+export function treeEditablePlacement(view: ParsedView): "top" | "bottom" | null {
+  const walk = (n: ViewNode): "top" | "bottom" | null => {
+    if (n.tag === "tree") {
+      const raw = (n.attrs.editable ?? "").toLowerCase();
+      if (raw === "top") return "top";
+      if (raw === "bottom") return "bottom";
+      if (raw === "1" || raw === "true") return "bottom";
+    }
+    for (const c of n.children) {
+      const hit = walk(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return walk(view.arch);
+}

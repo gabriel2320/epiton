@@ -1,4 +1,5 @@
 import type { JsonObject } from "@epiton/protocol";
+import { applyFieldChange } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type ParsedView,
@@ -7,7 +8,7 @@ import {
   renderView,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 
 /** Embedded O2M line form: create or edit related values before queuing commands. */
@@ -23,6 +24,10 @@ export function RelationLineForm(props: {
   const sessionContext = useAppStore((s) => s.sessionContext);
   const rpcContext: JsonObject = { ...sessionContext, ...(props.context ?? {}) };
   const [draft, setDraft] = useState<RecordValues>({});
+  const [viewError, setViewError] = useState<string | null>(null);
+  const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const editing = props.lineId != null;
 
   const viewQuery = useQuery({
@@ -32,20 +37,16 @@ export function RelationLineForm(props: {
     queryFn: async (): Promise<ParsedView | null> => {
       if (!client) return null;
       try {
+        setViewError(null);
         return parseFieldsViewGet(
           await client.fieldsViewGet(props.model, null, "form", {
             ...sessionContext,
             ...(props.context ?? {}),
           }),
         );
-      } catch {
-        return parseFieldsViewGet({
-          arch: `<form><field name="name"/><field name="rec_name"/></form>`,
-          fields: {
-            name: { type: "char", string: "Name" },
-            rec_name: { type: "char", string: "Name" },
-          },
-        });
+      } catch (err) {
+        setViewError(err instanceof Error ? err.message : "fields_view_get failed");
+        return null;
       }
     },
   });
@@ -111,18 +112,64 @@ export function RelationLineForm(props: {
     viewQuery.data?.fields,
   ]);
 
+  useEffect(() => {
+    return () => {
+      if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    };
+  }, []);
+
+  function handleChange(name: string, value: unknown) {
+    setDraft((d) => ({ ...d, [name]: value }));
+    if (!client || !viewQuery.data) return;
+    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    onChangeTimer.current = setTimeout(() => {
+      void (async () => {
+        if (!client || !viewQuery.data) return;
+        const fieldsMeta: Record<
+          string,
+          { name: string; on_change?: string[]; on_change_with?: string[] }
+        > = {};
+        for (const [fname, field] of Object.entries(viewQuery.data.fields)) {
+          fieldsMeta[fname] = {
+            name: fname,
+            on_change: field.on_change,
+            on_change_with: field.on_change_with,
+          };
+        }
+        try {
+          const patch = await applyFieldChange(
+            client,
+            props.model,
+            fieldsMeta,
+            { ...draftRef.current, [name]: value },
+            name,
+            rpcContext,
+          );
+          if (!Object.keys(patch).length) return;
+          setDraft((d) => ({ ...d, ...patch }));
+        } catch {
+          /* soft-fail */
+        }
+      })();
+    }, 250);
+  }
+
   const state =
     viewQuery.isLoading || (editing && recordQuery.isLoading)
       ? "loading"
-      : viewQuery.isError
+      : viewQuery.isError || viewError
         ? "error"
-        : "data";
+        : viewQuery.data
+          ? "data"
+          : "empty";
 
   return (
     <Panel title={editing ? `Edit ${props.model} #${props.lineId}` : `New ${props.model} line`}>
       <StateBlock
         state={state}
-        message={viewQuery.error instanceof Error ? viewQuery.error.message : "Loading…"}
+        message={
+          viewError ?? (viewQuery.error instanceof Error ? viewQuery.error.message : "Loading…")
+        }
       >
         {viewQuery.data
           ? renderView(viewQuery.data, {
@@ -130,12 +177,13 @@ export function RelationLineForm(props: {
               mode: "write",
               density,
               model: props.model,
-              onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
+              onChange: handleChange,
             })
           : null}
         <div className="epiton-toolbar">
           <Button
             variant="primary"
+            disabled={!viewQuery.data}
             onClick={() => {
               const { id: _id, ...values } = draft;
               props.onSave(values, props.lineId ?? null);

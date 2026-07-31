@@ -14,6 +14,14 @@ type TreeCol = {
   string: string;
   type?: string;
   readonly?: boolean;
+  relation?: string;
+};
+
+export type TreeRowAction = {
+  name: string;
+  string?: string;
+  type?: string;
+  confirm?: string;
 };
 
 function cellDisplay(value: unknown): string {
@@ -27,9 +35,26 @@ function EditableCell(props: {
   field: TreeCol;
   value: unknown;
   onCommit: (id: number, field: string, value: unknown) => void;
+  onEditRelation?: (id: number, field: TreeCol, value: unknown) => void;
 }) {
   const readonly = props.field.readonly || props.field.name === "id";
   const type = props.field.type ?? "char";
+
+  if (type === "many2one" && !readonly && props.onEditRelation) {
+    return (
+      <button
+        type="button"
+        className="epiton-tree-m2o"
+        aria-label={`Edit ${props.field.string}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onEditRelation?.(props.id, props.field, props.value);
+        }}
+      >
+        {cellDisplay(props.value) || "Select…"}
+      </button>
+    );
+  }
 
   if (readonly || type === "many2one" || type === "one2many" || type === "many2many") {
     return <span>{cellDisplay(props.value)}</span>;
@@ -79,6 +104,7 @@ export function VirtualPartyTable(props: {
   selectedId: number | null;
   selectedIds?: number[];
   editable?: boolean;
+  rowActions?: TreeRowAction[];
   /** Hierarchy metadata aligned 1:1 with `rows` (after flatten). */
   rowMeta?: Array<{ depth: number; hasChildren: boolean; expanded?: boolean }>;
   onToggleExpand?: (id: number) => void;
@@ -91,6 +117,10 @@ export function VirtualPartyTable(props: {
   onSelect: (id: number) => void;
   onToggleSelect?: (id: number) => void;
   onCellCommit?: (id: number, field: string, value: unknown) => void;
+  onEditRelation?: (id: number, field: TreeCol, value: unknown) => void;
+  onRowAction?: (id: number, action: TreeRowAction) => void;
+  onAddRow?: () => void;
+  addRowPlacement?: "top" | "bottom" | null;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dragId, setDragId] = useState<number | null>(null);
@@ -98,6 +128,7 @@ export function VirtualPartyTable(props: {
   const serverSort = Boolean(props.onSortChange);
   const hierarchical = Boolean(props.rowMeta?.length);
   const reorderable = Boolean(props.onReorder);
+  const rowActions = props.rowActions ?? [];
 
   function handleSortingChange(updater: Updater<SortingState>) {
     setSorting((prev) => {
@@ -201,10 +232,40 @@ export function VirtualPartyTable(props: {
                 field={c}
                 value={info.getValue()}
                 onCommit={props.onCellCommit}
+                onEditRelation={props.onEditRelation}
               />
             );
           }
           return cellDisplay(info.getValue());
+        },
+      });
+    }
+    if (rowActions.length && props.onRowAction) {
+      cols.push({
+        id: "_actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const id = Number(row.original.id);
+          return (
+            <span className="epiton-tree-row-actions" onClick={(e) => e.stopPropagation()}>
+              {rowActions.map((action) => (
+                <button
+                  key={action.name}
+                  type="button"
+                  className="epiton-button"
+                  onClick={() => {
+                    if (action.confirm && typeof globalThis.confirm === "function") {
+                      if (!globalThis.confirm(action.confirm)) return;
+                    }
+                    props.onRowAction?.(id, action);
+                  }}
+                >
+                  {action.string ?? action.name}
+                </button>
+              ))}
+            </span>
+          );
         },
       });
     }
@@ -215,8 +276,11 @@ export function VirtualPartyTable(props: {
     props.selectedIds,
     props.editable,
     props.onCellCommit,
+    props.onEditRelation,
     props.rowMeta,
     props.onToggleExpand,
+    props.onRowAction,
+    rowActions,
     hierarchical,
     reorderable,
   ]);
@@ -239,6 +303,13 @@ export function VirtualPartyTable(props: {
     overscan: 12,
   });
 
+  const addButton =
+    props.onAddRow && props.addRowPlacement ? (
+      <button type="button" className="epiton-button" onClick={() => props.onAddRow?.()}>
+        New row
+      </button>
+    ) : null;
+
   return (
     <div
       ref={parentRef}
@@ -253,6 +324,9 @@ export function VirtualPartyTable(props: {
         <p className="epiton-tree-editable-hint" role="note">
           Drag ⋮⋮ to reorder siblings (writes sequence)
         </p>
+      ) : null}
+      {props.addRowPlacement === "top" && addButton ? (
+        <div className="epiton-toolbar">{addButton}</div>
       ) : null}
       <table className="epiton-table w-full">
         <thead className="sticky top-0 bg-[var(--epiton-bg-elevated)] z-10">
@@ -322,6 +396,9 @@ export function VirtualPartyTable(props: {
           })}
         </tbody>
       </table>
+      {props.addRowPlacement === "bottom" && addButton ? (
+        <div className="epiton-toolbar">{addButton}</div>
+      ) : null}
     </div>
   );
 }

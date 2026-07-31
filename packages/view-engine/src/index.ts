@@ -11,8 +11,10 @@ export {
 } from "./parse";
 export {
   renderView,
+  treeButtons,
   treeColumns,
   treeEditable,
+  treeEditablePlacement,
   type RecordValues,
   type RenderContext,
   type TreeColumn,

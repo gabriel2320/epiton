@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseFieldsViewGet, parseXml, treeColumns, treeEditable } from "./index";
-
-const TREE_ARCH = `
-<form><![CDATA[]]></form>
-`.trim();
+import {
+  parseFieldsViewGet,
+  parseXml,
+  treeButtons,
+  treeColumns,
+  treeEditable,
+  treeEditablePlacement,
+} from "./index";
 
 describe("view-engine", () => {
   it("parses tree arch and fields", () => {
@@ -18,6 +21,9 @@ describe("view-engine", () => {
     expect(parsed.fields.name?.type).toBe("char");
     expect(parsed.buttons[0]?.name).toBe("activate");
     expect(treeColumns(parsed).map((c) => c.name)).toEqual(["name", "code"]);
+    expect(treeButtons(parsed)).toEqual([
+      { name: "activate", string: "Activate", type: undefined, confirm: "Sure?" },
+    ]);
     expect(treeEditable(parsed)).toBe(false);
   });
 
@@ -27,6 +33,7 @@ describe("view-engine", () => {
       fields: { name: { type: "char", string: "Name" } },
     });
     expect(treeEditable(parsed)).toBe(true);
+    expect(treeEditablePlacement(parsed)).toBe("top");
     expect(treeColumns(parsed)[0]?.type).toBe("char");
   });
 
@@ -73,10 +80,6 @@ describe("view-engine", () => {
 
   it("rejects empty xml", () => {
     expect(() => parseXml("")).toThrow();
-  });
-
-  it("ignores unused TREE_ARCH constant shape", () => {
-    expect(TREE_ARCH.includes("form")).toBe(true);
   });
 
   it("parses Sao wizard execute payloads", async () => {

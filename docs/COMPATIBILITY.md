@@ -16,12 +16,13 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back |
 | Attachments | `ir.attachment` | Improved | Data upload/download + link type + DnD |
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
-| Editable tree | `editable` arch / inline write | Improved | Cell editors → `model.write`; toolbar Inline edit toggle |
+| Editable tree | `editable` arch / inline write | Improved | Cell editors + m2o picker + New row top/bottom; tree buttons |
+| O2M / M2M / M2O | field types in view engine | Improved | rec_name + M2M deltas + line on_change; no silent fake arch |
+| Revision history | `model.__history__` | Improved | Field peek + Load into form draft |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |
 | Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + active_ids |
 | Reports | `report.*.execute` | Improved | pdf/odt/csv/xls/html + pdfjs page/zoom; analytics companion |
-| O2M / M2M / M2O | field types in view engine | Improved | rec_name labels + M2M add/remove delta + line form |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
 | PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
@@ -38,7 +39,6 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Email compose | mailto / form_action keywords | Improved | Prefer mail keywords; mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
-| Revision history | `model.__history__` | Improved | Read-only History panel when server exposes it |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |

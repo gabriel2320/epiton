@@ -51,8 +51,10 @@ import {
   siblingReorderIds,
   summarizeSeries,
   toTrytonM2M,
+  treeButtons,
   treeColumns,
   treeEditable,
+  treeEditablePlacement,
   treeMeta,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -141,6 +143,10 @@ export function ModelWorkspace(props: {
   const [emptyTreeParents, setEmptyTreeParents] = useState<Set<number>>(() => new Set());
   const [emailOpen, setEmailOpen] = useState(false);
   const [csvExportOpen, setCsvExportOpen] = useState(false);
+  const [treeM2O, setTreeM2O] = useState<{
+    id: number;
+    field: ViewField;
+  } | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -950,23 +956,40 @@ export function ModelWorkspace(props: {
     }
   }
 
+  const treeIsEditable = useMemo(
+    () => forceTreeEdit || (treeViewQuery.data ? treeEditable(treeViewQuery.data) : false),
+    [forceTreeEdit, treeViewQuery.data],
+  );
+
+  const treeRowActions = useMemo(
+    () => (treeViewQuery.data ? treeButtons(treeViewQuery.data) : []),
+    [treeViewQuery.data],
+  );
+
+  const treeAddPlacement = useMemo(
+    () => (treeViewQuery.data ? treeEditablePlacement(treeViewQuery.data) : null),
+    [treeViewQuery.data],
+  );
+
   const columns = useMemo(() => {
     const source =
       viewMode === "list-form" && listFormViewQuery.data
         ? listFormViewQuery.data
         : treeViewQuery.data;
-    return source
-      ? treeColumns(source)
-      : [
-          { name: "id", string: "ID" },
-          { name: "rec_name", string: "Name" },
-        ];
+    if (!source) {
+      return [
+        { name: "id", string: "ID" },
+        { name: "rec_name", string: "Name" },
+      ];
+    }
+    return treeColumns(source).map((c) => {
+      const meta = source.fields[c.name];
+      return {
+        ...c,
+        relation: meta?.relation,
+      };
+    });
   }, [viewMode, listFormViewQuery.data, treeViewQuery.data]);
-
-  const treeIsEditable = useMemo(
-    () => forceTreeEdit || (treeViewQuery.data ? treeEditable(treeViewQuery.data) : false),
-    [forceTreeEdit, treeViewQuery.data],
-  );
 
   async function commitTreeCell(id: number, field: string, value: unknown) {
     if (!client) return;
@@ -983,6 +1006,60 @@ export function ModelWorkspace(props: {
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Tree write failed");
+    }
+  }
+
+  async function runTreeButton(
+    id: number,
+    action: { name: string; type?: string; confirm?: string },
+  ) {
+    if (!client) return;
+    selectId(id);
+    const buttonType = (action.type ?? "").toLowerCase();
+    const looksLikeAction =
+      buttonType === "action" ||
+      /^(ir\.action\.|act_|wizard\.|report\.)/i.test(action.name) ||
+      /^[\w.-]+,[\d]+$/.test(action.name);
+    if (looksLikeAction && props.onOpenAction) {
+      props.onOpenAction(action.name, `tree-button:${action.name}`);
+      props.onHistory?.(`tree-button:action:${action.name}`);
+      return;
+    }
+    setNotice(`Running ${action.name} on #${id}…`);
+    try {
+      await client.model(props.model, action.name, [[id]], {
+        ...rpcContext,
+        active_id: id,
+        active_ids: [id],
+        active_model: props.model,
+      });
+      props.onHistory?.(`tree-button:${action.name}`);
+      setNotice(`Button ${action.name} OK`);
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Tree button failed");
+    }
+  }
+
+  async function addTreeRow() {
+    if (!client) return;
+    setNotice("Creating row…");
+    try {
+      const fieldNames = columns.map((c) => c.name).filter((n) => n !== "id");
+      const defaults = (await client.model(
+        props.model,
+        "default_get",
+        [fieldNames.length ? fieldNames : ["name", "rec_name"]],
+        rpcContext,
+      )) as JsonObject;
+      const created = await client.model(props.model, "create", [[defaults]], rpcContext);
+      const id = Array.isArray(created) ? Number(created[0]) : Number(created);
+      setNotice(Number.isFinite(id) ? `Created #${id}` : "Created");
+      props.onHistory?.("tree:create");
+      if (Number.isFinite(id)) selectId(id);
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Create row failed");
     }
   }
 
@@ -1439,7 +1516,23 @@ export function ModelWorkspace(props: {
               selectedId={selectedId}
               selectedIds={selectedIds}
               editable={treeIsEditable}
+              rowActions={treeRowActions}
+              addRowPlacement={treeIsEditable ? treeAddPlacement : null}
+              onAddRow={treeIsEditable ? () => void addTreeRow() : undefined}
               onCellCommit={(id, field, value) => void commitTreeCell(id, field, value)}
+              onEditRelation={(id, field) => {
+                if (!field.relation) return;
+                setTreeM2O({
+                  id,
+                  field: {
+                    name: field.name,
+                    type: "many2one",
+                    string: field.string,
+                    relation: field.relation,
+                  },
+                });
+              }}
+              onRowAction={(id, action) => void runTreeButton(id, action)}
               onToggleExpand={(id) => {
                 setExpandedTreeIds((prev) => {
                   const next = new Set(prev);
@@ -1530,7 +1623,20 @@ export function ModelWorkspace(props: {
           <RecordHistoryPanel
             model={props.model}
             recordId={selectedId}
+            fieldNames={
+              formViewQuery.data
+                ? Object.keys(formViewQuery.data.fields)
+                : columns.map((c) => c.name)
+            }
             onClose={() => setShowHistory(false)}
+            onRestore={(values) => {
+              const { id: _id, write_date: _wd, write_uid: _wu, ...rest } = values;
+              setDraft((d) => ({ ...d, ...rest }));
+              setMode("write");
+              setShowHistory(false);
+              setNotice("History values loaded into draft — Save to write");
+              props.onHistory?.("history:restore");
+            }}
           />
         ) : null}{" "}
         {props.onOpenAction ? (
@@ -1583,6 +1689,18 @@ export function ModelWorkspace(props: {
           : recordQuery.isLoading
             ? "Loading…"
             : null}
+        {treeM2O ? (
+          <RelationSearch
+            field={treeM2O.field}
+            recordValues={{}}
+            mode="write"
+            onCancel={() => setTreeM2O(null)}
+            onPick={(id, recName) => {
+              void commitTreeCell(treeM2O.id, treeM2O.field.name, [id, recName]);
+              setTreeM2O(null);
+            }}
+          />
+        ) : null}
         {relationField?.type === "many2one" ? (
           <RelationSearch
             field={relationField}
