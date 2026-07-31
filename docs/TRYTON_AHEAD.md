@@ -22,9 +22,9 @@ Tryton is still clearly ahead on:
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
 3. Nested O2M/M2M still command-queue on parent save (queued creates now visible as rows; not live Sao Screen)
 
-Recently improved (2026-07-31 cont. 5): queued create rows, editable selection/date cells,
-view `t()` labels, history diff + uid resolve, wizard M2O RelationSearch;
-plus relation tree+form, nested lines, M2M preserve.
+Recently improved (2026-07-31 cont. 6): report picker, dirty form + discard confirm,
+Shell/workspace i18n chrome, optional= columns, field-aware search, real command recents;
+plus queued creates, history diff, wizard M2O.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -37,8 +37,8 @@ plus relation tree+form, nested lines, M2M preserve.
 | **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + sessionStorage page memory | Small | `render.tsx` `NotebookHost` |
 | **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
 | **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** `ir.ui.menu.favorite` + star toggle; preset fallback | Small | `Shell.tsx`, `MenuTree.tsx` |
-| **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** catalog + `t()` on field/button labels | Small | `translations.ts`, `render.tsx` |
-| **Reports** | Broader formats + print pipeline | **Improved:** pdf/odt/csv/xls/html; pdfjs; no default id `1` | Small–Medium | `ReportDownload.tsx`, `PdfPreview.tsx` |
+| **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** catalog + `t()` labels + Shell/workspace chrome | Small | `i18n.ts`, `Shell.tsx` |
+| **Reports** | Broader formats + print pipeline | **Improved:** formats + pdfjs + `ir.action.report` picker | Small | `ReportDownload.tsx` |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state + validate + on_change + M2O search | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
 | **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** secure session hydrate/persist + title/safe-area; thin hosts | Small–Medium | `secureSessionBridge.ts` |
@@ -83,8 +83,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 10. ~~Line-form M2O/buttons; real form/tree errors; list-form renderView; reference/url; prefs relations~~
 11. ~~Relation tree+form split; nested O2M/M2M editors; M2M cmd preserve; relation badge count~~
 12. ~~Queued create rows; editable selection/date; `t()` labels; history diff; wizard M2O~~
-13. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
-14. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
+13. ~~Report picker; dirty form; workspace i18n; optional= columns; field-aware search~~
+14. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
+15. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 

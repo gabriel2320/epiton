@@ -638,6 +638,8 @@ export interface TreeColumn {
   type?: string;
   readonly?: boolean;
   selection?: Array<[string, string]>;
+  /** Sao `optional="1"` — hidden by default, user can toggle. */
+  optional?: boolean;
 }
 
 /** True when tree arch has Sao `editable="top|bottom|1|true"`. */
@@ -663,6 +665,7 @@ export function treeColumns(view: ParsedView): TreeColumn[] {
         type: meta?.type,
         readonly: Boolean(meta?.readonly) || n.attrs.readonly === "1",
         selection: meta?.selection,
+        optional: n.attrs.optional === "1" || n.attrs.optional === "true",
       });
     }
     for (const c of n.children) walk(c);

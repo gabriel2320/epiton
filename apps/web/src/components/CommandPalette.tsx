@@ -1,10 +1,11 @@
 import type { ActionSuggestion, MenuItem, RecentRecord } from "@epiton/intelligence";
 import { Command } from "cmdk";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useAppStore } from "../lib/store";
 
 export function CommandPalette(props: {
   menus: MenuItem[];
+  recents?: RecentRecord[];
   onPick: (item: ActionSuggestion) => void;
   search: (
     query: string,
@@ -16,11 +17,7 @@ export function CommandPalette(props: {
   const open = useAppStore((s) => s.commandOpen);
   const setOpen = useAppStore((s) => s.setCommandOpen);
   const [query, setQuery] = useState("");
-  const recents = useMemo<RecentRecord[]>(
-    () => [{ model: "party.party", id: 1, title: "Sample party", at: Date.now() }],
-    [],
-  );
-
+  const recents = props.recents ?? [];
   const hits = props.search(query, props.menus, recents, 12);
 
   if (!open) return null;

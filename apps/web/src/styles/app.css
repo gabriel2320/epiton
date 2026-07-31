@@ -427,6 +427,23 @@
   font-size: 0.8em;
 }
 
+.epiton-tree-columns {
+  margin: 0.35rem 0 0.55rem;
+  font-size: 0.85rem;
+}
+
+.epiton-tree-columns summary {
+  cursor: pointer;
+  color: var(--epiton-muted);
+  font-weight: 600;
+}
+
+.epiton-tree-columns .epiton-toolbar {
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
 .epiton-analytics-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

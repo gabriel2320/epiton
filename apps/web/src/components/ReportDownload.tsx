@@ -6,10 +6,18 @@ import {
   numericFieldCandidates,
   summarizeSeries,
 } from "@epiton/view-engine";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { GraphView } from "./GraphView";
 import { PdfPreview } from "./PdfPreview";
+
+type ReportRow = {
+  id: number;
+  name?: string;
+  report_name?: string;
+  model?: string;
+};
 
 /** Download / preview Tryton report payloads + optional visual analytics over the same ids. */
 export function ReportDownload(props: {
@@ -47,6 +55,38 @@ export function ReportDownload(props: {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  const reportsQuery = useQuery({
+    queryKey: ["ir.action.report", modelName],
+    enabled: Boolean(client),
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<ReportRow[]> => {
+      if (!client) return [];
+      const model = modelName.trim();
+      const domain = model ? [["model", "=", model]] : [];
+      let rows = (await client.searchRead(
+        "ir.action.report",
+        domain,
+        ["id", "name", "report_name", "model"],
+        0,
+        200,
+        "name ASC",
+        sessionContext,
+      )) as ReportRow[];
+      if (!rows.length && model) {
+        rows = (await client.searchRead(
+          "ir.action.report",
+          [],
+          ["id", "name", "report_name", "model"],
+          0,
+          200,
+          "name ASC",
+          sessionContext,
+        )) as ReportRow[];
+      }
+      return rows.filter((r) => typeof r.report_name === "string" && r.report_name.length > 0);
+    },
+  });
 
   const ids = useMemo(
     () =>
@@ -132,6 +172,8 @@ export function ReportDownload(props: {
     }
   }
 
+  const reports = reportsQuery.data ?? [];
+
   return (
     <Panel title="Reports">
       <div className="epiton-toolbar">
@@ -139,7 +181,40 @@ export function ReportDownload(props: {
           value={reportName}
           onChange={(e) => setReportName(e.target.value)}
           aria-label="Report name"
+          list="epiton-report-suggestions"
+          placeholder="report technical name"
+          style={{ minWidth: "14rem" }}
         />
+        <datalist id="epiton-report-suggestions">
+          {reports.map((r) => (
+            <option
+              key={r.id}
+              value={String(r.report_name)}
+              label={`${r.name ?? r.report_name}${r.model ? ` · ${r.model}` : ""}`}
+            />
+          ))}
+        </datalist>
+        {reports.length ? (
+          <select
+            aria-label="Pick registered report"
+            value={reports.some((r) => r.report_name === reportName) ? reportName : ""}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (!next) return;
+              setReportName(next);
+              const hit = reports.find((r) => r.report_name === next);
+              if (hit?.model) setModelName(String(hit.model));
+            }}
+          >
+            <option value="">Pick report…</option>
+            {reports.map((r) => (
+              <option key={r.id} value={String(r.report_name)}>
+                {r.name ?? r.report_name}
+                {r.model ? ` (${r.model})` : ""}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <input
           value={idsText}
           onChange={(e) => setIdsText(e.target.value)}
@@ -160,6 +235,9 @@ export function ReportDownload(props: {
         <Button onClick={() => void run(false)}>Download</Button>
         <Button onClick={() => void run(true)}>Preview</Button>
       </div>
+      {reportsQuery.isError ? (
+        <Alert tone="muted">Could not list ir.action.report — type the technical name</Alert>
+      ) : null}
       {message ? (
         <Alert tone={/fail|error|not installed/i.test(message) ? "danger" : "accent"}>
           {message}

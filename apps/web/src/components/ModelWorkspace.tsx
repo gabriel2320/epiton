@@ -60,6 +60,7 @@ import {
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { CsvExportDialog } from "./CsvExportDialog";
@@ -96,6 +97,14 @@ function normalizeIds(value: unknown): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+function stableSerialize(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 /** Generic Tryton model workspace — opens any model via fields_view_get + CRUD.
  * Remount with `key={model}` from the shell when switching models.
  */
@@ -121,6 +130,7 @@ export function ModelWorkspace(props: {
   const session = useAppStore((s) => s.session);
   const sessionContext = useAppStore((s) => s.sessionContext);
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<number | null>(props.initialSelectedId ?? null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [draft, setDraft] = useState<RecordValues>({});
@@ -144,6 +154,14 @@ export function ModelWorkspace(props: {
   const [emptyTreeParents, setEmptyTreeParents] = useState<Set<number>>(() => new Set());
   const [emailOpen, setEmailOpen] = useState(false);
   const [csvExportOpen, setCsvExportOpen] = useState(false);
+  const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = sessionStorage.getItem(`epiton.tree.hidden.${props.model}`);
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
   const [treeM2O, setTreeM2O] = useState<{
     id: number;
     field: ViewField;
@@ -151,6 +169,17 @@ export function ModelWorkspace(props: {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const baselineRef = useRef("");
+  const dirtyRef = useRef(false);
+  const keyHandlersRef = useRef<{
+    startNew: () => Promise<void>;
+    requestDelete: (ids: number[]) => void;
+    confirmDiscard: () => boolean;
+  }>({
+    startNew: async () => {},
+    requestDelete: (_ids: number[]) => {},
+    confirmDiscard: () => true,
+  });
 
   const actionCtxOverlay = useMemo(
     () => evalContext(props.actionContext ?? {}, sessionContext),
@@ -182,7 +211,14 @@ export function ModelWorkspace(props: {
     ? clinicalWidgetRegistry()
     : undefined;
 
+  function confirmDiscard(): boolean {
+    if (!dirtyRef.current) return true;
+    if (typeof globalThis.confirm !== "function") return true;
+    return globalThis.confirm(t("workspace.discardConfirm"));
+  }
+
   function selectId(id: number | null) {
+    if (id !== selectedId && !confirmDiscard()) return;
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
   }
@@ -412,10 +448,20 @@ export function ModelWorkspace(props: {
     return evalDomain(tab.domain ?? [], { ...sessionContext, ...actionCtxOverlay });
   }, [domainTabs, domainTab, sessionContext, actionCtxOverlay]);
 
+  const searchFields = useMemo(() => {
+    if (!treeViewQuery.data) return ["rec_name", "name", "code"];
+    const cols = treeColumns(treeViewQuery.data);
+    const names = cols
+      .filter((c) => !c.type || c.type === "char" || c.type === "text" || c.type === "many2one")
+      .map((c) => c.name)
+      .slice(0, 8);
+    return [...new Set(["rec_name", "name", "code", ...names])];
+  }, [treeViewQuery.data]);
+
   const listDomain = useMemo(() => {
-    const search = buildSearchDomain(searchQuery);
+    const search = buildSearchDomain(searchQuery, searchFields);
     return mergeDomains(mergeDomains(resolvedActionDomain, activeTabDomain), search);
-  }, [resolvedActionDomain, activeTabDomain, searchQuery]);
+  }, [resolvedActionDomain, activeTabDomain, searchQuery, searchFields]);
 
   const order = useMemo(() => formatOrder(sorts), [sorts]);
 
@@ -711,8 +757,35 @@ export function ModelWorkspace(props: {
   });
 
   useEffect(() => {
-    if (recordQuery.data) setDraft(recordQuery.data);
+    if (recordQuery.data) {
+      setDraft(recordQuery.data);
+      baselineRef.current = stableSerialize(recordQuery.data);
+    }
   }, [recordQuery.data]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        `epiton.tree.hidden.${props.model}`,
+        JSON.stringify(hiddenOptionalCols),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [hiddenOptionalCols, props.model]);
+
+  const isDirty = mode === "write" && stableSerialize(draft) !== baselineRef.current;
+  dirtyRef.current = isDirty;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (props.initialSelectedId == null) return;
@@ -771,11 +844,14 @@ export function ModelWorkspace(props: {
   }
 
   async function startNew() {
-    selectId(null);
+    if (!confirmDiscard()) return;
+    setSelectedId(null);
+    props.onSelectedIdChange?.(null);
     setMode("write");
     props.onHistory?.("new");
     if (!client) {
       setDraft({});
+      baselineRef.current = stableSerialize({});
       return;
     }
     const fieldNames = Object.keys(formViewQuery.data?.fields ?? {});
@@ -786,13 +862,15 @@ export function ModelWorkspace(props: {
         [fieldNames.length ? fieldNames : ["name", "active"]],
         rpcContext,
       );
-      setDraft(
+      const next =
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
           ? (defaults as RecordValues)
-          : {},
-      );
+          : {};
+      setDraft(next);
+      baselineRef.current = stableSerialize(next);
     } catch {
       setDraft({});
+      baselineRef.current = stableSerialize({});
     }
   }
 
@@ -877,6 +955,8 @@ export function ModelWorkspace(props: {
     setPendingDeleteIds(ids);
   }
 
+  keyHandlersRef.current = { startNew, requestDelete, confirmDiscard };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -891,13 +971,35 @@ export function ModelWorkspace(props: {
         if (mode === "write") saveMutation.mutate();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !typing) {
+        e.preventDefault();
+        void keyHandlersRef.current.startNew();
+        return;
+      }
+      if (e.key === "F5" && !typing) {
+        e.preventDefault();
+        void listQuery.refetch();
+        return;
+      }
+      if (e.key === "Delete" && !typing && (selectedId || selectedIds.length)) {
+        e.preventDefault();
+        keyHandlersRef.current.requestDelete(
+          selectedIds.length ? selectedIds : selectedId ? [selectedId] : [],
+        );
+        return;
+      }
       if (e.key === "Escape" && mode === "write" && !typing) {
+        if (!keyHandlersRef.current.confirmDiscard()) return;
+        if (recordQuery.data) {
+          setDraft(recordQuery.data);
+          baselineRef.current = stableSerialize(recordQuery.data);
+        }
         setMode("read");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, saveMutation]);
+  }, [mode, saveMutation, selectedId, selectedIds, listQuery, recordQuery.data]);
 
   async function runButton(name: string, meta?: { type?: string }) {
     if (!client || !selectedId) {
@@ -966,6 +1068,16 @@ export function ModelWorkspace(props: {
       };
     });
   }, [viewMode, listFormViewQuery.data, treeViewQuery.data]);
+
+  const displayColumns = useMemo(
+    () => columns.filter((c) => !("optional" in c && c.optional && hiddenOptionalCols[c.name])),
+    [columns, hiddenOptionalCols],
+  );
+
+  const optionalColumns = useMemo(
+    () => columns.filter((c) => "optional" in c && Boolean(c.optional)),
+    [columns],
+  );
 
   async function commitTreeCell(id: number, field: string, value: unknown) {
     if (!client) return;
@@ -1235,19 +1347,20 @@ export function ModelWorkspace(props: {
         ) : null}
         <div className="epiton-toolbar">
           <Button variant="primary" onClick={() => void startNew()}>
-            New
+            {t("workspace.new")}
           </Button>
-          <Button onClick={() => listQuery.refetch()}>Refresh</Button>
-          <Button onClick={() => setViewMode("tree")}>Tree</Button>
+          <Button onClick={() => listQuery.refetch()}>{t("workspace.refresh")}</Button>
+          <Button onClick={() => setViewMode("tree")}>{t("workspace.tree")}</Button>
           <Button
             variant={forceTreeEdit || treeIsEditable ? "primary" : "default"}
             onClick={() => setForceTreeEdit((v) => !v)}
           >
-            Inline edit{treeIsEditable ? " · on" : ""}
+            {t("workspace.inlineEdit")}
+            {treeIsEditable ? " · on" : ""}
           </Button>
-          <Button onClick={() => setViewMode("list-form")}>List-form</Button>
-          <Button onClick={() => setViewMode("calendar")}>Calendar</Button>
-          <Button onClick={() => setViewMode("graph")}>Graph</Button>
+          <Button onClick={() => setViewMode("list-form")}>{t("workspace.listForm")}</Button>
+          <Button onClick={() => setViewMode("calendar")}>{t("workspace.calendar")}</Button>
+          <Button onClick={() => setViewMode("graph")}>{t("workspace.graph")}</Button>
           <Button
             variant="danger"
             disabled={!selectedIds.length && !selectedId}
@@ -1255,22 +1368,23 @@ export function ModelWorkspace(props: {
               requestDelete(selectedIds.length ? selectedIds : selectedId ? [selectedId] : [])
             }
           >
-            Delete{selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
+            {t("workspace.delete")}
+            {selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
           </Button>
           <Button
             disabled={!client || (!selectedIds.length && !selectedId)}
             onClick={() => void copySelected()}
           >
-            Copy
+            {t("workspace.copy")}
           </Button>
           <Button
             disabled={!client || (!selectedIds.length && !selectedId && !listQuery.data?.length)}
             onClick={() => setCsvExportOpen(true)}
           >
-            Export CSV
+            {t("workspace.exportCsv")}
           </Button>
           <Button disabled={!client} onClick={() => importInputRef.current?.click()}>
-            Import CSV
+            {t("workspace.importCsv")}
           </Button>
           <input
             ref={importInputRef}
@@ -1305,7 +1419,7 @@ export function ModelWorkspace(props: {
               setSearchQuery(searchInput);
             }}
           >
-            Filter
+            {t("workspace.filter")}
           </Button>
           <Button
             onClick={() => {
@@ -1314,7 +1428,7 @@ export function ModelWorkspace(props: {
               setOffset(0);
             }}
           >
-            Clear
+            {t("workspace.clear")}
           </Button>
           <select
             aria-label="Saved searches"
@@ -1349,7 +1463,7 @@ export function ModelWorkspace(props: {
                 const name = globalThis.prompt("Name for saved search");
                 if (!name?.trim()) return;
                 try {
-                  const domain = buildSearchDomain(searchQuery);
+                  const domain = buildSearchDomain(searchQuery, searchFields);
                   await createViewSearch(
                     client,
                     {
@@ -1425,6 +1539,30 @@ export function ModelWorkspace(props: {
             </select>
           </label>
         </div>
+        {optionalColumns.length && viewMode === "tree" ? (
+          <details className="epiton-tree-columns">
+            <summary>{t("workspace.columns")}</summary>
+            <div className="epiton-toolbar">
+              {optionalColumns.map((c) => (
+                <label key={c.name} className="text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenOptionalCols[c.name]}
+                    onChange={(e) => {
+                      setHiddenOptionalCols((prev) => {
+                        const next = { ...prev };
+                        if (e.target.checked) delete next[c.name];
+                        else next[c.name] = true;
+                        return next;
+                      });
+                    }}
+                  />{" "}
+                  {c.string}
+                </label>
+              ))}
+            </div>
+          </details>
+        ) : null}
         <StateBlock
           state={listState}
           message={listQuery.isError ? listQuery.error.message : "No records"}
@@ -1469,7 +1607,7 @@ export function ModelWorkspace(props: {
             <ListFormView
               rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
               view={listFormViewQuery.data}
-              columns={columns}
+              columns={displayColumns}
               density={density}
               selectedId={selectedId}
               onSelect={(id) => {
@@ -1490,7 +1628,7 @@ export function ModelWorkspace(props: {
                     }))
                   : undefined
               }
-              columns={columns}
+              columns={displayColumns}
               selectedId={selectedId}
               selectedIds={selectedIds}
               editable={treeIsEditable}
@@ -1566,7 +1704,13 @@ export function ModelWorkspace(props: {
         ) : null}
       </Panel>
 
-      <Panel title={selectedId ? `${props.model} #${selectedId}` : `${props.model} form`}>
+      <Panel
+        title={
+          selectedId
+            ? `${props.model} #${selectedId}${isDirty ? " *" : ""}`
+            : `${props.model} form${isDirty ? " *" : ""}`
+        }
+      >
         {aclWarning ? <Alert tone="muted">{aclWarning.message}</Alert> : null}
         {formViewQuery.isError ? (
           <Alert tone="danger">
@@ -1582,30 +1726,42 @@ export function ModelWorkspace(props: {
         ) : null}
         {notice ? <Alert tone={noticeTone(notice)}>{notice}</Alert> : null}
         <div className="epiton-toolbar">
-          <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>Mode: {mode}</Button>
+          <Button
+            onClick={() => {
+              if (mode === "write" && !confirmDiscard()) return;
+              if (mode === "write" && recordQuery.data) {
+                setDraft(recordQuery.data);
+                baselineRef.current = stableSerialize(recordQuery.data);
+              }
+              setMode(mode === "read" ? "write" : "read");
+            }}
+          >
+            {t("workspace.mode")}: {mode}
+          </Button>
           <Badge tone={mode === "write" ? "accent" : "muted"}>{mode}</Badge>
+          {isDirty ? <Badge tone="accent">{t("workspace.unsaved")}</Badge> : null}
           <Button
             variant="primary"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
           >
-            Save
+            {t("workspace.save")}
           </Button>
           <Button
             variant="danger"
             disabled={!selectedId}
             onClick={() => selectedId && requestDelete([selectedId])}
           >
-            Delete
+            {t("workspace.delete")}
           </Button>
           <Button disabled={!client || !selectedId} onClick={() => void copySelected()}>
-            Copy
+            {t("workspace.copy")}
           </Button>
           <Button disabled={!selectedId} onClick={() => setShowHistory((v) => !v)}>
-            History
+            {t("workspace.history")}
           </Button>
           <Button disabled={!selectedId} onClick={() => void openEmail()}>
-            Email
+            {t("workspace.email")}
           </Button>
         </div>
         <MetaStrip values={draft} />

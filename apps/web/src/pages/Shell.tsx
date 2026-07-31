@@ -10,6 +10,7 @@ import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { BoardWorkspace } from "../components/BoardWorkspace";
 import { BusBanner } from "../components/BusBanner";
 import { CardsWorkspace } from "../components/CardsWorkspace";
@@ -65,6 +66,7 @@ function makeTab(frame: ActionFrame): WorkspaceTab {
 }
 
 export function Shell() {
+  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const session = useAppStore((s) => s.session);
   const sessionContext = useAppStore((s) => s.sessionContext);
@@ -231,6 +233,29 @@ export function Shell() {
   }, [menusQuery.data, preset]);
 
   const suggestions = suggestNextActions(history);
+  const commandRecents = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ model: string; id: number; title: string; at: number }> = [];
+    for (let ti = tabs.length - 1; ti >= 0; ti--) {
+      const tab = tabs[ti];
+      if (!tab) continue;
+      for (let fi = tab.stack.length - 1; fi >= 0; fi--) {
+        const frame = tab.stack[fi];
+        if (!frame || frame.id == null) continue;
+        const key = `${frame.model}:${frame.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          model: frame.model,
+          id: frame.id,
+          title: frame.label ?? `${frame.model}#${frame.id}`,
+          at: Date.now() - out.length,
+        });
+        if (out.length >= 12) return out;
+      }
+    }
+    return out;
+  }, [tabs]);
 
   async function toggleMenuFavorite(id: number, next: boolean) {
     if (!client) return;
@@ -416,14 +441,16 @@ export function Shell() {
   return (
     <div className="epiton-shell" data-layout={layout.layout} data-density={density}>
       <aside className="epiton-sidebar">
-        <div className="epiton-brand">Epiton</div>
+        <div className="epiton-brand">{t("app.brand")}</div>
         <p style={{ color: "var(--epiton-muted)", marginTop: "0.35rem" }}>
           {session?.login} · layout {layout.layout}
         </p>
         <div className="epiton-toolbar" style={{ marginTop: "1rem" }}>
-          <Button onClick={() => setCommandOpen(true)}>Command (Ctrl+K)</Button>
+          <Button onClick={() => setCommandOpen(true)}>{t("shell.command")}</Button>
         </div>
-        <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>Favorites</h3>
+        <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>
+          {t("shell.favorites")}
+        </h3>
         <ul className="epiton-menu-list">
           {favorites.map((f) => (
             <li key={`${f.label}:${f.action}`}>
@@ -438,7 +465,7 @@ export function Shell() {
             </li>
           ))}
         </ul>
-        <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>Menu</h3>
+        <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>{t("shell.menu")}</h3>
         <MenuTree
           items={menusQuery.data ?? []}
           onOpen={(action) => void openWorkspace(action, "menu")}
@@ -447,7 +474,9 @@ export function Shell() {
         />
         {suggestions.length ? (
           <>
-            <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>Suggested</h3>
+            <h3 style={{ fontSize: "0.85rem", color: "var(--epiton-muted)" }}>
+              {t("shell.suggested")}
+            </h3>
             <ul className="epiton-menu-list">
               {suggestions.map((s) => (
                 <li key={s.label}>
@@ -481,7 +510,7 @@ export function Shell() {
               <option value="compact">Compact</option>
             </select>
             <Button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-              Theme: {theme}
+              {t("shell.theme")}: {theme}
             </Button>
             <BusBanner
               onOpenRecord={(model, id) => {
@@ -550,7 +579,7 @@ export function Shell() {
               </Suspense>
             </ToolDrawer>
           </div>
-          <Button onClick={logout}>Logout</Button>
+          <Button onClick={logout}>{t("shell.logout")}</Button>
         </div>
 
         <div className="epiton-tabs" role="tablist" aria-label="Workspace tabs">
@@ -667,6 +696,7 @@ export function Shell() {
 
       <CommandPalette
         menus={menusQuery.data ?? []}
+        recents={commandRecents}
         onPick={(item) => {
           if (item.kind === "menu" && item.payload.action) {
             void openWorkspace(String(item.payload.action), "command");
