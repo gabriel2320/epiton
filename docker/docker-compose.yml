@@ -47,6 +47,8 @@ services:
       EPITON_UPSTREAM: http://tryton:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8080
       EPITON_STRICT_ACL: "true"
+      EPITON_TRUST_PROXY: "false"
+      EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
     ports:
       - "8080:8080"
 

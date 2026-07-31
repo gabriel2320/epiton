@@ -18,8 +18,10 @@ Features:
 
 - Dual RPC routes: `/{db}/` and `/{db}/rpc/`
 - Correlation id (`X-Correlation-Id`)
-- Login rate limiting
+- Login rate limiting (keyed by `direct` unless `EPITON_TRUST_PROXY=true`, then `X-Forwarded-For`)
 - Body size limit
-- CORS
+- CORS allowlist (`EPITON_CORS_ORIGINS`, default localhost Vite ports — not `*`)
 - Audit log lines (method, rpc, status, latency) without response bodies
-- **Strict ACL**: mutating `model.*` calls probe `ir.model.access`; deny when no rows (`EPITON_STRICT_ACL=true`)
+- **Strict ACL**: mutating `model.*` calls (create/write/delete/copy/import/button_*) probe `ir.model.access`; deny when no rows (`EPITON_STRICT_ACL=true`)
+
+Terminate TLS at a reverse proxy (Caddy/nginx) in front of this gateway; the process itself speaks HTTP.

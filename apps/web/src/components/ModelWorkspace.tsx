@@ -1,5 +1,5 @@
-import { strictAclCoach } from "@epiton/intelligence";
 import { modelHasAccessRows } from "@epiton/protocol";
+import { strictAclCoach } from "@epiton/intelligence";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
@@ -12,69 +12,51 @@ import {
 } from "@epiton/view-engine";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
-export function PartyWorkspace(props: {
-  onHistory: (action: string) => void;
+const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
+
+/** Generic Tryton model workspace — opens any model via fields_view_get + CRUD. */
+export function ModelWorkspace(props: {
+  model: string;
   useClinicalWidgets?: boolean;
+  onHistory?: (action: string) => void;
 }) {
-  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<RecordValues>({ name: "" });
+  const [draft, setDraft] = useState<RecordValues>({});
   const [mode, setMode] = useState<"read" | "write">("read");
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
     : undefined;
 
-  const listQuery = useQuery({
-    queryKey: ["party.party", "list"],
-    enabled: Boolean(client),
-    queryFn: async () => {
-      if (!client) return [];
-      return client.searchRead("party.party", [], ["name", "code"], 0, 50, "name");
-    },
-  });
-
-  const treeViewQuery = useQuery({
-    queryKey: ["party.party", "tree-view"],
-    enabled: Boolean(client),
-    queryFn: async () => {
-      if (!client) return null;
-      try {
-        return parseFieldsViewGet(await client.fieldsViewGet("party.party", null, "tree"));
-      } catch {
-        return parseFieldsViewGet({
-          arch: `<tree><field name="name"/><field name="code"/></tree>`,
-          fields: {
-            name: { type: "char", string: "Name" },
-            code: { type: "char", string: "Code" },
-          },
-        });
-      }
-    },
-  });
+  useEffect(() => {
+    setSelectedId(null);
+    setDraft({});
+    setMode("read");
+    setRelationField(null);
+    setNotice(null);
+  }, [props.model]);
 
   const formViewQuery = useQuery({
-    queryKey: ["party.party", "form-view"],
+    queryKey: ["model", props.model, "form-view"],
     enabled: Boolean(client),
     queryFn: async () => {
       if (!client) return null;
       try {
-        return parseFieldsViewGet(await client.fieldsViewGet("party.party", null, "form"));
+        return parseFieldsViewGet(await client.fieldsViewGet(props.model, null, "form"));
       } catch {
         return parseFieldsViewGet({
-          arch: `<form><group string="Party"><field name="name"/><field name="code"/><field name="active"/></group></form>`,
+          arch: `<form><group string="${props.model}"><field name="name"/><field name="active"/></group></form>`,
           fields: {
             name: { type: "char", string: "Name", required: true },
-            code: { type: "char", string: "Code" },
             active: { type: "boolean", string: "Active" },
           },
         });
@@ -82,17 +64,51 @@ export function PartyWorkspace(props: {
     },
   });
 
+  const treeViewQuery = useQuery({
+    queryKey: ["model", props.model, "tree-view"],
+    enabled: Boolean(client),
+    queryFn: async () => {
+      if (!client) return null;
+      try {
+        return parseFieldsViewGet(await client.fieldsViewGet(props.model, null, "tree"));
+      } catch {
+        return parseFieldsViewGet({
+          arch: `<tree><field name="rec_name"/><field name="name"/></tree>`,
+          fields: {
+            rec_name: { type: "char", string: "Name" },
+            name: { type: "char", string: "Name" },
+          },
+        });
+      }
+    },
+  });
+
+  const listFields = useMemo(() => {
+    const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
+    const merged = [...new Set(["id", ...cols, ...DEFAULT_FIELDS])];
+    return merged.slice(0, 12);
+  }, [treeViewQuery.data]);
+
+  const listQuery = useQuery({
+    queryKey: ["model", props.model, "list", listFields.join(",")],
+    enabled: Boolean(client && treeViewQuery.isSuccess),
+    queryFn: async () => {
+      if (!client) return [];
+      try {
+        return await client.searchRead(props.model, [], listFields, 0, 80, null);
+      } catch {
+        return await client.searchRead(props.model, [], ["id"], 0, 80, null);
+      }
+    },
+  });
+
   const recordQuery = useQuery({
-    queryKey: ["party.party", selectedId],
+    queryKey: ["model", props.model, selectedId],
     enabled: Boolean(client && selectedId),
     queryFn: async () => {
       if (!client || !selectedId) return null;
-      const result = await client.model(
-        "party.party",
-        "read",
-        [[selectedId], ["name", "code", "active"]],
-        {},
-      );
+      const fieldNames = Object.keys(formViewQuery.data?.fields ?? { name: true });
+      const result = await client.model(props.model, "read", [[selectedId], fieldNames], {});
       return Array.isArray(result) ? (result[0] as RecordValues) : null;
     },
   });
@@ -101,42 +117,58 @@ export function PartyWorkspace(props: {
     if (recordQuery.data) setDraft(recordQuery.data);
   }, [recordQuery.data]);
 
+  const aclQuery = useQuery({
+    queryKey: ["model", props.model, "acl"],
+    enabled: Boolean(client),
+    queryFn: async () => {
+      if (!client) return null;
+      return modelHasAccessRows(client, props.model);
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
-      const values = {
-        name: String(draft.name ?? ""),
-        code: draft.code == null || draft.code === "" ? null : String(draft.code),
-        active: Boolean(draft.active ?? true),
-      };
+      const fieldMeta = formViewQuery.data?.fields ?? {};
+      const values: Record<string, string | number | boolean | null> = {};
+      for (const [key, meta] of Object.entries(fieldMeta)) {
+        if (meta.readonly) continue;
+        if (!(key in draft)) continue;
+        const raw = draft[key];
+        if (meta.type === "boolean") values[key] = Boolean(raw);
+        else if (raw == null || raw === "") values[key] = null;
+        else if (typeof raw === "number" || typeof raw === "boolean") values[key] = raw;
+        else if (typeof raw === "string") values[key] = raw;
+      }
       if (selectedId) {
-        await client.model("party.party", "write", [[selectedId], values], {});
-        props.onHistory("write");
+        await client.model(props.model, "write", [[selectedId], values], {});
+        props.onHistory?.("write");
         return selectedId;
       }
-      const created = await client.model("party.party", "create", [[values]], {});
+      const created = await client.model(props.model, "create", [[values]], {});
       const id = Array.isArray(created) ? Number(created[0]) : Number(created);
-      props.onHistory("create");
+      props.onHistory?.("create");
       return id;
     },
     onSuccess: async (id) => {
       setSelectedId(id);
       setMode("read");
-      await queryClient.invalidateQueries({ queryKey: ["party.party"] });
+      setNotice("Saved");
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!client || !selectedId) throw new Error("Nothing selected");
-      if (!globalThis.confirm("Delete this party?")) return;
-      await client.model("party.party", "delete", [[selectedId]], {});
-      props.onHistory("delete");
+      if (!globalThis.confirm(`Delete ${props.model} #${selectedId}?`)) return;
+      await client.model(props.model, "delete", [[selectedId]], {});
+      props.onHistory?.("delete");
     },
     onSuccess: async () => {
       setSelectedId(null);
-      setDraft({ name: "" });
-      await queryClient.invalidateQueries({ queryKey: ["party.party"] });
+      setDraft({});
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
   });
 
@@ -147,31 +179,24 @@ export function PartyWorkspace(props: {
     }
     setNotice(`Running ${name}…`);
     try {
-      await client.model("party.party", name, [[selectedId]], {});
-      props.onHistory(`button:${name}`);
+      await client.model(props.model, name, [[selectedId]], {});
+      props.onHistory?.(`button:${name}`);
       setNotice(`Button ${name} OK`);
-      await queryClient.invalidateQueries({ queryKey: ["party.party"] });
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Button failed");
     }
   }
 
-  const aclQuery = useQuery({
-    queryKey: ["party.party", "acl"],
-    enabled: Boolean(client),
-    queryFn: async () => {
-      if (!client) return null;
-      return modelHasAccessRows(client, "party.party");
-    },
-  });
-
   const columns = useMemo(
     () =>
-      treeViewQuery.data ? treeColumns(treeViewQuery.data) : [{ name: "name", string: "Name" }],
+      treeViewQuery.data
+        ? treeColumns(treeViewQuery.data)
+        : [{ name: "id", string: "ID" }, { name: "rec_name", string: "Name" }],
     [treeViewQuery.data],
   );
 
-  const aclWarning = strictAclCoach("party.party", aclQuery.data ?? null);
+  const aclWarning = strictAclCoach(props.model, aclQuery.data ?? null);
   const listState = listQuery.isLoading
     ? "loading"
     : listQuery.isError
@@ -182,24 +207,24 @@ export function PartyWorkspace(props: {
 
   return (
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
-      <Panel title={t("party.title")}>
+      <Panel title={props.model}>
         <div className="epiton-toolbar">
           <Button
             variant="primary"
             onClick={() => {
               setSelectedId(null);
-              setDraft({ name: "", code: "", active: true });
+              setDraft({});
               setMode("write");
-              props.onHistory("new");
+              props.onHistory?.("new");
             }}
           >
-            {t("party.new")}
+            New
           </Button>
-          <Button onClick={() => listQuery.refetch()}>{t("party.refresh")}</Button>
+          <Button onClick={() => listQuery.refetch()}>Refresh</Button>
         </div>
         <StateBlock
           state={listState}
-          message={listQuery.isError ? listQuery.error.message : "No parties yet"}
+          message={listQuery.isError ? listQuery.error.message : "No records"}
         >
           <VirtualPartyTable
             rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
@@ -208,28 +233,26 @@ export function PartyWorkspace(props: {
             onSelect={(id) => {
               setSelectedId(id);
               setMode("read");
-              props.onHistory("open");
+              props.onHistory?.("open");
             }}
           />
         </StateBlock>
       </Panel>
 
-      <Panel title={selectedId ? `Party #${selectedId}` : "Party form"}>
+      <Panel title={selectedId ? `${props.model} #${selectedId}` : `${props.model} form`}>
         {aclWarning ? <p role="status">{aclWarning.message}</p> : null}
         {notice ? <p role="status">{notice}</p> : null}
         <div className="epiton-toolbar">
-          <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>
-            {t("party.mode")}: {mode}
-          </Button>
+          <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>Mode: {mode}</Button>
           <Button
             variant="primary"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
           >
-            {t("party.save")}
+            Save
           </Button>
           <Button variant="danger" disabled={!selectedId} onClick={() => deleteMutation.mutate()}>
-            {t("party.delete")}
+            Delete
           </Button>
         </div>
         {formViewQuery.data
@@ -237,13 +260,13 @@ export function PartyWorkspace(props: {
               values: draft,
               mode,
               density,
-              model: "party.party",
+              model: props.model,
               widgets,
               onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
               onButton: (name) => void runButton(name),
               onOpenRelation: (field) => {
                 setRelationField(field);
-                props.onHistory(`relation:${field.name}`);
+                props.onHistory?.(`relation:${field.name}`);
               },
             })
           : recordQuery.isLoading

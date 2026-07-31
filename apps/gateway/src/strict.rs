@@ -12,7 +12,10 @@ pub fn parse_model_method(rpc_method: &str) -> Option<(&str, &str)> {
 }
 
 pub fn is_mutating_method(method: &str) -> bool {
-    matches!(method, "create" | "write" | "delete" | "copy")
+    matches!(
+        method,
+        "create" | "write" | "delete" | "copy" | "import_data" | "export_data_domain" | "workflow_trigger"
+    ) || method.starts_with("button_")
 }
 
 /// True when search_read of ir.model.access returned at least one row.
@@ -40,6 +43,8 @@ mod tests {
     #[test]
     fn detects_mutating() {
         assert!(is_mutating_method("write"));
+        assert!(is_mutating_method("button_confirm"));
+        assert!(is_mutating_method("import_data"));
         assert!(!is_mutating_method("search_read"));
     }
 

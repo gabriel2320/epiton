@@ -5,6 +5,7 @@ import {
   unifiedSearch,
   workspaceFavorites,
 } from "@epiton/intelligence";
+import { resolveWorkspaceModel } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -12,7 +13,7 @@ import { AttachmentsPanel } from "../components/AttachmentsPanel";
 import { BusBanner } from "../components/BusBanner";
 import { CardsWorkspace } from "../components/CardsWorkspace";
 import { CommandPalette } from "../components/CommandPalette";
-import { PartyWorkspace } from "../components/PartyWorkspace";
+import { ModelWorkspace } from "../components/ModelWorkspace";
 import { ReportDownload } from "../components/ReportDownload";
 import { WizardStepper } from "../components/WizardStepper";
 import { useAppStore } from "../lib/store";
@@ -30,6 +31,7 @@ export function Shell() {
   const setClient = useAppStore((s) => s.setClient);
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
   const [active, setActive] = useState("party.party");
+  const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ model: string; action: string }>>([]);
 
   const layout = useMemo(
@@ -73,6 +75,21 @@ export function Shell() {
   const favorites = workspaceFavorites(preset);
   const suggestions = suggestNextActions(history);
 
+  async function openWorkspace(actionOrModel: string, source: string) {
+    if (!client) {
+      setActive(actionOrModel);
+      return;
+    }
+    setWorkspaceNotice(null);
+    const model = await resolveWorkspaceModel(client, actionOrModel);
+    if (!model) {
+      setWorkspaceNotice(`No form workspace for ${actionOrModel} (${source})`);
+      return;
+    }
+    setActive(model);
+    setHistory((h) => [...h, { model, action: source }]);
+  }
+
   async function logout() {
     try {
       await client?.logout();
@@ -99,10 +116,7 @@ export function Shell() {
               <button
                 type="button"
                 data-active={active === f}
-                onClick={() => {
-                  setActive(f);
-                  setHistory((h) => [...h, { model: f, action: "open" }]);
-                }}
+                onClick={() => void openWorkspace(f, "favorite")}
               >
                 {f}
               </button>
@@ -115,12 +129,9 @@ export function Shell() {
             <li key={m.id}>
               <button
                 type="button"
+                data-active={active === m.action || (m.action?.includes(active) ?? false)}
                 onClick={() => {
-                  if (m.action)
-                    setActive(
-                      m.action.includes(",") ? (m.action.split(",")[1] ?? m.name) : m.action,
-                    );
-                  setHistory((h) => [...h, { model: String(m.action ?? m.name), action: "menu" }]);
+                  if (m.action) void openWorkspace(m.action, "menu");
                 }}
               >
                 {m.name}
@@ -134,7 +145,15 @@ export function Shell() {
             <ul className="epiton-menu-list">
               {suggestions.map((s) => (
                 <li key={s.label}>
-                  <button type="button">{s.label}</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const model = s.payload.model;
+                      if (typeof model === "string") void openWorkspace(model, "suggested");
+                    }}
+                  >
+                    {s.label}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -163,6 +182,12 @@ export function Shell() {
           <Button onClick={logout}>Logout</Button>
         </div>
 
+        {workspaceNotice ? (
+          <p role="status" style={{ color: "var(--epiton-muted)" }}>
+            {workspaceNotice}
+          </p>
+        ) : null}
+
         {layout.layout === "cards" ? (
           <CardsWorkspace
             title="Records"
@@ -174,24 +199,20 @@ export function Shell() {
             menus={menusQuery.data ?? []}
             onOpen={(id) => {
               const hit = (menusQuery.data ?? []).find((m) => m.id === id);
-              if (hit?.action) setActive(String(hit.action));
+              if (hit?.action) void openWorkspace(String(hit.action), "cards");
             }}
           />
-        ) : active === "party.party" || active.includes("party") ? (
-          <PartyWorkspace
-            useClinicalWidgets={preset === "clinical"}
-            onHistory={(action) => setHistory((h) => [...h, { model: "party.party", action }])}
-          />
         ) : (
-          <div role="status" style={{ color: "var(--epiton-muted)" }}>
-            Workspace for <strong>{active}</strong> uses the same view engine. Open Parties for the
-            CRUD reference implementation.
-          </div>
+          <ModelWorkspace
+            model={active}
+            useClinicalWidgets={preset === "clinical"}
+            onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
+          />
         )}
 
         <div style={{ display: "grid", gap: "1rem", marginTop: "1rem" }}>
           <WizardStepper />
-          <AttachmentsPanel model="party.party" />
+          <AttachmentsPanel model={active} />
           <ReportDownload />
         </div>
       </main>
@@ -200,7 +221,9 @@ export function Shell() {
         menus={menusQuery.data ?? []}
         onPick={(item) => {
           if (item.kind === "menu" && item.payload.action) {
-            setActive(String(item.payload.action));
+            void openWorkspace(String(item.payload.action), "command");
+          } else if (item.kind === "record" && typeof item.payload.model === "string") {
+            void openWorkspace(String(item.payload.model), "command");
           }
         }}
         search={unifiedSearch}

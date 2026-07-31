@@ -21,8 +21,8 @@ export function LoginPage() {
     defaultValues: {
       baseUrl: connection.baseUrl,
       database: connection.database,
-      username: "admin",
-      password: "admin",
+      username: "",
+      password: "",
     },
   });
 

@@ -3,7 +3,7 @@ mod strict;
 use axum::{
     body::Bytes,
     extract::{Path, State},
-    http::{HeaderMap, HeaderValue, Method, StatusCode},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{any, get},
     Router,
@@ -17,13 +17,19 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    limit::RequestBodyLimitLayer,
+    trace::TraceLayer,
+};
 use uuid::Uuid;
 
 #[derive(Clone)]
 struct AppState {
     upstream: String,
     strict_acl: bool,
+    /// When true, trust X-Forwarded-For for rate-limit keys (only behind a known reverse proxy).
+    trust_proxy: bool,
     http: reqwest::Client,
     login_hits: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
 }
@@ -41,14 +47,15 @@ async fn main() {
 
     let upstream =
         std::env::var("EPITON_UPSTREAM").unwrap_or_else(|_| "http://127.0.0.1:8000".into());
-    let strict_acl = std::env::var("EPITON_STRICT_ACL")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+    let strict_acl = env_flag("EPITON_STRICT_ACL", false);
+    let trust_proxy = env_flag("EPITON_TRUST_PROXY", false);
     let bind = std::env::var("EPITON_GATEWAY_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());
+    let cors = build_cors_layer();
 
     let state = AppState {
         upstream,
         strict_acl,
+        trust_proxy,
         http: reqwest::Client::new(),
         login_hits: Arc::new(Mutex::new(HashMap::new())),
     };
@@ -60,13 +67,55 @@ async fn main() {
         .route("/{db}/bus", any(proxy_bus))
         .layer(TraceLayer::new_for_http())
         .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024))
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(state);
 
     let addr: SocketAddr = bind.parse().expect("invalid bind address");
     tracing::info!(%addr, "epiton-gateway listening");
     let listener = tokio::net::TcpListener::bind(addr).await.expect("bind");
     axum::serve(listener, app).await.expect("serve");
+}
+
+fn env_flag(name: &str, default: bool) -> bool {
+    match std::env::var(name) {
+        Ok(v) => v == "1" || v.eq_ignore_ascii_case("true"),
+        Err(_) => default,
+    }
+}
+
+/// CORS allowlist from `EPITON_CORS_ORIGINS` (comma-separated). Empty → localhost defaults.
+fn build_cors_layer() -> CorsLayer {
+    let raw = std::env::var("EPITON_CORS_ORIGINS").unwrap_or_default();
+    let origins: Vec<HeaderValue> = if raw.trim().is_empty() {
+        vec![
+            HeaderValue::from_static("http://localhost:5173"),
+            HeaderValue::from_static("http://127.0.0.1:5173"),
+            HeaderValue::from_static("http://localhost:4173"),
+            HeaderValue::from_static("http://127.0.0.1:4173"),
+        ]
+    } else {
+        raw.split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| HeaderValue::from_str(s).ok())
+            .collect()
+    };
+
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::ACCEPT,
+            header::HeaderName::from_static("x-correlation-id"),
+        ])
 }
 
 async fn proxy_rpc_root(
@@ -108,7 +157,7 @@ async fn proxy_rpc_inner(
         .and_then(|e| e.method);
 
     if rpc_method.as_deref() == Some("common.db.login") {
-        if !rate_limit(&state, &client_ip(&headers)) {
+        if !rate_limit(&state, &client_ip(&state, &headers)) {
             return (StatusCode::TOO_MANY_REQUESTS, "login rate limited").into_response();
         }
     }
@@ -242,12 +291,17 @@ async fn forward(
     Ok(response)
 }
 
-fn client_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or("unknown").trim().to_string())
-        .unwrap_or_else(|| "unknown".into())
+fn client_ip(state: &AppState, headers: &HeaderMap) -> String {
+    if state.trust_proxy {
+        if let Some(xff) = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.split(',').next().unwrap_or("unknown").trim().to_string())
+        {
+            return xff;
+        }
+    }
+    "direct".into()
 }
 
 fn rate_limit(state: &AppState, ip: &str) -> bool {
@@ -272,6 +326,7 @@ mod tests {
         let state = AppState {
             upstream: "http://127.0.0.1:8000".into(),
             strict_acl: false,
+            trust_proxy: false,
             http: reqwest::Client::new(),
             login_hits: Arc::new(Mutex::new(HashMap::new())),
         };

@@ -54,13 +54,15 @@ describe("EpitonClient", () => {
   });
 
   it("detects series from common.server.version", async () => {
-    const fetchImpl = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ id: 1, result: "8.0.1" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-    );
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (String(url).includes("/bus")) {
+        return new Response("unauthorized", { status: 401 });
+      }
+      return new Response(JSON.stringify({ id: 1, result: "8.0.1" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
     const client = new EpitonClient({
       baseUrl: "http://localhost:8000",
       database: "epiton_lab",
@@ -69,5 +71,7 @@ describe("EpitonClient", () => {
     const caps = await client.detectCapabilities();
     expect(caps.series).toBe("8");
     expect(caps.serverVersion).toBe("8.0.1");
+    expect(caps.supportsBus).toBe(true);
+    expect(caps.supportsRest).toBe(false);
   });
 });

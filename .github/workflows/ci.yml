@@ -34,4 +34,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
       - run: cargo check
+
+  lab-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm --filter @epiton/protocol build
+      - name: Start Tryton lab
+        run: pnpm lab:up
+      - name: Wait for trytond
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -w "%{http_code}" -X POST \
+              -H "Content-Type: application/json" \
+              -d '{"id":1,"method":"common.server.version","params":[]}' \
+              http://127.0.0.1:8000/epiton_lab/ | grep -qE '200|401'; then
+              echo "trytond ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "trytond did not become ready"
+          docker compose -f docker/docker-compose.yml logs
+          exit 1
+      - name: Live RPC smoke
+        run: pnpm lab:smoke:live
+        env:
+          EPITON_BASE: http://127.0.0.1:8000
+          EPITON_DB: epiton_lab
+          EPITON_USER: admin
+          EPITON_PASSWORD: admin
+      - name: Tear down lab
+        if: always()
+        run: pnpm lab:down

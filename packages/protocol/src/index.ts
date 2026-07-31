@@ -4,6 +4,7 @@ export { sessionAuthorization } from "./auth";
 export { pollBus } from "./bus";
 export { BusClient, type BusMessage } from "./busClient";
 export { modelHasAccessRows } from "./acl";
+export { resolveWorkspaceModel } from "./actions";
 
 export type JsonRpcId = string | number | null;
 
@@ -140,15 +141,35 @@ export class EpitonClient {
       serverVersion = null;
     }
 
+    const [supportsBus, supportsRest] = await Promise.all([
+      this.probeEndpoint(this.busUrl(), "POST"),
+      // Stock trytond does not expose a dedicated REST root; keep false unless a probe is added.
+      Promise.resolve(false),
+    ]);
+
     const caps: ServerCapabilities = {
       serverVersion,
       series: parseSeries(serverVersion),
-      supportsBus: true,
-      supportsRest: true,
-      supportsSessionCookie: true,
+      supportsBus,
+      supportsRest,
+      supportsSessionCookie: false,
     };
     this.capabilities = caps;
     return caps;
+  }
+
+  /** Probe whether an HTTP endpoint exists (not 404 / network failure). */
+  private async probeEndpoint(url: string, method: string): Promise<boolean> {
+    try {
+      const response = await this.fetchImpl(url, {
+        method,
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: method === "POST" ? "{}" : undefined,
+      });
+      return response.status !== 404;
+    } catch {
+      return false;
+    }
   }
 
   async login(username: string, password: string, lang = "en"): Promise<TrytonSession> {
