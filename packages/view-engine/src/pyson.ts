@@ -113,13 +113,16 @@ export function evalPysonNode(node: PysonNode, ctx: PysonContext): unknown {
       return obj.d ?? null;
     }
     case "In": {
-      const needle = evalPysonNode(obj.v, ctx);
-      const hay = evalPysonNode(obj.k, ctx);
+      // Tryton/Sao: k = needle, v = container (list/dict/string)
+      const needle = evalPysonNode(obj.k, ctx);
+      const hay = evalPysonNode(obj.v, ctx);
       if (typeof hay === "string") return hay.includes(String(needle));
       if (Array.isArray(hay)) {
         const n = Array.isArray(needle) ? needle[0] : needle;
         return hay.some((h) => (Array.isArray(h) ? h[0] : h) === n || h === needle);
       }
+      const rec = asRecord(hay);
+      if (rec) return String(needle) in rec;
       return false;
     }
     case "Date": {
@@ -239,8 +242,8 @@ function evalPysonString(raw: string, ctx: PysonContext): boolean | null {
     const result = evalPysonNode(
       {
         __class__: "In",
-        v: tryParseArg(inMatch[1]),
-        k: tryParseArg(inMatch[2]),
+        k: tryParseArg(inMatch[1]),
+        v: tryParseArg(inMatch[2]),
       },
       ctx,
     );

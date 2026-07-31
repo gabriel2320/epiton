@@ -49,6 +49,11 @@ export {
 } from "./calendar";
 export { GRAPH_ROW_LIMIT, inferGraphFields, rowsToGraphData } from "./graph";
 export {
+  buildSearchDomain,
+  formatOrder,
+  mergeDomains,
+} from "./search";
+export {
   evalDomain,
   evalPyson,
   evalPysonNode,

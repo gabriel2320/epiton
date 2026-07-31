@@ -48,19 +48,43 @@ describe("resolveAction", () => {
     });
   });
 
-  it("resolves act_window references", async () => {
+  it("resolves act_window references with domain/context", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
       expect(body.method).toBe("model.ir.action.act_window.search_read");
       return new Response(
-        JSON.stringify({ id: 1, result: [{ id: 12, res_model: "company.company" }] }),
+        JSON.stringify({
+          id: 1,
+          result: [
+            {
+              id: 12,
+              res_model: "company.company",
+              name: "Companies",
+              domain: '[["active", "=", true]]',
+              context: { company: 1 },
+              views: [
+                [null, "tree"],
+                [null, "form"],
+              ],
+            },
+          ],
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
-    await expect(resolveWorkspaceModel(client, "ir.action.act_window,12")).resolves.toBe(
-      "company.company",
-    );
+    await expect(resolveAction(client, "ir.action.act_window,12")).resolves.toEqual({
+      kind: "model",
+      model: "company.company",
+      actionId: 12,
+      name: "Companies",
+      domain: [["active", "=", true]],
+      context: { company: 1 },
+      views: [
+        [null, "tree"],
+        [null, "form"],
+      ],
+    });
   });
 
   it("resolves wizard action references", async () => {

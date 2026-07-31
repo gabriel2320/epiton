@@ -42,7 +42,7 @@ describe("pyson JSON __class__", () => {
       ),
     ).toBe("X");
     expect(
-      evalPysonNode({ __class__: "In", v: "a", k: { __class__: "Eval", v: "tags" } }, ctx),
+      evalPysonNode({ __class__: "In", k: "a", v: { __class__: "Eval", v: "tags" } }, ctx),
     ).toBe(true);
     expect(String(evalPysonNode({ __class__: "Date", y: 2024, M: 1, d: 2 }, {}))).toBe(
       "2024-01-02",

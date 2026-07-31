@@ -1,6 +1,5 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, SortingState, Updater } from "@tanstack/react-table";
 import {
-  type SortingState,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
@@ -14,28 +13,64 @@ export function VirtualPartyTable(props: {
   rows: Array<Record<string, unknown>>;
   columns: Array<{ name: string; string: string }>;
   selectedId: number | null;
+  selectedIds?: number[];
+  /** When set, sorting is server-driven (no client re-sort). */
+  onSortChange?: (sorts: Array<{ id: string; desc: boolean }>) => void;
   onSelect: (id: number) => void;
+  onToggleSelect?: (id: number) => void;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
+  const serverSort = Boolean(props.onSortChange);
 
-  const columnDefs = useMemo<ColumnDef<Record<string, unknown>>[]>(
-    () =>
-      props.columns.map((c) => ({
+  function handleSortingChange(updater: Updater<SortingState>) {
+    setSorting((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      props.onSortChange?.(next.map((s) => ({ id: s.id, desc: Boolean(s.desc) })));
+      return next;
+    });
+  }
+
+  const columnDefs = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
+    const cols: ColumnDef<Record<string, unknown>>[] = [];
+    if (props.onToggleSelect) {
+      cols.push({
+        id: "_select",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const id = Number(row.original.id);
+          const checked = (props.selectedIds ?? []).includes(id);
+          return (
+            <input
+              type="checkbox"
+              checked={checked}
+              aria-label={`Select ${id}`}
+              onClick={(e) => e.stopPropagation()}
+              onChange={() => props.onToggleSelect?.(id)}
+            />
+          );
+        },
+      });
+    }
+    for (const c of props.columns) {
+      cols.push({
         accessorKey: c.name,
         header: c.string,
         cell: (info) => String(info.getValue() ?? ""),
-      })),
-    [props.columns],
-  );
+      });
+    }
+    return cols;
+  }, [props.columns, props.onToggleSelect, props.selectedIds]);
 
   const table = useReactTable({
     data: props.rows,
     columns: columnDefs,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getSortedRowModel: serverSort ? undefined : getSortedRowModel(),
+    manualSorting: serverSort,
   });
 
   const rows = table.getRowModel().rows;
@@ -57,14 +92,18 @@ export function VirtualPartyTable(props: {
             <tr key={hg.id}>
               {hg.headers.map((h) => (
                 <th key={h.id} className="cursor-pointer select-none">
-                  <button
-                    type="button"
-                    className="bg-transparent border-0 p-0 font-inherit text-inherit cursor-pointer"
-                    onClick={h.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                    {{ asc: " ↑", desc: " ↓" }[h.column.getIsSorted() as string] ?? null}
-                  </button>
+                  {h.column.getCanSort() ? (
+                    <button
+                      type="button"
+                      className="bg-transparent border-0 p-0 font-inherit text-inherit cursor-pointer"
+                      onClick={h.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(h.column.columnDef.header, h.getContext())}
+                      {{ asc: " ↑", desc: " ↓" }[h.column.getIsSorted() as string] ?? null}
+                    </button>
+                  ) : (
+                    flexRender(h.column.columnDef.header, h.getContext())
+                  )}
                 </th>
               ))}
             </tr>

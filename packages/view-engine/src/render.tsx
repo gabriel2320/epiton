@@ -58,6 +58,118 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     );
   }
 
+  if (field.type === "multiselection" && field.selection) {
+    const selected = Array.isArray(value) ? value.map(String) : [];
+    return createElement(
+      "select",
+      {
+        ...common,
+        multiple: true,
+        value: selected,
+        size: Math.min(6, field.selection.length || 3),
+        onChange: (e: { target: { selectedOptions: HTMLCollectionOf<HTMLOptionElement> } }) => {
+          const next = Array.from(e.target.selectedOptions).map((o) => o.value);
+          ctx.onChange?.(field.name, next);
+        },
+      },
+      field.selection.map(([k, label]) => createElement("option", { key: k, value: k }, label)),
+    );
+  }
+
+  if (field.type === "reference") {
+    const modelPart = Array.isArray(value) ? String(value[0] ?? "") : "";
+    const idPart = Array.isArray(value) ? String(value[1] ?? "") : "";
+    return createElement(
+      "div",
+      { className: "epiton-reference" },
+      createElement("input", {
+        ...common,
+        id: `${common.id}-model`,
+        placeholder: "model.name",
+        value: modelPart,
+        onChange: (e: { target: { value: string } }) =>
+          ctx.onChange?.(field.name, [e.target.value, idPart ? Number(idPart) || idPart : null]),
+      }),
+      createElement("input", {
+        ...common,
+        id: `${common.id}-id`,
+        type: "number",
+        placeholder: "id",
+        value: idPart,
+        onChange: (e: { target: { value: string } }) =>
+          ctx.onChange?.(field.name, [modelPart, e.target.value ? Number(e.target.value) : null]),
+      }),
+    );
+  }
+
+  if (field.type === "progressbar") {
+    const n = Number(value ?? 0);
+    const pct = Number.isFinite(n) ? Math.max(0, Math.min(100, n <= 1 ? n * 100 : n)) : 0;
+    return createElement(
+      "div",
+      { className: "epiton-progress", role: "progressbar", "aria-valuenow": pct },
+      createElement("div", {
+        className: "epiton-progress-bar",
+        style: { width: `${pct}%` },
+      }),
+      createElement("span", null, `${Math.round(pct)}%`),
+      ctx.mode === "write"
+        ? createElement("input", {
+            ...common,
+            type: "number",
+            min: 0,
+            max: 100,
+            value: Number.isFinite(n) ? n : 0,
+            onChange: (e: { target: { value: string } }) =>
+              ctx.onChange?.(field.name, Number(e.target.value)),
+          })
+        : null,
+    );
+  }
+
+  if (field.type === "dict") {
+    const text =
+      value == null
+        ? ""
+        : typeof value === "string"
+          ? value
+          : JSON.stringify(value, null, ctx.density === "compact" ? 0 : 2);
+    return createElement("textarea", {
+      ...common,
+      className: "epiton-dict",
+      value: text,
+      rows: ctx.density === "compact" ? 3 : 6,
+      spellCheck: false,
+      onChange: (e: { target: { value: string } }) => {
+        const raw = e.target.value;
+        try {
+          ctx.onChange?.(field.name, raw.trim() ? JSON.parse(raw) : {});
+        } catch {
+          ctx.onChange?.(field.name, raw);
+        }
+      },
+    });
+  }
+
+  if (field.type === "timedelta") {
+    return createElement("input", {
+      ...common,
+      type: "text",
+      placeholder: "HH:MM:SS",
+      value: value == null ? "" : String(value),
+      onChange: (e: { target: { value: string } }) => ctx.onChange?.(field.name, e.target.value),
+    });
+  }
+
+  if (field.type === "time") {
+    return createElement("input", {
+      ...common,
+      type: "time",
+      value: value == null ? "" : String(value).slice(0, 5),
+      onChange: (e: { target: { value: string } }) => ctx.onChange?.(field.name, e.target.value),
+    });
+  }
+
   if (field.type === "text") {
     return createElement("textarea", {
       ...common,
@@ -172,7 +284,13 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   const inputType =
     field.type === "integer" || field.type === "float" || field.type === "numeric"
       ? "number"
-      : "text";
+      : field.type === "password"
+        ? "password"
+        : field.type === "email"
+          ? "email"
+          : field.type === "url"
+            ? "url"
+            : "text";
 
   return createElement("input", {
     ...common,
@@ -191,13 +309,31 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
     );
   }
 
-  if (
-    node.tag === "form" ||
-    node.tag === "sheet" ||
-    node.tag === "group" ||
-    node.tag === "notebook" ||
-    node.tag === "page"
-  ) {
+  if (node.tag === "notebook") {
+    return createElement(
+      "div",
+      { className: `epiton-notebook density-${ctx.density}`, role: "tablist" },
+      node.children.map((page, i) => {
+        if (page.tag !== "page") {
+          return createElement("div", { key: i }, renderNode(page, view, ctx));
+        }
+        const states = resolveStatesAttr(page.attrs.states, ctx.values);
+        if (states.invisible) return null;
+        return createElement(
+          "details",
+          {
+            key: i,
+            className: "epiton-page",
+            open: i === 0,
+          },
+          createElement("summary", { role: "tab" }, page.attrs.string ?? `Page ${i + 1}`),
+          page.children.map((c, j) => createElement("div", { key: j }, renderNode(c, view, ctx))),
+        );
+      }),
+    );
+  }
+
+  if (node.tag === "form" || node.tag === "sheet" || node.tag === "group" || node.tag === "page") {
     return createElement(
       "section",
       {

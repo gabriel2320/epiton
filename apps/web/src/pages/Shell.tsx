@@ -6,6 +6,7 @@ import {
   workspaceFavorites,
 } from "@epiton/intelligence";
 import { resolveAction } from "@epiton/protocol";
+import type { JsonObject } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +36,8 @@ interface ActionFrame {
   model: string;
   id: number | null;
   label: string;
+  domain?: unknown;
+  context?: JsonObject;
 }
 
 export function Shell() {
@@ -151,8 +154,20 @@ export function Shell() {
     });
   }
 
-  function replaceRoot(model: string, id: number | null = null) {
-    setStack([{ model, id, label: model }]);
+  function replaceRoot(
+    model: string,
+    id: number | null = null,
+    extras?: { domain?: unknown; context?: JsonObject; label?: string },
+  ) {
+    setStack([
+      {
+        model,
+        id,
+        label: extras?.label ?? model,
+        domain: extras?.domain,
+        context: extras?.context,
+      },
+    ]);
   }
 
   function pushFrame(model: string, id: number | null) {
@@ -175,7 +190,11 @@ export function Shell() {
       setActiveWizard(null);
       setWizardActionId(null);
       setActiveReport(null);
-      replaceRoot(resolved.model, null);
+      replaceRoot(resolved.model, null, {
+        domain: resolved.domain,
+        context: resolved.context,
+        label: resolved.name ?? resolved.model,
+      });
       setHistory((h) => [...h, { model: resolved.model, action: source }]);
       return;
     }
@@ -368,6 +387,8 @@ export function Shell() {
               key={`${active}:${stack.length}`}
               model={active}
               initialSelectedId={selectedId}
+              actionDomain={stack[stack.length - 1]?.domain}
+              actionContext={stack[stack.length - 1]?.context}
               useClinicalWidgets={preset === "clinical"}
               onSelectedIdChange={setSelectedId}
               onPushRelated={(model, id) => {

@@ -1,10 +1,57 @@
-import type { EpitonClient } from "./index";
+import type { EpitonClient, JsonObject, JsonValue } from "./index";
 
 export type ResolvedAction =
-  | { kind: "model"; model: string }
+  | {
+      kind: "model";
+      model: string;
+      actionId?: number | null;
+      name?: string;
+      /** Concrete or PYSON-encoded domain from act_window. */
+      domain?: JsonValue;
+      context?: JsonObject;
+      views?: Array<[number | null, string]>;
+    }
   | { kind: "wizard"; wizard: string; actionId: number | null }
   | { kind: "report"; report: string; actionId: number | null }
   | { kind: "unsupported"; ref: string; reason: string };
+
+function asObject(value: unknown): JsonObject | undefined {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as JsonObject;
+  }
+  return undefined;
+}
+
+function parseDomainField(raw: unknown): JsonValue | undefined {
+  if (raw == null) return undefined;
+  if (Array.isArray(raw)) return raw as JsonValue;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t || t === "[]") return [];
+    try {
+      return JSON.parse(t) as JsonValue;
+    } catch {
+      try {
+        return JSON.parse(t.replace(/'/g, '"')) as JsonValue;
+      } catch {
+        return undefined;
+      }
+    }
+  }
+  return raw as JsonValue;
+}
+
+function parseViews(raw: unknown): Array<[number | null, string]> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: Array<[number | null, string]> = [];
+  for (const item of raw) {
+    if (!Array.isArray(item) || item.length < 2) continue;
+    const id = item[0] == null ? null : Number(item[0]);
+    const mode = String(item[1] ?? "form");
+    out.push([Number.isFinite(id as number) ? (id as number) : null, mode]);
+  }
+  return out.length ? out : undefined;
+}
 
 /**
  * Resolve a menu/action reference to a workspace model, wizard, or report.
@@ -78,13 +125,22 @@ export async function resolveAction(
       const rows = await client.searchRead(
         "ir.action.act_window",
         [["id", "=", id]],
-        ["res_model"],
+        ["res_model", "name", "domain", "context", "views"],
         0,
         1,
       );
-      const model = rows[0]?.res_model;
+      const row = rows[0];
+      const model = row?.res_model;
       if (typeof model === "string" && model.length > 0) {
-        return { kind: "model", model };
+        return {
+          kind: "model",
+          model,
+          actionId: id,
+          name: typeof row?.name === "string" ? row.name : undefined,
+          domain: parseDomainField(row?.domain),
+          context: asObject(row?.context) ?? undefined,
+          views: parseViews(row?.views),
+        };
       }
       return { kind: "unsupported", ref: raw, reason: "act_window missing res_model" };
     } catch {

@@ -192,6 +192,35 @@
   cursor: default;
 }
 
+.epiton-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.epiton-progress-bar {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--epiton-accent);
+  min-width: 0;
+  flex: 1;
+  max-width: 12rem;
+}
+
+.epiton-notebook .epiton-page {
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.epiton-notebook summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
 .epiton-menu-row {
   display: flex;
   align-items: center;

@@ -17,12 +17,20 @@ export type FieldType =
   | "boolean"
   | "date"
   | "datetime"
+  | "time"
+  | "timedelta"
   | "many2one"
   | "one2many"
   | "many2many"
   | "selection"
+  | "multiselection"
   | "reference"
   | "binary"
+  | "password"
+  | "email"
+  | "url"
+  | "progressbar"
+  | "dict"
   | "unknown";
 
 export interface ViewField {
@@ -131,12 +139,20 @@ function mapFieldType(raw: unknown): FieldType {
     "boolean",
     "date",
     "datetime",
+    "time",
+    "timedelta",
     "many2one",
     "one2many",
     "many2many",
     "selection",
+    "multiselection",
     "reference",
     "binary",
+    "password",
+    "email",
+    "url",
+    "progressbar",
+    "dict",
   ];
   return (allowed.includes(t as FieldType) ? t : "unknown") as FieldType;
 }
