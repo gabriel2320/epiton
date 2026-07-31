@@ -249,7 +249,7 @@ export function MetaStrip(props: {
 
 /** Inline status / notice banner (shadcn Alert recipe). */
 export function Alert(props: {
-  children: ReactNode;
+  children?: ReactNode;
   tone?: "default" | "accent" | "danger" | "muted";
   className?: string;
   role?: "status" | "alert";

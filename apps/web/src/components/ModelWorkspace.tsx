@@ -30,10 +30,8 @@ import {
 import {
   type RecordValues,
   type ViewField,
-  type WidgetRegistry,
   aggregateGraphData,
   buildSearchDomain,
-  clinicalWidgetRegistry,
   evalContext,
   evalDomain,
   flattenTreeRows,
@@ -61,6 +59,7 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { guessMime } from "../lib/mime";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { CsvExportDialog } from "./CsvExportDialog";
@@ -74,7 +73,6 @@ import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { SavedSearchDialog } from "./SavedSearchDialog";
 import { VirtualPartyTable } from "./VirtualPartyTable";
-import { guessMime } from "../lib/mime";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
@@ -112,7 +110,6 @@ function stableSerialize(value: unknown): string {
  */
 export function ModelWorkspace(props: {
   model: string;
-  useClinicalWidgets?: boolean;
   initialSelectedId?: number | null;
   /** Domain from ir.action.act_window (may still contain PYSON). */
   actionDomain?: JsonValue;
@@ -212,18 +209,14 @@ export function ModelWorkspace(props: {
   const listFormViewId = viewIdForMode(props.actionViews, "list-form");
   const graphViewId = viewIdForMode(props.actionViews, "graph");
 
-  const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
-    ? clinicalWidgetRegistry()
-    : undefined;
-
   function confirmDiscard(): boolean {
     if (!dirtyRef.current) return true;
     if (typeof globalThis.confirm !== "function") return true;
     return globalThis.confirm(t("workspace.discardConfirm"));
   }
 
-  function selectId(id: number | null) {
-    if (id !== selectedId && !confirmDiscard()) return;
+  function selectId(id: number | null, committed = false) {
+    if (!committed && id !== selectedId && !confirmDiscard()) return;
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
   }
@@ -380,6 +373,13 @@ export function ModelWorkspace(props: {
   const listFields = useMemo(() => {
     const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
     const hierarchy = treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null;
+    const knownFields = new Set([
+      "id",
+      "rec_name",
+      ...Object.keys(treeViewQuery.data?.fields ?? {}),
+      ...Object.keys(formViewQuery.data?.fields ?? {}),
+      ...Object.keys(calendarViewQuery.data?.fields ?? {}),
+    ]);
     const merged = [
       ...new Set([
         "id",
@@ -401,8 +401,8 @@ export function ModelWorkspace(props: {
         ...(hierarchy?.childField ? [hierarchy.childField] : []),
       ]),
     ];
-    return merged.slice(0, 28);
-  }, [treeViewQuery.data, props.model, calendarSpec]);
+    return merged.filter((field) => knownFields.has(field)).slice(0, 28);
+  }, [treeViewQuery.data, formViewQuery.data, calendarViewQuery.data, props.model, calendarSpec]);
   const listFormViewQuery = useQuery({
     queryKey: ["model", props.model, "list-form-view", listFormViewId],
     enabled: Boolean(client && viewMode === "list-form"),
@@ -456,12 +456,19 @@ export function ModelWorkspace(props: {
   const searchFields = useMemo(() => {
     if (!treeViewQuery.data) return ["rec_name", "name", "code"];
     const cols = treeColumns(treeViewQuery.data);
+    const knownFields = new Set([
+      "rec_name",
+      ...Object.keys(treeViewQuery.data.fields),
+      ...Object.keys(formViewQuery.data?.fields ?? {}),
+    ]);
     const names = cols
       .filter((c) => !c.type || c.type === "char" || c.type === "text" || c.type === "many2one")
       .map((c) => c.name)
       .slice(0, 8);
-    return [...new Set(["rec_name", "name", "code", ...names])];
-  }, [treeViewQuery.data]);
+    return [...new Set(["rec_name", "name", "code", ...names])].filter((field) =>
+      knownFields.has(field),
+    );
+  }, [treeViewQuery.data, formViewQuery.data]);
 
   const listDomain = useMemo(() => {
     const search = buildSearchDomain(searchQuery, searchFields);
@@ -526,7 +533,15 @@ export function ModelWorkspace(props: {
           rpcContext,
         );
       } catch {
-        return await client.searchRead(props.model, [], ["id"], offset, pageSize, null, rpcContext);
+        return await client.searchRead(
+          props.model,
+          [],
+          ["id", "rec_name"],
+          offset,
+          pageSize,
+          null,
+          rpcContext,
+        );
       }
     },
   });
@@ -795,8 +810,7 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     if (props.initialSelectedId == null) return;
     setSelectedId(props.initialSelectedId);
-    props.onSelectedIdChange?.(props.initialSelectedId);
-  }, [props.initialSelectedId, props.onSelectedIdChange]);
+  }, [props.initialSelectedId]);
 
   useEffect(() => {
     return () => {
@@ -925,8 +939,9 @@ export function ModelWorkspace(props: {
       return id;
     },
     onSuccess: async (id) => {
-      selectId(id);
+      selectId(id, true);
       setMode("read");
+      dirtyRef.current = false;
       setNotice("Saved");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
@@ -939,7 +954,7 @@ export function ModelWorkspace(props: {
       props.onHistory?.("delete");
     },
     onSuccess: async () => {
-      selectId(null);
+      selectId(null, true);
       setMultiSelect([]);
       setDraft({});
       setPendingDeleteIds(null);
@@ -1840,7 +1855,6 @@ export function ModelWorkspace(props: {
               mode,
               density,
               model: props.model,
-              widgets,
               onChange: handleFieldChange,
               onButton: (name, meta) => void runButton(name, meta),
               onOpenRelation: (field, value, domain) => {

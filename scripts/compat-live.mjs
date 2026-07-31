@@ -52,6 +52,7 @@ async function main() {
   const database = process.env.EPITON_DB ?? "epiton_lab";
   const username = process.env.EPITON_USER ?? "admin";
   const password = process.env.EPITON_PASSWORD ?? "admin";
+  const series = process.env.EPITON_COMPAT_SERIES ?? "unknown";
 
   console.log(`compat:live → ${baseUrl} db=${database}`);
 
@@ -261,13 +262,18 @@ async function main() {
   const receipt = {
     schema: "epiton.compat-live.v1",
     at: new Date().toISOString(),
-    target: { baseUrl, database, username },
+    target: {
+      series,
+      databaseKind: "disposable-lab",
+      transport: "gateway",
+    },
     summary: { passed, failed, skipped, total: checks.length },
     checks,
   };
 
   mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, "compat-live-latest.json");
+  const safeSeries = series.replace(/[^0-9A-Za-z.-]/g, "-");
+  const outPath = join(outDir, `compat-live-${safeSeries}-latest.json`);
   writeFileSync(outPath, `${JSON.stringify(receipt, null, 2)}\n`);
   console.log(`\nsummary pass=${passed} fail=${failed} skip=${skipped} → ${outPath}`);
 

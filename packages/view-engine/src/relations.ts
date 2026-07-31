@@ -6,7 +6,7 @@ export type O2MCommand =
   | { op: "add"; id: number }
   | { op: "remove"; id: number };
 
-export function toTrytonO2M(commands: O2MCommand[]): unknown[] {
+export function toTrytonO2M(commands: O2MCommand[]): unknown[][] {
   return commands.map((c) => {
     switch (c.op) {
       case "create":

@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { installMockTryton } from "./support/mockTryton";
+
+test.beforeEach(async ({ page }) => {
+  await installMockTryton(page);
+});
 
 test("login shell renders Epiton brand", async ({ page }) => {
   await page.goto("/");

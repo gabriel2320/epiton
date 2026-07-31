@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { applyFieldChange, buildOnChangeArgs } from "./onchange";
+import type { JsonValue } from "./onchange";
 
 describe("onchange", () => {
   it("buildOnChangeArgs flattens many2one", () => {
@@ -10,7 +11,7 @@ describe("onchange", () => {
 
   it("applyFieldChange runs on_change then on_change_with", async () => {
     const client = {
-      model: vi.fn(async (_m: string, method: string) => {
+      model: vi.fn(async (_m: string, method: string): Promise<JsonValue> => {
         if (method === "on_change_party") return { name: "from-on-change" };
         if (method === "on_change_with_code") return { code: "C1" };
         return {};

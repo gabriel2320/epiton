@@ -79,7 +79,8 @@ export interface JsonRpcErrorBody {
 
 export interface JsonRpcFailure {
   id: JsonRpcId;
-  error: JsonRpcErrorBody;
+  /** Tryton uses both the JSON-RPC object form and a legacy [message, trace] tuple. */
+  error: JsonRpcErrorBody | JsonValue[];
 }
 
 export type JsonRpcResponse = JsonRpcSuccess | JsonRpcFailure;
@@ -123,6 +124,27 @@ export class TrytonRpcError extends Error {
     this.code = code;
     this.data = data;
   }
+}
+
+export type SearchOrder = string | Array<[field: string, direction: string]> | null;
+
+function normalizeSearchOrder(order: SearchOrder): JsonValue {
+  if (order === null || Array.isArray(order)) return order;
+
+  // Tryton's RPC boundary expects a sequence of (field, direction) pairs. Keep
+  // accepting the compact strings traditionally used by EPITON callers, but
+  // normalize them before they cross the protocol boundary.
+  return order
+    .split(",")
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .map((term) => {
+      const match = /^(\S+)(?:\s+(ASC|DESC))?$/i.exec(term);
+      if (!match) {
+        throw new TrytonRpcError(`Invalid search order: ${term}`, -32602);
+      }
+      return [match[1] as string, (match[2] ?? "ASC").toUpperCase()];
+    });
 }
 
 function encodeSessionAuthorization(session: TrytonSession): string {
@@ -274,13 +296,13 @@ export class EpitonClient {
     fields: string[] = [],
     offset = 0,
     limit: number | null = 80,
-    order: string | null = null,
+    order: SearchOrder = null,
     context: JsonObject = {},
   ): Promise<JsonObject[]> {
     const result = await this.model(
       model,
       "search_read",
-      [domain, offset, limit, order, fields],
+      [domain, offset, limit, normalizeSearchOrder(order), fields],
       context,
     );
     if (!Array.isArray(result)) {
@@ -350,6 +372,11 @@ export class EpitonClient {
 
     const payload = (await response.json()) as JsonRpcResponse;
     if ("error" in payload && payload.error) {
+      if (Array.isArray(payload.error)) {
+        const message =
+          typeof payload.error[0] === "string" ? payload.error[0] : "Tryton RPC error";
+        throw new TrytonRpcError(message, -32000, payload.error);
+      }
       throw new TrytonRpcError(payload.error.message, payload.error.code, payload.error.data);
     }
     if (!("result" in payload)) {

@@ -1,7 +1,7 @@
 import { Button, Panel } from "@epiton/ui";
 import { useCallback, useEffect, useState } from "react";
-import { useAppStore } from "../lib/store";
 import { guessMime } from "../lib/mime";
+import { useAppStore } from "../lib/store";
 import { PdfPreview } from "./PdfPreview";
 
 /** Sao-parity attachments: list / upload / download / link / rename via ir.attachment. */

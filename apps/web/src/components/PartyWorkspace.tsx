@@ -8,8 +8,6 @@ import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
   type ViewField,
-  type WidgetRegistry,
-  clinicalWidgetRegistry,
   parseFieldsViewGet,
   renderView,
   treeColumns,
@@ -23,7 +21,6 @@ import { VirtualPartyTable } from "./VirtualPartyTable";
 
 export function PartyWorkspace(props: {
   onHistory: (action: string) => void;
-  useClinicalWidgets?: boolean;
 }) {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
@@ -34,10 +31,6 @@ export function PartyWorkspace(props: {
   const [mode, setMode] = useState<"read" | "write">("read");
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
-    ? clinicalWidgetRegistry()
-    : undefined;
-
   const listQuery = useQuery({
     queryKey: ["party.party", "list"],
     enabled: Boolean(client),
@@ -242,7 +235,6 @@ export function PartyWorkspace(props: {
               mode,
               density,
               model: "party.party",
-              widgets,
               onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
               onButton: (name) => void runButton(name),
               onOpenRelation: (field) => {

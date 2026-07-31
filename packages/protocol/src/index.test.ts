@@ -53,6 +53,49 @@ describe("EpitonClient", () => {
     );
   });
 
+  it("raises a useful error for Tryton's legacy error tuple", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: 1, error: ["Invalid order", "trace redacted"] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    const client = new EpitonClient({
+      baseUrl: "http://localhost:8000",
+      database: "epiton_lab",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    client.setSession({ login: "admin", userId: 1, session: "x" });
+
+    await expect(client.call("model.party.party.read", [[1], ["name"], {}])).rejects.toMatchObject({
+      message: "Invalid order",
+      code: -32000,
+    });
+  });
+
+  it("normalizes compact search order strings to Tryton order pairs", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { params: unknown[] };
+      expect(body.params[3]).toEqual([
+        ["name", "ASC"],
+        ["id", "DESC"],
+      ]);
+      return new Response(JSON.stringify({ id: 1, result: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    const client = new EpitonClient({
+      baseUrl: "http://localhost:8000",
+      database: "epiton_lab",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    client.setSession({ login: "admin", userId: 1, session: "x" });
+
+    await client.searchRead("party.party", [], ["name"], 0, 10, "name ASC, id DESC");
+  });
+
   it("detects series from common.server.version", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (String(url).includes("/bus")) {
