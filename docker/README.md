@@ -37,6 +37,12 @@ Tryton 8 uses `epiton_lab8`, PostgreSQL port `5434`, and a separate volume.
 The Proteus services are isolated, one-shot compatibility oracles using only
 synthetic records; Proteus is not a runtime dependency.
 
+Both lab gateways intentionally set `EPITON_STRICT_ACL=false`. This preserves
+stock Tryton behavior in minimal synthetic databases and does not disable
+trytond ACL enforcement. Production operators must make an explicit choice
+after auditing `ir.model.access`; see
+[`apps/gateway/README.md`](../apps/gateway/README.md#strict_acl-policy).
+
 ## Smoke
 
 ```bash

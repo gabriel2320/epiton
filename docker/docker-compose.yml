@@ -46,6 +46,7 @@ services:
     environment:
       EPITON_UPSTREAM: http://tryton:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8080
+      # Lab compatibility mode; trytond still enforces its own ACLs.
       EPITON_STRICT_ACL: "false"
       EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       EPITON_TRUST_PROXY: "false"
@@ -123,6 +124,7 @@ services:
     environment:
       EPITON_UPSTREAM: http://tryton8:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8081
+      # Lab compatibility mode; trytond still enforces its own ACLs.
       EPITON_STRICT_ACL: "false"
       EPITON_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       EPITON_TRUST_PROXY: "false"

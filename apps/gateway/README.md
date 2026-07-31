@@ -30,6 +30,24 @@ Features:
   `ir.model.access` and can only add a denial (`EPITON_STRICT_ACL=true`).
   trytond remains the authorization authority and the option defaults to false.
 
+## `STRICT_ACL` policy
+
+`EPITON_STRICT_ACL=false` does **not** bypass Tryton permissions: every request
+still reaches trytond with the user's Session and trytond makes the final ACL
+decision. The flag controls an additional deny-only gateway guard.
+
+- **Synthetic lab:** keep it `false`. Stock/minimal databases may legitimately
+  have no `ir.model.access` row for a model and Tryton then applies its own
+  default behavior; enabling the guard would reject those lab mutations before
+  trytond sees them.
+- **Production:** choose the value explicitly during deployment. Enable `true`
+  only after verifying that every model users must mutate has intentional
+  `ir.model.access` metadata. In strict mode a missing row or failed metadata
+  probe is fail-closed; the guard can deny access but can never grant it.
+
+This flag is a defense-in-depth compatibility policy, not a substitute for
+complete Tryton groups, rules, access rows, TLS, or edge controls.
+
 Terminate TLS at a reverse proxy (Caddy/nginx) in front of this gateway; the process itself speaks HTTP.
 
 ## Frontend CSP
