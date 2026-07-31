@@ -16,6 +16,12 @@ import { BoardTree } from "./BoardTree";
 import { RelationLineForm } from "./RelationLineForm";
 import { RelationSearch } from "./RelationSearch";
 
+type LineFormTarget =
+  | { kind: "new" }
+  | { kind: "edit"; id: number }
+  | { kind: "queued"; commandIndex: number }
+  | null;
+
 /** Inline editor for One2Many / Many2Many line commands (Sao-style tree + form). */
 export function RelationLinesEditor(props: {
   field: ViewField;
@@ -35,7 +41,7 @@ export function RelationLinesEditor(props: {
   const [baselineIds, setBaselineIds] = useState<number[]>(initialIds);
   const [commands, setCommands] = useState<O2MCommand[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [lineForm, setLineForm] = useState<"create" | number | null>(null);
+  const [lineForm, setLineForm] = useState<LineFormTarget>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -80,6 +86,18 @@ export function RelationLinesEditor(props: {
     return [...names];
   }, [columns]);
 
+  const pendingCreates = useMemo(() => {
+    const out: Array<{ commandIndex: number; values: RecordValues; rowId: number }> = [];
+    let n = 0;
+    for (let i = 0; i < commands.length; i++) {
+      const c = commands[i];
+      if (c?.op !== "create") continue;
+      n += 1;
+      out.push({ commandIndex: i, values: c.values as RecordValues, rowId: -n });
+    }
+    return out;
+  }, [commands]);
+
   const rowsQuery = useQuery({
     queryKey: ["relation-lines-rows", relation, ids, fieldNames.join(",")],
     enabled: Boolean(client && relation && ids.length),
@@ -103,8 +121,21 @@ export function RelationLinesEditor(props: {
     },
   });
 
-  const treeRows = rowsQuery.data ?? [];
-  const pendingCreates = commands.filter((c) => c.op === "create");
+  const treeRows = useMemo(() => {
+    const real = rowsQuery.data ?? [];
+    const queued = pendingCreates.map(({ values, rowId }) => {
+      const row: Record<string, unknown> = { id: rowId };
+      for (const col of columns) {
+        const v = values[col.name];
+        row[col.name] = v ?? (col.name === "rec_name" ? (values.name ?? "(new)") : "");
+      }
+      if (row.rec_name == null || row.rec_name === "") {
+        row.rec_name = String(values.rec_name ?? values.name ?? "(new)");
+      }
+      return row;
+    });
+    return [...real, ...queued];
+  }, [rowsQuery.data, pendingCreates, columns]);
 
   function addId(id: number) {
     if (!Number.isFinite(id)) return;
@@ -117,14 +148,21 @@ export function RelationLinesEditor(props: {
     setIds((prev) => prev.filter((x) => x !== id));
     setCommands((prev) => [...prev, { op: "remove", id }]);
     if (selectedId === id) setSelectedId(null);
-    if (lineForm === id) setLineForm(null);
+    if (lineForm?.kind === "edit" && lineForm.id === id) setLineForm(null);
   }
 
   function deleteId(id: number) {
     setIds((prev) => prev.filter((x) => x !== id));
     setCommands((prev) => [...prev, { op: "delete", id }]);
     if (selectedId === id) setSelectedId(null);
-    if (lineForm === id) setLineForm(null);
+    if (lineForm?.kind === "edit" && lineForm.id === id) setLineForm(null);
+  }
+
+  function discardQueued(commandIndex: number) {
+    setCommands((prev) => prev.filter((_, i) => i !== commandIndex));
+    setSelectedId(null);
+    setLineForm(null);
+    setNotice("Queued create discarded");
   }
 
   function apply() {
@@ -132,15 +170,24 @@ export function RelationLinesEditor(props: {
       props.onCommit(toTrytonM2MDelta(baselineIds, ids));
       setBaselineIds(ids);
       setCommands([]);
-      setNotice("M2M delta applied");
+      setNotice("M2M delta applied — Save parent to write");
       return;
     }
     props.onCommit(toTrytonO2M(commands.length ? commands : ids.map((id) => ({ op: "add", id }))));
     setBaselineIds(ids);
-    setNotice("O2M commands applied");
+    setNotice("O2M commands applied — Save parent to write");
   }
 
   function queueLine(values: RecordValues, lineId: number | null) {
+    if (lineForm?.kind === "queued") {
+      const idx = lineForm.commandIndex;
+      setCommands((prev) =>
+        prev.map((c, i) => (i === idx && c.op === "create" ? { op: "create", values } : c)),
+      );
+      setNotice("Queued create updated — Apply to attach");
+      setLineForm(null);
+      return;
+    }
     if (lineId != null) {
       setCommands((prev) => [...prev, { op: "write", id: lineId, values }]);
       setNotice(`Write #${lineId} queued — Apply to attach`);
@@ -153,22 +200,33 @@ export function RelationLinesEditor(props: {
 
   function selectRow(id: number) {
     setSelectedId(id);
-    if (props.mode === "write" && props.field.type === "one2many") {
-      setLineForm(id);
+    if (props.mode !== "write" || props.field.type !== "one2many") return;
+    if (id < 0) {
+      const entry = pendingCreates.find((e) => e.rowId === id);
+      if (entry) setLineForm({ kind: "queued", commandIndex: entry.commandIndex });
+      return;
     }
+    setLineForm({ kind: "edit", id });
   }
+
+  const selectedQueued =
+    selectedId != null && selectedId < 0
+      ? pendingCreates.find((e) => e.rowId === selectedId)
+      : undefined;
+  const hasRows = treeRows.length > 0;
 
   return (
     <Panel title={`${props.field.string ?? props.field.name} (${props.field.type})`}>
       <div className="epiton-relation-split">
         <div className="epiton-relation-tree">
-          {ids.length ? (
+          {hasRows ? (
             <BoardTree
               rows={treeRows}
               columns={columns}
               selectedId={selectedId}
               onSelect={(id) => selectRow(id)}
               onOpen={(id) => {
+                if (id < 0) return;
                 if (relation && props.onOpenLine) props.onOpenLine(relation, id);
               }}
             />
@@ -177,28 +235,42 @@ export function RelationLinesEditor(props: {
               No lines
             </p>
           )}
-          {pendingCreates.length ? (
-            <p className="text-sm text-[var(--epiton-muted)]" role="status">
-              Queued creates: {pendingCreates.length}
-            </p>
-          ) : null}
           {props.mode === "write" ? (
             <div className="epiton-toolbar">
               <Button onClick={() => setSearchOpen(true)}>Search add</Button>
               {props.field.type === "one2many" && relation ? (
                 <Button
                   onClick={() => {
-                    setLineForm("create");
+                    setLineForm({ kind: "new" });
                     setSelectedId(null);
                   }}
                 >
                   New line
                 </Button>
               ) : null}
-              {selectedId != null ? (
+              {selectedQueued ? (
+                <>
+                  <Button
+                    onClick={() =>
+                      setLineForm({ kind: "queued", commandIndex: selectedQueued.commandIndex })
+                    }
+                  >
+                    Edit queued
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => discardQueued(selectedQueued.commandIndex)}
+                  >
+                    Discard
+                  </Button>
+                </>
+              ) : null}
+              {selectedId != null && selectedId > 0 ? (
                 <>
                   {props.field.type === "one2many" ? (
-                    <Button onClick={() => setLineForm(selectedId)}>Edit</Button>
+                    <Button onClick={() => setLineForm({ kind: "edit", id: selectedId })}>
+                      Edit
+                    </Button>
                   ) : null}
                   <Button variant="danger" onClick={() => removeId(selectedId)}>
                     Remove
@@ -217,7 +289,7 @@ export function RelationLinesEditor(props: {
                 Apply relation commands
               </Button>
             </div>
-          ) : selectedId != null && relation && props.onOpenLine ? (
+          ) : selectedId != null && selectedId > 0 && relation && props.onOpenLine ? (
             <div className="epiton-toolbar">
               <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>Open</Button>
             </div>
@@ -227,7 +299,13 @@ export function RelationLinesEditor(props: {
           <div className="epiton-relation-form">
             <RelationLineForm
               model={relation}
-              lineId={lineForm === "create" ? null : lineForm}
+              lineId={lineForm.kind === "edit" ? lineForm.id : null}
+              initialValues={
+                lineForm.kind === "queued"
+                  ? (commands[lineForm.commandIndex] as Extract<O2MCommand, { op: "create" }>)
+                      ?.values
+                  : undefined
+              }
               onCancel={() => setLineForm(null)}
               onSave={queueLine}
               onOpenRelated={props.onOpenLine}
@@ -250,7 +328,8 @@ export function RelationLinesEditor(props: {
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
       <p className="text-sm text-[var(--epiton-muted)]">
-        Relation: {relation ?? "—"} · lines: {ids.length} · pending ops: {commands.length}
+        Relation: {relation ?? "—"} · lines: {ids.length} · queued creates: {pendingCreates.length}{" "}
+        · pending ops: {commands.length}
       </p>
     </Panel>
   );

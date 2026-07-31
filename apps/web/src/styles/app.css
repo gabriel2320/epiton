@@ -391,6 +391,42 @@
   min-width: 0;
 }
 
+.epiton-history-peek {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+  max-height: 16rem;
+  overflow: auto;
+  font-size: 0.85rem;
+}
+
+.epiton-history-peek > div {
+  display: grid;
+  grid-template-columns: minmax(5rem, 8rem) 1fr;
+  gap: 0.35rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+}
+
+.epiton-history-peek > div[data-changed="true"] {
+  background: color-mix(in srgb, var(--epiton-accent) 12%, transparent);
+}
+
+.epiton-history-peek dt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--epiton-muted);
+}
+
+.epiton-history-peek dd {
+  margin: 0;
+}
+
+.epiton-history-diff {
+  color: var(--epiton-muted);
+  font-size: 0.8em;
+}
+
 .epiton-analytics-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

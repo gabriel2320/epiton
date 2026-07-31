@@ -1618,9 +1618,17 @@ export function ModelWorkspace(props: {
                 ? Object.keys(formViewQuery.data.fields)
                 : columns.map((c) => c.name)
             }
+            currentValues={draft}
             onClose={() => setShowHistory(false)}
             onRestore={(values) => {
-              const { id: _id, write_date: _wd, write_uid: _wu, ...rest } = values;
+              const {
+                id: _id,
+                write_date: _wd,
+                write_uid: _wu,
+                create_date: _cd,
+                create_uid: _cu,
+                ...rest
+              } = values;
               setDraft((d) => ({ ...d, ...rest }));
               setMode("write");
               setShowHistory(false);
@@ -1724,6 +1732,8 @@ export function ModelWorkspace(props: {
               setDraft((d) => ({ ...d, [relationField.name]: next }));
               setRelationField(null);
               setRelationDomain(undefined);
+              setNotice("Relation commands attached — Save parent to write");
+              props.onHistory?.(`relation:apply:${relationField.name}`);
             }}
           />
         ) : null}

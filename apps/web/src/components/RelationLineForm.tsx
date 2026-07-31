@@ -19,6 +19,8 @@ export function RelationLineForm(props: {
   model: string;
   lineId?: number | null;
   context?: JsonObject;
+  /** Seed draft for editing a queued create (no server id yet). */
+  initialValues?: RecordValues;
   onCancel: () => void;
   onSave: (values: RecordValues, lineId: number | null) => void;
   onOpenRelated?: (model: string, id: number) => void;
@@ -82,6 +84,10 @@ export function RelationLineForm(props: {
       if (recordQuery.data) setDraft(recordQuery.data);
       return;
     }
+    if (props.initialValues) {
+      setDraft(props.initialValues);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       if (!client) {
@@ -115,6 +121,7 @@ export function RelationLineForm(props: {
     client,
     props.model,
     props.context,
+    props.initialValues,
     sessionContext,
     viewQuery.data?.fields,
   ]);

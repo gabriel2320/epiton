@@ -10,12 +10,14 @@ import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type ParsedView,
   type RecordValues,
+  type ViewField,
   type WizardButton,
   parseWizardPayload,
   renderView,
 } from "@epiton/view-engine";
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { RelationSearch } from "./RelationSearch";
 
 interface WizardRuntime {
   name: string;
@@ -49,6 +51,8 @@ export function WizardStepper(props: {
   const [runtime, setRuntime] = useState<WizardRuntime | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
   const [message, setMessage] = useState("Pick a wizard and start");
+  const [relationField, setRelationField] = useState<ViewField | null>(null);
+  const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
   const onActionsRef = useRef(props.onActions);
   onActionsRef.current = props.onActions;
   const runtimeRef = useRef<WizardRuntime | null>(null);
@@ -331,8 +335,31 @@ export function WizardStepper(props: {
               mode: "write",
               density,
               onChange: (name, value) => handleFieldChange(name, value),
+              onOpenRelation: (field, _value, domain) => {
+                if (field.type === "many2one") {
+                  setRelationField(field);
+                  setRelationDomain(domain);
+                }
+              },
             })
           : null}
+        {relationField?.type === "many2one" && runtime ? (
+          <RelationSearch
+            field={relationField}
+            recordValues={runtime.values}
+            domain={relationDomain}
+            mode="write"
+            onCancel={() => {
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+            onPick={(id, recName) => {
+              handleFieldChange(relationField.name, [id, recName]);
+              setRelationField(null);
+              setRelationDomain(undefined);
+            }}
+          />
+        ) : null}
         {runtime?.buttons.length ? (
           <div className="epiton-toolbar" style={{ marginTop: "0.75rem" }}>
             {runtime.buttons.map((b) => (

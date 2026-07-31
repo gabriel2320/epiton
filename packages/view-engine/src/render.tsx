@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createElement, useState } from "react";
 import { formatTrytonDate, parseTrytonDateInput } from "./dates";
+import { t } from "./i18n";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
 import { evalDomain, resolveStatesAttr } from "./pyson";
@@ -88,7 +89,8 @@ function NotebookHost(props: {
 }
 
 function fieldLabel(field: ViewField | undefined, fallback: string): string {
-  return field?.string ?? fallback;
+  const raw = field?.string ?? fallback;
+  return t(raw, raw);
 }
 
 function renderInput(field: ViewField, value: unknown, ctx: RenderContext): ReactNode {
@@ -576,7 +578,7 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
           ctx.onButton?.(name, { type: buttonType });
         },
       },
-      node.attrs.string ?? name,
+      t(node.attrs.string ?? name, node.attrs.string ?? name),
     );
   }
 
@@ -622,7 +624,7 @@ export function renderView(view: ParsedView, ctx: RenderContext): ReactNode {
                   ctx.onButton?.(b.name, { type: b.type });
                 },
               },
-              b.string ?? b.name,
+              t(b.string ?? b.name, b.string ?? b.name),
             ),
           ),
         )
@@ -635,6 +637,7 @@ export interface TreeColumn {
   string: string;
   type?: string;
   readonly?: boolean;
+  selection?: Array<[string, string]>;
 }
 
 /** True when tree arch has Sao `editable="top|bottom|1|true"`. */
@@ -656,9 +659,10 @@ export function treeColumns(view: ParsedView): TreeColumn[] {
       const meta = view.fields[n.attrs.name];
       cols.push({
         name: n.attrs.name,
-        string: meta?.string ?? n.attrs.string ?? n.attrs.name,
+        string: t(meta?.string ?? n.attrs.string ?? n.attrs.name),
         type: meta?.type,
         readonly: Boolean(meta?.readonly) || n.attrs.readonly === "1",
+        selection: meta?.selection,
       });
     }
     for (const c of n.children) walk(c);

@@ -20,11 +20,11 @@ Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
-3. Nested O2M/M2M still command-queue on parent save (now tree+side form + nested editors; not live Sao Screen)
+3. Nested O2M/M2M still command-queue on parent save (queued creates now visible as rows; not live Sao Screen)
 
-Recently improved (2026-07-31 cont. 4): relation tree+form split, nested O2M/M2M on
-line forms, M2M command-list preserve on save, logical relation badge counts;
-plus line-form M2O/buttons, list-form arches, prefs RelationSearch.
+Recently improved (2026-07-31 cont. 5): queued create rows, editable selection/date cells,
+view `t()` labels, history diff + uid resolve, wizard M2O RelationSearch;
+plus relation tree+form, nested lines, M2M preserve.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -32,14 +32,14 @@ plus line-form M2O/buttons, list-form arches, prefs RelationSearch.
 |------|-------------------|-------------------------|-----|----------|
 | **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | **Improved:** tree/graph/form + multi-y graphs | Small | `BoardPane.tsx`, `RecordFormPane.tsx` |
 | **`_actions` cross-filter** | Click graph/list selection filters sibling panes | **Improved:** `_actions` dict + `active_id`; relation heuristics as fallback | Small | `BoardWorkspace` / `BoardPane` |
-| **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** arch + Inline edit toggle; cell → `write` | Small–Medium | `VirtualPartyTable.tsx`, `treeEditable` |
+| **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** selection/date/m2o cells + New row | Small | `VirtualPartyTable.tsx` |
 | **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy fetch + tree_state(+domain) + sequence DnD | Small | `tree_hierarchy.ts`, `tree_state.ts` |
 | **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + sessionStorage page memory | Small | `render.tsx` `NotebookHost` |
 | **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
 | **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** `ir.ui.menu.favorite` + star toggle; preset fallback | Small | `Shell.tsx`, `MenuTree.tsx` |
-| **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** login/prefs → `loadTranslationCatalog` + `setCatalog` | Small–Medium | `translations.ts`, `applyClientLanguage` |
+| **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** catalog + `t()` on field/button labels | Small | `translations.ts`, `render.tsx` |
 | **Reports** | Broader formats + print pipeline | **Improved:** pdf/odt/csv/xls/html; pdfjs; no default id `1` | Small–Medium | `ReportDownload.tsx`, `PdfPreview.tsx` |
-| **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state `execute` before delete; `validate` required fields | Small | `WizardStepper.tsx` |
+| **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state + validate + on_change + M2O search | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
 | **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** secure session hydrate/persist + title/safe-area; thin hosts | Small–Medium | `secureSessionBridge.ts` |
 
@@ -51,7 +51,7 @@ plus line-form M2O/buttons, list-form arches, prefs RelationSearch.
 | Attachment drag-and-drop | Drop files onto record | **Improved:** dropzone on Attachments panel | Small |
 | Email compose | Record email wizards / SMTP flows | **Improved:** form_action mail keywords first, mailto fallback | Small |
 | CSV column mapping UI | Map headers → fields before import | **Improved:** mapping dialog before `import_data` | Small |
-| Revision / history browser | Browse `__history__` / revisions | **Improved:** History button → read-only `__history__` peek | Small–Medium |
+| Revision / history browser | Browse `__history__` / revisions | **Improved:** Diff vs draft + uid names + restore strip | Small |
 | Board multi-y series | Multi-series in dashboard graphs | **Improved:** board pane uses `rowsToMultiSeries` | Small |
 | `tree_open` / `graph_open` | Keyword actions on open/select | **Improved:** double-click tree + graph select | Small |
 | GTK-only plugins | Native print, desktop hooks | Out of scope by design (webview) | Large (intentional) |
@@ -82,8 +82,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 9. ~~Tree buttons; editable m2o; New row; history peek/restore; line on_change~~
 10. ~~Line-form M2O/buttons; real form/tree errors; list-form renderView; reference/url; prefs relations~~
 11. ~~Relation tree+form split; nested O2M/M2M editors; M2M cmd preserve; relation badge count~~
-12. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
-13. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
+12. ~~Queued create rows; editable selection/date; `t()` labels; history diff; wizard M2O~~
+13. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
+14. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 

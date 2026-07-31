@@ -15,6 +15,7 @@ type TreeCol = {
   type?: string;
   readonly?: boolean;
   relation?: string;
+  selection?: Array<[string, string]>;
 };
 
 export type TreeRowAction = {
@@ -72,6 +73,51 @@ function EditableCell(props: {
     );
   }
 
+  if (type === "selection" && props.field.selection?.length) {
+    return (
+      <select
+        className="epiton-tree-edit"
+        value={props.value == null ? "" : String(props.value)}
+        aria-label={props.field.string}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (String(props.value ?? "") === next) return;
+          props.onCommit(props.id, props.field.name, next === "" ? null : next);
+        }}
+      >
+        <option value="">—</option>
+        {props.field.selection.map(([k, label]) => (
+          <option key={k} value={k}>
+            {label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (type === "date" || type === "datetime" || type === "timestamp") {
+    const withTime = type !== "date";
+    const display = formatTreeDate(props.value, withTime);
+    return (
+      <input
+        className="epiton-tree-edit"
+        type={withTime ? "datetime-local" : "date"}
+        defaultValue={display}
+        aria-label={props.field.string}
+        onClick={(e) => e.stopPropagation()}
+        onBlur={(e) => {
+          const next = parseTreeDate(e.target.value, withTime);
+          if (String(props.value ?? "") === String(next ?? "")) return;
+          props.onCommit(props.id, props.field.name, next);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+      />
+    );
+  }
+
   const inputType =
     type === "integer" || type === "float" || type === "numeric" ? "number" : "text";
   return (
@@ -96,6 +142,20 @@ function EditableCell(props: {
       }}
     />
   );
+}
+
+function formatTreeDate(value: unknown, withTime: boolean): string {
+  if (value == null || value === "") return "";
+  const raw = String(value);
+  if (!withTime) return raw.slice(0, 10);
+  return raw.slice(0, 16).replace(" ", "T");
+}
+
+function parseTreeDate(value: string, withTime: boolean): string | null {
+  if (!value) return null;
+  if (withTime)
+    return value.length === 16 ? `${value.replace("T", " ")}:00` : value.replace("T", " ");
+  return value.slice(0, 10);
 }
 
 export function VirtualPartyTable(props: {

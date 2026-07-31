@@ -16,12 +16,12 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back |
 | Attachments | `ir.attachment` | Improved | Data upload/download + link type + DnD |
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
-| Editable tree | `editable` arch / inline write | Improved | Cell editors + m2o picker + New row top/bottom; tree buttons |
-| O2M / M2M / M2O | field types in view engine | Improved | Tree+form host; nested lines; M2M cmd preserve; badge count |
-| Revision history | `model.__history__` | Improved | Field peek + Load into form draft |
+| Editable tree | `editable` arch / inline write | Improved | Cell editors + selection/date + m2o + New row; tree buttons |
+| O2M / M2M / M2O | field types in view engine | Improved | Queued create rows; tree+form; nested lines; M2M preserve |
+| Revision history | `model.__history__` | Improved | Diff vs draft + resolve write_uid; strip create_* on restore |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |
-| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + active_ids |
+| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + M2O search |
 | Reports | `report.*.execute` | Improved | pdf/odt/csv/xls/html + pdfjs page/zoom; analytics companion |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
 | PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
@@ -37,7 +37,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Shell hosts | Tauri / Capacitor | Improved | Secure session hydrate/persist + title/safe-area |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Email compose | mailto / form_action keywords | Improved | Prefer mail keywords; mailto fallback |
-| Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
+| Translations | `ir.translation` catalog | Improved | Login/prefs + view-engine `t()` on labels/buttons |
 | List-form | list-form arch | Improved | Card host renders list-form arch via `renderView` |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |
 | Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
