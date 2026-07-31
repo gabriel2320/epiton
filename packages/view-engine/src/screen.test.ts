@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ViewField } from "./parse";
 import {
+  acceptAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateScreenFromRecord,
   hydrateSelectedScreen,
   idsFromRelationValue,
+  isScreenReadyToSave,
   relationQueueWireValue,
   screenForSelection,
   screenIsDirty,
@@ -147,19 +149,18 @@ describe("screen", () => {
 
   it("ignores a late record A response while record B is selected", () => {
     const waitingForSecond = createScreen("sale.sale", 9);
-    const stale = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
-      id: 7,
+    const stale = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, 7, {
       name: "S-7",
     });
     expect(stale).toBe(waitingForSecond);
 
-    const missingId = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
-      name: "no-id-payload",
+    const inconsistent = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, 9, {
+      id: 7,
+      name: "wrong-payload-id",
     });
-    expect(missingId).toBe(waitingForSecond);
+    expect(inconsistent).toBe(waitingForSecond);
 
-    const hydrated = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, {
-      id: 9,
+    const hydrated = hydrateSelectedScreen(waitingForSecond, "sale.sale", 9, 9, {
       name: "S-9",
     });
     expect(hydrated.values.name).toBe("S-9");
@@ -225,5 +226,29 @@ describe("screen", () => {
       ["add", [3]],
       ["remove", [1]],
     ]);
+  });
+
+  it("blocks save until an existing record Screen is hydrated", () => {
+    const loading = screenForSelection(createScreen("sale.sale", 7), "sale.sale", 9);
+    expect(isScreenReadyToSave(loading, 9)).toBe(false);
+    const hydrated = hydrateSelectedScreen(loading, "sale.sale", 9, 9, { id: 9, name: "S-9" });
+    expect(isScreenReadyToSave(hydrated, 9)).toBe(true);
+    expect(isScreenReadyToSave(createScreen("sale.sale", null), null)).toBe(true);
+  });
+
+  it("rejects async Screen updates after identity changes", () => {
+    const expected = { generation: 1, model: "sale.sale", recordId: 7 as number | null };
+    expect(
+      acceptAsyncScreenUpdate(expected, { generation: 1, model: "sale.sale", recordId: 7 }),
+    ).toBe(true);
+    expect(
+      acceptAsyncScreenUpdate(expected, { generation: 2, model: "sale.sale", recordId: 7 }),
+    ).toBe(false);
+    expect(
+      acceptAsyncScreenUpdate(expected, { generation: 1, model: "sale.sale", recordId: 9 }),
+    ).toBe(false);
+    expect(
+      acceptAsyncScreenUpdate(expected, { generation: 1, model: "sale.sale", recordId: null }),
+    ).toBe(false);
   });
 });

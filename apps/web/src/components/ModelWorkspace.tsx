@@ -61,9 +61,11 @@ import { guessMime } from "../lib/mime";
 import {
   type RelationCommandQueue,
   type ScreenState,
+  acceptAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
+  isScreenReadyToSave,
   screenForSelection,
   screenIsDirty,
   screenValuesForSave,
@@ -162,6 +164,7 @@ export function ModelWorkspace(props: {
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenRef = useRef(screen);
+  const screenGenerationRef = useRef(0);
   const dirtyRef = useRef(false);
   const keyHandlersRef = useRef<{
     startNew: () => Promise<void>;
@@ -208,6 +211,14 @@ export function ModelWorkspace(props: {
   const listFormViewId = viewIdForMode(props.actionViews, "list-form");
   const graphViewId = viewIdForMode(props.actionViews, "graph");
 
+  function bumpScreenGeneration() {
+    screenGenerationRef.current += 1;
+    if (onChangeTimer.current) {
+      clearTimeout(onChangeTimer.current);
+      onChangeTimer.current = null;
+    }
+  }
+
   function confirmDiscard(): boolean {
     if (!dirtyRef.current) return true;
     if (typeof globalThis.confirm !== "function") return true;
@@ -218,6 +229,7 @@ export function ModelWorkspace(props: {
     const changed = id !== selectedId;
     if (!committed && changed && !confirmDiscard()) return;
     if (!committed && changed) {
+      bumpScreenGeneration();
       setScreen((current) => screenForSelection(current, props.model, id));
     }
     setSelectedId(id);
@@ -758,7 +770,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, selectedId],
     enabled: Boolean(client && selectedId),
     queryFn: async (): Promise<{ recordId: number; values: RecordValues } | null> => {
-      if (!client || !selectedId) return null;
+      const requestedId = selectedId;
+      if (!client || requestedId == null) return null;
       const fieldNames = [
         ...new Set([
           ...Object.keys(formViewQuery.data?.fields ?? { name: true }),
@@ -772,18 +785,23 @@ export function ModelWorkspace(props: {
       const result = await client.model(
         props.model,
         "read",
-        [[selectedId], fieldNames],
+        [[requestedId], fieldNames],
         rpcContext,
       );
       const values = Array.isArray(result) ? (result[0] as RecordValues) : null;
       if (!values) return null;
-      return { recordId: selectedId, values };
+      return { recordId: requestedId, values };
     },
   });
 
   useEffect(() => {
     const nextId = props.initialSelectedId ?? null;
-    setScreen(screenForSelection(createScreen(props.model, null), props.model, nextId));
+    screenGenerationRef.current += 1;
+    if (onChangeTimer.current) {
+      clearTimeout(onChangeTimer.current);
+      onChangeTimer.current = null;
+    }
+    setScreen((current) => screenForSelection(current, props.model, nextId));
     setSelectedId(nextId);
     setSelectedIds([]);
   }, [props.model, props.initialSelectedId]);
@@ -791,8 +809,9 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     const payload = recordQuery.data;
     if (!payload) return;
-    if (payload.recordId !== selectedId) return;
-    setScreen((current) => hydrateSelectedScreen(current, props.model, selectedId, payload.values));
+    setScreen((current) =>
+      hydrateSelectedScreen(current, props.model, selectedId, payload.recordId, payload.values),
+    );
   }, [recordQuery.data, props.model, selectedId]);
 
   useEffect(() => {
@@ -820,11 +839,6 @@ export function ModelWorkspace(props: {
   }, [isDirty]);
 
   useEffect(() => {
-    if (props.initialSelectedId == null) return;
-    setSelectedId(props.initialSelectedId);
-  }, [props.initialSelectedId]);
-
-  useEffect(() => {
     return () => {
       if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
     };
@@ -845,6 +859,11 @@ export function ModelWorkspace(props: {
     const fields = formViewQuery.data?.fields;
     if (!fields) return;
     if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    const expected = {
+      generation: screenGenerationRef.current,
+      model: props.model,
+      recordId: screenRef.current.recordId,
+    };
     onChangeTimer.current = setTimeout(() => {
       void (async () => {
         try {
@@ -857,6 +876,16 @@ export function ModelWorkspace(props: {
             rpcContext,
           );
           if (Object.keys(patch).length === 0) return;
+          const current = screenRef.current;
+          if (
+            !acceptAsyncScreenUpdate(expected, {
+              generation: screenGenerationRef.current,
+              model: current.model,
+              recordId: current.recordId,
+            })
+          ) {
+            return;
+          }
           setDraft((d) => ({ ...d, ...patch }));
           props.onHistory?.(`on_change:${name}`);
         } catch (err) {
@@ -876,14 +905,18 @@ export function ModelWorkspace(props: {
 
   async function startNew() {
     if (!confirmDiscard()) return;
+    bumpScreenGeneration();
+    const expected = {
+      generation: screenGenerationRef.current,
+      model: props.model,
+      recordId: null as number | null,
+    };
     setSelectedId(null);
     props.onSelectedIdChange?.(null);
     setMode("write");
+    setScreen(createScreen(props.model, null));
     props.onHistory?.("new");
-    if (!client) {
-      setScreen(createScreen(props.model, null));
-      return;
-    }
+    if (!client) return;
     const fieldNames = Object.keys(formViewQuery.data?.fields ?? {});
     try {
       const defaults = await client.model(
@@ -892,12 +925,32 @@ export function ModelWorkspace(props: {
         [fieldNames.length ? fieldNames : ["name", "active"]],
         rpcContext,
       );
+      const current = screenRef.current;
+      if (
+        !acceptAsyncScreenUpdate(expected, {
+          generation: screenGenerationRef.current,
+          model: current.model,
+          recordId: current.recordId,
+        })
+      ) {
+        return;
+      }
       const next =
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
           ? (defaults as RecordValues)
           : {};
       setScreen(createScreen(props.model, null, next));
     } catch {
+      const current = screenRef.current;
+      if (
+        !acceptAsyncScreenUpdate(expected, {
+          generation: screenGenerationRef.current,
+          model: current.model,
+          recordId: current.recordId,
+        })
+      ) {
+        return;
+      }
       setScreen(createScreen(props.model, null));
     }
   }
@@ -906,8 +959,12 @@ export function ModelWorkspace(props: {
     mutationFn: async () => {
       if (!client) throw new Error("No client");
       const currentScreen = screenRef.current;
-      if (currentScreen.recordId !== selectedId) {
-        throw new Error("Selected record is still loading");
+      if (!isScreenReadyToSave(currentScreen, selectedId)) {
+        throw new Error(
+          selectedId == null
+            ? "New record Screen is not ready"
+            : "Selected record is still loading",
+        );
       }
       const fieldMeta = formViewQuery.data?.fields ?? {};
       const values = screenValuesForSave(currentScreen, fieldMeta) as JsonObject;
@@ -930,6 +987,8 @@ export function ModelWorkspace(props: {
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
   });
+
+  const canSave = isScreenReadyToSave(screen, selectedId);
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
@@ -1777,7 +1836,7 @@ export function ModelWorkspace(props: {
           {isDirty ? <Badge tone="accent">{t("workspace.unsaved")}</Badge> : null}
           <Button
             variant="primary"
-            disabled={saveMutation.isPending}
+            disabled={saveMutation.isPending || !canSave}
             onClick={() => saveMutation.mutate()}
           >
             {t("workspace.save")}

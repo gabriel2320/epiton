@@ -4,11 +4,13 @@
  * app-local ergonomics and Lote A wiring.
  */
 export {
+  acceptAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
   hydrateScreenFromRecord,
   idsFromRelationValue,
+  isScreenReadyToSave,
   relationQueueHasChanges,
   relationQueueWireValue,
   screenIsDirty,

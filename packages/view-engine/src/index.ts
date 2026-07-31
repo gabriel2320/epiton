@@ -38,11 +38,13 @@ export {
   type O2MCommand,
 } from "./relations";
 export {
+  acceptAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
   hydrateScreenFromRecord,
   idsFromRelationValue,
+  isScreenReadyToSave,
   relationQueueHasChanges,
   relationQueueWireValue,
   screenIsDirty,

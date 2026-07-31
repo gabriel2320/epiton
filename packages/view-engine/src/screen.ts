@@ -78,13 +78,34 @@ export function hydrateSelectedScreen(
   screen: ScreenState,
   model: string,
   selectedId: number | null,
+  requestedId: number,
   values: RecordValues,
 ): ScreenState {
-  if (selectedId == null) return screen;
+  if (selectedId == null || requestedId !== selectedId) return screen;
   const rawId = Number(values.id);
-  // Require an explicit finite identity so a late/partial payload cannot land on B.
-  if (!Number.isFinite(rawId) || rawId !== selectedId) return screen;
+  // The request envelope is authoritative; a payload id, when present, must agree.
+  if (Number.isFinite(rawId) && rawId !== requestedId) return screen;
   return hydrateScreenFromRecord(screen, model, selectedId, values);
+}
+
+/** True when an existing record Screen has loaded server values (or is a new draft). */
+export function isScreenReadyToSave(screen: ScreenState, selectedId: number | null): boolean {
+  if (selectedId == null) return screen.recordId == null;
+  if (screen.recordId !== selectedId) return false;
+  const rawId = Number(screen.values.id);
+  return Number.isFinite(rawId) && rawId === selectedId;
+}
+
+/** Drop async Screen patches whose generation/identity no longer matches. */
+export function acceptAsyncScreenUpdate(
+  expected: { generation: number; model: string; recordId: number | null },
+  current: { generation: number; model: string; recordId: number | null },
+): boolean {
+  return (
+    expected.generation === current.generation &&
+    expected.model === current.model &&
+    expected.recordId === current.recordId
+  );
 }
 
 export function updateScreenValues(screen: ScreenState, values: RecordValues): ScreenState {
