@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { formatTrytonDate, parseTrytonDateInput } from "./dates";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
@@ -18,6 +18,50 @@ export interface RenderContext {
   onOpenRelation?: (field: ViewField, value: unknown, domain?: unknown[]) => void;
   onBinaryDownload?: (field: ViewField, value: unknown) => void;
   renderField?: (field: ViewField, value: unknown) => ReactNode;
+}
+
+/** Sao-style exclusive notebook tabs (replaces multi-open `<details>`). */
+function NotebookHost(props: {
+  pages: Array<{ key: string; title: string; content: ReactNode }>;
+  density: string;
+}) {
+  const [active, setActive] = useState(0);
+  const safe = Math.min(active, Math.max(0, props.pages.length - 1));
+  const current = props.pages[safe];
+  return createElement(
+    "div",
+    { className: `epiton-notebook density-${props.density}` },
+    createElement(
+      "div",
+      { className: "epiton-notebook-tabs", role: "tablist" },
+      props.pages.map((page, i) =>
+        createElement(
+          "button",
+          {
+            key: page.key,
+            type: "button",
+            role: "tab",
+            "aria-selected": i === safe,
+            className: "epiton-notebook-tab",
+            "data-active": i === safe,
+            onClick: () => setActive(i),
+          },
+          page.title,
+        ),
+      ),
+    ),
+    current
+      ? createElement(
+          "div",
+          {
+            className: "epiton-notebook-panel",
+            role: "tabpanel",
+            "aria-label": current.title,
+          },
+          current.content,
+        )
+      : null,
+  );
 }
 
 function fieldLabel(field: ViewField | undefined, fallback: string): string {
@@ -330,27 +374,22 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
   }
 
   if (node.tag === "notebook") {
-    return createElement(
-      "div",
-      { className: `epiton-notebook density-${ctx.density}`, role: "tablist" },
-      node.children.map((page, i) => {
-        if (page.tag !== "page") {
-          return createElement("div", { key: i }, renderNode(page, view, ctx));
-        }
-        const states = resolveStatesAttr(page.attrs.states, ctx.values);
-        if (states.invisible) return null;
-        return createElement(
-          "details",
-          {
-            key: i,
-            className: "epiton-page",
-            open: i === 0,
-          },
-          createElement("summary", { role: "tab" }, page.attrs.string ?? `Page ${i + 1}`),
+    const pages: Array<{ key: string; title: string; content: ReactNode }> = [];
+    node.children.forEach((page, i) => {
+      if (page.tag !== "page") return;
+      const states = resolveStatesAttr(page.attrs.states, ctx.values);
+      if (states.invisible) return;
+      pages.push({
+        key: `${page.attrs.string ?? "page"}-${i}`,
+        title: page.attrs.string ?? `Page ${pages.length + 1}`,
+        content: createElement(
+          "div",
+          { className: "epiton-page" },
           page.children.map((c, j) => createElement("div", { key: j }, renderNode(c, view, ctx))),
-        );
-      }),
-    );
+        ),
+      });
+    });
+    return createElement(NotebookHost, { pages, density: ctx.density });
   }
 
   if (node.tag === "form" || node.tag === "sheet" || node.tag === "group" || node.tag === "page") {
@@ -491,6 +530,20 @@ export function renderView(view: ParsedView, ctx: RenderContext): ReactNode {
 export interface TreeColumn {
   name: string;
   string: string;
+  type?: string;
+  readonly?: boolean;
+}
+
+/** True when tree arch has Sao `editable="top|bottom|1|true"`. */
+export function treeEditable(view: ParsedView): boolean {
+  const walk = (n: ViewNode): boolean => {
+    if (n.tag === "tree") {
+      const raw = (n.attrs.editable ?? "").toLowerCase();
+      if (raw === "top" || raw === "bottom" || raw === "1" || raw === "true") return true;
+    }
+    return n.children.some(walk);
+  };
+  return walk(view.arch);
 }
 
 export function treeColumns(view: ParsedView): TreeColumn[] {
@@ -501,6 +554,8 @@ export function treeColumns(view: ParsedView): TreeColumn[] {
       cols.push({
         name: n.attrs.name,
         string: meta?.string ?? n.attrs.string ?? n.attrs.name,
+        type: meta?.type,
+        readonly: Boolean(meta?.readonly) || n.attrs.readonly === "1",
       });
     }
     for (const c of n.children) walk(c);

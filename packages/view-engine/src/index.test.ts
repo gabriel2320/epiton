@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFieldsViewGet, parseXml, treeColumns } from "./index";
+import { parseFieldsViewGet, parseXml, treeColumns, treeEditable } from "./index";
 
 const TREE_ARCH = `
 <form><![CDATA[]]></form>
@@ -18,6 +18,16 @@ describe("view-engine", () => {
     expect(parsed.fields.name?.type).toBe("char");
     expect(parsed.buttons[0]?.name).toBe("activate");
     expect(treeColumns(parsed).map((c) => c.name)).toEqual(["name", "code"]);
+    expect(treeEditable(parsed)).toBe(false);
+  });
+
+  it("detects editable tree arch", () => {
+    const parsed = parseFieldsViewGet({
+      arch: `<tree editable="top"><field name="name"/></tree>`,
+      fields: { name: { type: "char", string: "Name" } },
+    });
+    expect(treeEditable(parsed)).toBe(true);
+    expect(treeColumns(parsed)[0]?.type).toBe("char");
   });
 
   it("parses form with o2m/m2o", () => {

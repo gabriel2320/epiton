@@ -102,19 +102,41 @@ export function WizardStepper(props: {
     }
   }
 
-  async function transitionTo(nextState: string) {
+  async function transitionTo(nextState: string, button?: WizardButton) {
     if (!client || !runtime) return;
+    if (button?.validate !== false && runtime.view) {
+      // Default: validate when button.validate is true; also when explicitly required fields empty
+      if (button?.validate) {
+        for (const [name, field] of Object.entries(runtime.view.fields)) {
+          if (!field.required) continue;
+          const v = runtime.values[name];
+          if (v == null || v === "") {
+            setStatus("error");
+            setMessage(`Required field: ${field.string ?? name}`);
+            return;
+          }
+        }
+      }
+    }
     setStatus("loading");
     try {
       const data =
         runtime.screenState != null
           ? wizardDataForState(runtime.screenState, runtime.values as JsonObject)
           : {};
+      // Sao executes the end state with current data before deleting the session.
       if (nextState === runtime.endState) {
+        const executed = await wizardExecute(client, runtime, data, nextState, runtime.context);
+        const parsed = parseWizardPayload(executed.raw as Record<string, unknown>);
         await wizardDelete(client, runtime, runtime.context);
         setRuntime(null);
         setStatus("idle");
-        setMessage("Wizard closed");
+        if (parsed.actions.length) onActionsRef.current?.(parsed.actions);
+        setMessage(
+          parsed.actions.length
+            ? `Finished with ${parsed.actions.length} action(s)`
+            : "Wizard closed",
+        );
         return;
       }
       const executed = await wizardExecute(client, runtime, data, nextState, runtime.context);
@@ -271,7 +293,7 @@ export function WizardStepper(props: {
               <Button
                 key={`${b.state}:${b.string ?? ""}`}
                 variant={b.default ? "primary" : "default"}
-                onClick={() => void transitionTo(b.state)}
+                onClick={() => void transitionTo(b.state, b)}
               >
                 {b.string ?? b.state}
               </Button>

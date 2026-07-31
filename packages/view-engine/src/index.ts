@@ -12,6 +12,7 @@ export {
 export {
   renderView,
   treeColumns,
+  treeEditable,
   type RecordValues,
   type RenderContext,
   type TreeColumn,

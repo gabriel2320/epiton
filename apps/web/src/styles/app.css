@@ -532,17 +532,73 @@
   max-width: 12rem;
 }
 
+.epiton-notebook {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.epiton-notebook-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.epiton-notebook-tab {
+  appearance: none;
+  border: 1px solid var(--epiton-border);
+  background: var(--epiton-bg);
+  color: var(--epiton-fg);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.epiton-notebook-tab[data-active="true"],
+.epiton-notebook-tab[aria-selected="true"] {
+  border-color: var(--epiton-accent);
+  background: color-mix(in srgb, var(--epiton-accent) 14%, var(--epiton-bg));
+}
+
+.epiton-notebook-panel,
 .epiton-notebook .epiton-page {
   border: 1px solid var(--epiton-border);
   border-radius: 10px;
-  padding: 0.5rem 0.75rem;
-  margin-bottom: 0.5rem;
+  padding: 0.65rem 0.85rem;
 }
 
-.epiton-notebook summary {
+.epiton-tree-edit {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--epiton-border);
+  border-radius: 6px;
+  background: var(--epiton-bg-elevated);
+  color: var(--epiton-fg);
+  font: inherit;
+  padding: 0.15rem 0.35rem;
+}
+
+.epiton-tree-editable-hint {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  color: var(--epiton-muted);
+  border-bottom: 1px solid var(--epiton-border);
+}
+
+.epiton-bus-open {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  font-weight: 600;
-  margin-bottom: 0.35rem;
+  padding: 0.15rem 0;
+}
+
+.epiton-bus-open:hover {
+  color: var(--epiton-accent);
 }
 
 .epiton-menu-row {

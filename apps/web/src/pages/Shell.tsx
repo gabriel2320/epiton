@@ -434,7 +434,15 @@ export function Shell() {
             <Button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
               Theme: {theme}
             </Button>
-            <BusBanner />
+            <BusBanner
+              onOpenRecord={(model, id) => {
+                setActiveWizard(null);
+                setWizardActionId(null);
+                setActiveReport(null);
+                replaceRoot(model, id, { label: `${model}#${id}` });
+                setHistory((h) => [...h, { model, action: "bus:open" }]);
+              }}
+            />
             <ToolDrawer
               open={prefsOpen}
               onOpenChange={setPrefsOpen}

@@ -1,5 +1,6 @@
 import { BusClient, type BusMessage } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
 
@@ -8,6 +9,8 @@ interface BusNote {
   channel: string;
   summary: string;
   at: number;
+  model?: string;
+  recordId?: number;
 }
 
 function summarize(message: unknown): string {
@@ -24,9 +27,29 @@ function summarize(message: unknown): string {
   return String(message);
 }
 
-/** Live bus indicator with recent notification list (Sao parity). */
-export function BusBanner() {
+function extractTarget(message: unknown): { model?: string; recordId?: number } {
+  if (!message || typeof message !== "object" || Array.isArray(message)) return {};
+  const obj = message as Record<string, unknown>;
+  const model =
+    typeof obj.model === "string"
+      ? obj.model
+      : typeof obj.active_model === "string"
+        ? obj.active_model
+        : undefined;
+  const rawId = obj.id ?? obj.active_id ?? obj.record_id;
+  const recordId = typeof rawId === "number" ? rawId : Number(rawId);
+  return {
+    model,
+    recordId: Number.isFinite(recordId) ? recordId : undefined,
+  };
+}
+
+/** Live bus indicator with invalidate + open-record hooks (Sao parity). */
+export function BusBanner(props: {
+  onOpenRecord?: (model: string, id: number) => void;
+}) {
   const client = useAppStore((s) => s.client);
+  const queryClient = useQueryClient();
   const [notes, setNotes] = useState<BusNote[]>([]);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "listening" | "error">("idle");
@@ -56,17 +79,24 @@ export function BusBanner() {
     };
 
     function appendNote(msg: BusMessage) {
+      const target = extractTarget(msg.message);
       const note: BusNote = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         channel: msg.channel,
         summary: summarize(msg.message),
         at: msg.timestamp ?? Date.now(),
+        model: target.model,
+        recordId: target.recordId,
       };
       setNotes((prev) => [note, ...prev].slice(0, 20));
       setOpen(true);
       setStatus("listening");
+      void queryClient.invalidateQueries({ queryKey: ["model"] });
+      if (target.model) {
+        void queryClient.invalidateQueries({ queryKey: ["model", target.model] });
+      }
     }
-  }, [client]);
+  }, [client, queryClient]);
 
   const latest = notes[0];
 
@@ -96,9 +126,19 @@ export function BusBanner() {
             <ul className="epiton-menu-list">
               {notes.map((n) => (
                 <li key={n.id}>
-                  <span className="text-sm">
-                    <code>{n.channel}</code> · {n.summary}
-                  </span>
+                  {n.model && n.recordId != null && props.onOpenRecord ? (
+                    <button
+                      type="button"
+                      className="epiton-bus-open"
+                      onClick={() => props.onOpenRecord?.(n.model!, n.recordId!)}
+                    >
+                      <code>{n.channel}</code> · {n.summary} → {n.model}#{n.recordId}
+                    </button>
+                  ) : (
+                    <span className="text-sm">
+                      <code>{n.channel}</code> · {n.summary}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

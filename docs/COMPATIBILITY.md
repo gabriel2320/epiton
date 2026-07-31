@@ -15,8 +15,10 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Views | `fields_view_get` arch XML | Implemented | form/tree + list-form/calendar/graph/board hosts |
 | Calendar | calendar arch + date fields | Implemented | FullCalendar over `search_read` |
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
+| Editable tree | `editable` arch / inline write | Improved | Cell editors → `model.write`; toolbar Inline edit toggle |
+| Notebook | form notebook pages | Improved | Exclusive tabs (not multi-open details) |
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
-| Wizards | `wizard.*.create/execute/delete` | Implemented | Sao-shaped data + drawer host |
+| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + `validate` required fields |
 | Reports | `report.*.execute` | Implemented | Download/preview + formats; visual analytics companion over same ids |
 | Attachments | `ir.attachment` | Implemented | List + upload + download + delete |
 | O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
@@ -45,7 +47,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Shortcuts | Ctrl/Cmd+S Esc T W | Implemented | Save / read / new tab / close tab |
 | UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip, Alert, ConfirmDialog |
 | Notices | status banners | Implemented | `Alert` tones; delete uses `ConfirmDialog` |
-| Bus | `/{db}/bus` | Implemented | Long-poll + notification panel |
+| Bus | `/{db}/bus` | Improved | Long-poll; invalidate queries; open model#id when payload has target |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |
 | CSP | Web security headers | Prod hardened | Prefer web→gateway so `connect-src 'self'` |

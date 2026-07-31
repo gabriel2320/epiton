@@ -9,15 +9,81 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 
+type TreeCol = {
+  name: string;
+  string: string;
+  type?: string;
+  readonly?: boolean;
+};
+
+function cellDisplay(value: unknown): string {
+  if (value == null) return "";
+  if (Array.isArray(value)) return String(value[1] ?? value[0] ?? "");
+  return String(value);
+}
+
+function EditableCell(props: {
+  id: number;
+  field: TreeCol;
+  value: unknown;
+  onCommit: (id: number, field: string, value: unknown) => void;
+}) {
+  const readonly = props.field.readonly || props.field.name === "id";
+  const type = props.field.type ?? "char";
+
+  if (readonly || type === "many2one" || type === "one2many" || type === "many2many") {
+    return <span>{cellDisplay(props.value)}</span>;
+  }
+
+  if (type === "boolean") {
+    return (
+      <input
+        type="checkbox"
+        checked={Boolean(props.value)}
+        aria-label={props.field.string}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => props.onCommit(props.id, props.field.name, e.target.checked)}
+      />
+    );
+  }
+
+  const inputType =
+    type === "integer" || type === "float" || type === "numeric" ? "number" : "text";
+  return (
+    <input
+      className="epiton-tree-edit"
+      type={inputType}
+      defaultValue={cellDisplay(props.value)}
+      aria-label={props.field.string}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => {
+        const raw = e.target.value;
+        let next: unknown = raw;
+        if (inputType === "number") {
+          const n = Number(raw);
+          next = Number.isFinite(n) ? n : raw;
+        }
+        if (String(props.value ?? "") === String(next ?? "")) return;
+        props.onCommit(props.id, props.field.name, next);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
+
 export function VirtualPartyTable(props: {
   rows: Array<Record<string, unknown>>;
-  columns: Array<{ name: string; string: string }>;
+  columns: TreeCol[];
   selectedId: number | null;
   selectedIds?: number[];
+  editable?: boolean;
   /** When set, sorting is server-driven (no client re-sort). */
   onSortChange?: (sorts: Array<{ id: string; desc: boolean }>) => void;
   onSelect: (id: number) => void;
   onToggleSelect?: (id: number) => void;
+  onCellCommit?: (id: number, field: string, value: unknown) => void;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -57,11 +123,24 @@ export function VirtualPartyTable(props: {
       cols.push({
         accessorKey: c.name,
         header: c.string,
-        cell: (info) => String(info.getValue() ?? ""),
+        cell: (info) => {
+          const id = Number(info.row.original.id);
+          if (props.editable && props.onCellCommit && Number.isFinite(id)) {
+            return (
+              <EditableCell
+                id={id}
+                field={c}
+                value={info.getValue()}
+                onCommit={props.onCellCommit}
+              />
+            );
+          }
+          return cellDisplay(info.getValue());
+        },
       });
     }
     return cols;
-  }, [props.columns, props.onToggleSelect, props.selectedIds]);
+  }, [props.columns, props.onToggleSelect, props.selectedIds, props.editable, props.onCellCommit]);
 
   const table = useReactTable({
     data: props.rows,
@@ -86,6 +165,11 @@ export function VirtualPartyTable(props: {
       ref={parentRef}
       className="max-h-[480px] overflow-auto rounded-xl border border-[var(--epiton-border)]"
     >
+      {props.editable ? (
+        <p className="epiton-tree-editable-hint" role="note">
+          Editable tree — change a cell and blur/Enter to write on trytond
+        </p>
+      ) : null}
       <table className="epiton-table w-full">
         <thead className="sticky top-0 bg-[var(--epiton-bg-elevated)] z-10">
           {table.getHeaderGroups().map((hg) => (

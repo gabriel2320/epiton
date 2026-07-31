@@ -41,6 +41,7 @@ import {
   summarizeSeries,
   toTrytonM2M,
   treeColumns,
+  treeEditable,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -112,6 +113,7 @@ export function ModelWorkspace(props: {
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(80);
   const [domainTab, setDomainTab] = useState(-1);
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
+  const [forceTreeEdit, setForceTreeEdit] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -678,6 +680,29 @@ export function ModelWorkspace(props: {
         ];
   }, [viewMode, listFormViewQuery.data, treeViewQuery.data]);
 
+  const treeIsEditable = useMemo(
+    () => forceTreeEdit || (treeViewQuery.data ? treeEditable(treeViewQuery.data) : false),
+    [forceTreeEdit, treeViewQuery.data],
+  );
+
+  async function commitTreeCell(id: number, field: string, value: unknown) {
+    if (!client) return;
+    try {
+      setNotice(`Writing ${field}…`);
+      await client.model(
+        props.model,
+        "write",
+        [[id], { [field]: value } as JsonObject],
+        rpcContext,
+      );
+      setNotice(`Updated #${id}.${field}`);
+      props.onHistory?.(`tree:write:${field}`);
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Tree write failed");
+    }
+  }
+
   const calendarEvents = useMemo(
     () => rowsToCalendarEvents((listQuery.data ?? []) as Array<Record<string, unknown>>),
     [listQuery.data],
@@ -790,6 +815,12 @@ export function ModelWorkspace(props: {
           </Button>
           <Button onClick={() => listQuery.refetch()}>Refresh</Button>
           <Button onClick={() => setViewMode("tree")}>Tree</Button>
+          <Button
+            variant={forceTreeEdit || treeIsEditable ? "primary" : "default"}
+            onClick={() => setForceTreeEdit((v) => !v)}
+          >
+            Inline edit{treeIsEditable ? " · on" : ""}
+          </Button>
           <Button onClick={() => setViewMode("list-form")}>List-form</Button>
           <Button onClick={() => setViewMode("calendar")}>Calendar</Button>
           <Button onClick={() => setViewMode("graph")}>Graph</Button>
@@ -931,6 +962,8 @@ export function ModelWorkspace(props: {
               columns={columns}
               selectedId={selectedId}
               selectedIds={selectedIds}
+              editable={treeIsEditable}
+              onCellCommit={(id, field, value) => void commitTreeCell(id, field, value)}
               onSortChange={(next) => {
                 setOffset(0);
                 setSorts(next);
