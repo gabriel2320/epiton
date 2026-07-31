@@ -37,7 +37,6 @@ import {
   flattenTreeRows,
   formatOrder,
   inferGraphFields,
-  isTrytonRelationCommands,
   mergeDomains,
   mergeTreeRows,
   parseCalendarArch,
@@ -49,7 +48,6 @@ import {
   sequenceWrites,
   siblingReorderIds,
   summarizeSeries,
-  toTrytonM2M,
   treeButtons,
   treeColumns,
   treeEditable,
@@ -60,6 +58,17 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { guessMime } from "../lib/mime";
+import {
+  type RelationCommandQueue,
+  type ScreenState,
+  createRelationQueue,
+  createScreen,
+  hydrateScreenFromRecord,
+  screenIsDirty,
+  screenValuesForSave,
+  setScreenRelationQueue,
+  updateScreenValues,
+} from "../lib/screen";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { CsvExportDialog } from "./CsvExportDialog";
@@ -82,27 +91,6 @@ function noticeTone(message: string): "default" | "accent" | "danger" | "muted" 
   if (/…|\.\.\.|importing|exporting|copying|running/i.test(message)) return "muted";
   if (/saved|ok|exported|imported|copied/i.test(message)) return "accent";
   return "default";
-}
-
-function normalizeIds(value: unknown): number[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (typeof item === "number") return item;
-      if (Array.isArray(item) && typeof item[0] === "number") return item[0];
-      if (item && typeof item === "object" && "id" in item)
-        return Number((item as { id: unknown }).id);
-      return Number.NaN;
-    })
-    .filter((n) => Number.isFinite(n));
-}
-
-function stableSerialize(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
 }
 
 /** Generic Tryton model workspace — opens any model via fields_view_get + CRUD.
@@ -132,8 +120,11 @@ export function ModelWorkspace(props: {
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<number | null>(props.initialSelectedId ?? null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [draft, setDraft] = useState<RecordValues>({});
   const [mode, setMode] = useState<"read" | "write">("read");
+  const [screen, setScreen] = useState<ScreenState>(() =>
+    createScreen(props.model, props.initialSelectedId ?? null),
+  );
+  const draft = screen.values;
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
@@ -169,7 +160,7 @@ export function ModelWorkspace(props: {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const baselineRef = useRef("");
+  const screenRef = useRef(screen);
   const dirtyRef = useRef(false);
   const keyHandlersRef = useRef<{
     startNew: () => Promise<void>;
@@ -182,6 +173,13 @@ export function ModelWorkspace(props: {
     confirmDiscard: () => true,
     selectAdjacent: (_delta: -1 | 1) => {},
   });
+  screenRef.current = screen;
+
+  function setDraft(next: RecordValues | ((current: RecordValues) => RecordValues)) {
+    setScreen((current) =>
+      updateScreenValues(current, typeof next === "function" ? next(current.values) : next),
+    );
+  }
 
   const actionCtxOverlay = useMemo(
     () => evalContext(props.actionContext ?? {}, sessionContext),
@@ -216,7 +214,11 @@ export function ModelWorkspace(props: {
   }
 
   function selectId(id: number | null, committed = false) {
-    if (!committed && id !== selectedId && !confirmDiscard()) return;
+    const changed = id !== selectedId;
+    if (!committed && changed && !confirmDiscard()) return;
+    if (!committed && changed) {
+      setScreen(createScreen(props.model, id));
+    }
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
   }
@@ -777,11 +779,19 @@ export function ModelWorkspace(props: {
   });
 
   useEffect(() => {
-    if (recordQuery.data) {
-      setDraft(recordQuery.data);
-      baselineRef.current = stableSerialize(recordQuery.data);
-    }
-  }, [recordQuery.data]);
+    setScreen(createScreen(props.model, null));
+    setSelectedId(null);
+    setSelectedIds([]);
+  }, [props.model]);
+
+  useEffect(() => {
+    const record = recordQuery.data;
+    if (!record) return;
+    const rawId = Number(record.id);
+    const recordId = Number.isFinite(rawId) ? rawId : selectedId;
+    if (recordId !== selectedId) return;
+    setScreen((current) => hydrateScreenFromRecord(current, props.model, recordId, record));
+  }, [recordQuery.data, props.model, selectedId]);
 
   useEffect(() => {
     try {
@@ -794,7 +804,7 @@ export function ModelWorkspace(props: {
     }
   }, [hiddenOptionalCols, props.model]);
 
-  const isDirty = mode === "write" && stableSerialize(draft) !== baselineRef.current;
+  const isDirty = mode === "write" && screenIsDirty(screen);
   dirtyRef.current = isDirty;
 
   useEffect(() => {
@@ -869,8 +879,7 @@ export function ModelWorkspace(props: {
     setMode("write");
     props.onHistory?.("new");
     if (!client) {
-      setDraft({});
-      baselineRef.current = stableSerialize({});
+      setScreen(createScreen(props.model, null));
       return;
     }
     const fieldNames = Object.keys(formViewQuery.data?.fields ?? {});
@@ -885,11 +894,9 @@ export function ModelWorkspace(props: {
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
           ? (defaults as RecordValues)
           : {};
-      setDraft(next);
-      baselineRef.current = stableSerialize(next);
+      setScreen(createScreen(props.model, null, next));
     } catch {
-      setDraft({});
-      baselineRef.current = stableSerialize({});
+      setScreen(createScreen(props.model, null));
     }
   }
 
@@ -897,43 +904,13 @@ export function ModelWorkspace(props: {
     mutationFn: async () => {
       if (!client) throw new Error("No client");
       const fieldMeta = formViewQuery.data?.fields ?? {};
-      const values: Record<string, unknown> = {};
-      for (const [key, meta] of Object.entries(fieldMeta)) {
-        if (meta.readonly) continue;
-        if (!(key in draft)) continue;
-        const raw = draft[key];
-        if (meta.type === "boolean") values[key] = Boolean(raw);
-        else if (raw == null || raw === "") values[key] = null;
-        else if (meta.type === "many2one") {
-          values[key] = Array.isArray(raw) ? (raw[0] ?? null) : raw;
-        } else if (meta.type === "many2many") {
-          // Preserve command lists from RelationLinesEditor; otherwise add existing ids.
-          values[key] = isTrytonRelationCommands(raw) ? raw : toTrytonM2M(normalizeIds(raw));
-        } else if (meta.type === "one2many") {
-          // Preserve command lists from RelationLinesEditor; otherwise add existing ids.
-          if (isTrytonRelationCommands(raw)) {
-            values[key] = raw;
-          } else {
-            values[key] = normalizeIds(raw).map((id) => ["add", [id]]);
-          }
-        } else if (meta.type === "reference") {
-          values[key] = raw;
-        } else if (meta.type === "dict" || meta.type === "multiselection") {
-          values[key] = raw;
-        } else if (typeof raw === "number" || typeof raw === "boolean") values[key] = raw;
-        else if (typeof raw === "string") values[key] = raw;
-      }
+      const values = screenValuesForSave(screenRef.current, fieldMeta) as JsonObject;
       if (selectedId) {
-        await client.model(props.model, "write", [[selectedId], values as JsonObject], rpcContext);
+        await client.model(props.model, "write", [[selectedId], values], rpcContext);
         props.onHistory?.("write");
         return selectedId;
       }
-      const created = await client.model(
-        props.model,
-        "create",
-        [[values as JsonObject]],
-        rpcContext,
-      );
+      const created = await client.model(props.model, "create", [[values]], rpcContext);
       const id = Array.isArray(created) ? Number(created[0]) : Number(created);
       props.onHistory?.("create");
       return id;
@@ -942,6 +919,7 @@ export function ModelWorkspace(props: {
       selectId(id, true);
       setMode("read");
       dirtyRef.current = false;
+      setScreen((current) => createScreen(props.model, id, current.values));
       setNotice("Saved");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
@@ -956,7 +934,7 @@ export function ModelWorkspace(props: {
     onSuccess: async () => {
       selectId(null, true);
       setMultiSelect([]);
-      setDraft({});
+      setScreen(createScreen(props.model, null));
       setPendingDeleteIds(null);
       setNotice("Deleted");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
@@ -1032,15 +1010,14 @@ export function ModelWorkspace(props: {
       if (e.key === "Escape" && mode === "write" && !typing) {
         if (!keyHandlersRef.current.confirmDiscard()) return;
         if (recordQuery.data) {
-          setDraft(recordQuery.data);
-          baselineRef.current = stableSerialize(recordQuery.data);
+          setScreen(createScreen(props.model, selectedId, recordQuery.data));
         }
         setMode("read");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, saveMutation, selectedId, selectedIds, listQuery, recordQuery.data]);
+  }, [mode, saveMutation, selectedId, selectedIds, listQuery, recordQuery.data, props.model]);
 
   async function runButton(name: string, meta?: { type?: string }) {
     if (!client || !selectedId) {
@@ -1316,6 +1293,10 @@ export function ModelWorkspace(props: {
   const canPrev = offset > 0;
   const canNext =
     total != null ? offset + pageSize < total : (listQuery.data?.length ?? 0) >= pageSize;
+  const activeRelationQueue =
+    relationField?.type === "one2many" || relationField?.type === "many2many"
+      ? screen.relationQueues[relationField.name]
+      : undefined;
 
   return (
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
@@ -1779,8 +1760,7 @@ export function ModelWorkspace(props: {
             onClick={() => {
               if (mode === "write" && !confirmDiscard()) return;
               if (mode === "write" && recordQuery.data) {
-                setDraft(recordQuery.data);
-                baselineRef.current = stableSerialize(recordQuery.data);
+                setScreen(createScreen(props.model, selectedId, recordQuery.data));
               }
               setMode(mode === "read" ? "write" : "read");
             }}
@@ -1834,7 +1814,12 @@ export function ModelWorkspace(props: {
                 create_uid: _cu,
                 ...rest
               } = values;
-              setDraft((d) => ({ ...d, ...rest }));
+              setScreen((current) =>
+                updateScreenValues(
+                  { ...current, relationQueues: {} },
+                  { ...current.values, ...rest },
+                ),
+              );
               setMode("write");
               setShowHistory(false);
               setNotice("History values loaded into draft — Save to write");
@@ -1858,6 +1843,17 @@ export function ModelWorkspace(props: {
               onChange: handleFieldChange,
               onButton: (name, meta) => void runButton(name, meta),
               onOpenRelation: (field, value, domain) => {
+                if (field.type === "one2many" || field.type === "many2many") {
+                  const relationKind = field.type === "many2many" ? "many2many" : "one2many";
+                  setScreen((current) => {
+                    if (current.relationQueues[field.name]) return current;
+                    return setScreenRelationQueue(
+                      current,
+                      field.name,
+                      createRelationQueue(relationKind, current.values[field.name]),
+                    );
+                  });
+                }
                 setRelationField(field);
                 setRelationDomain(domain);
                 props.onHistory?.(`relation:${field.name}`);
@@ -1929,19 +1925,27 @@ export function ModelWorkspace(props: {
               setRelationDomain(undefined);
             }}
           />
-        ) : relationField ? (
+        ) : relationField && activeRelationQueue ? (
           <RelationLinesEditor
             field={relationField}
             value={draft[relationField.name]}
             mode={mode}
             recordValues={draft}
             domain={relationDomain}
+            queue={activeRelationQueue}
+            onQueueChange={(update: (current: RelationCommandQueue) => RelationCommandQueue) => {
+              setScreen((current) => {
+                const queue =
+                  current.relationQueues[relationField.name] ??
+                  createRelationQueue(activeRelationQueue.kind, current.values[relationField.name]);
+                return setScreenRelationQueue(current, relationField.name, update(queue));
+              });
+            }}
             onOpenLine={(model, id) => props.onPushRelated?.(model, id)}
-            onCommit={(next) => {
-              setDraft((d) => ({ ...d, [relationField.name]: next }));
+            onCommit={() => {
               setRelationField(null);
               setRelationDomain(undefined);
-              setNotice("Relation commands attached — Save parent to write");
+              setNotice("Relation commands queued — Save parent to write");
               props.onHistory?.(`relation:apply:${relationField.name}`);
             }}
           />

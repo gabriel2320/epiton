@@ -3,10 +3,11 @@ import {
   type O2MCommand,
   type ParsedView,
   type RecordValues,
+  type RelationCommandQueue,
   type ViewField,
+  createRelationQueue,
   parseFieldsViewGet,
-  toTrytonM2MDelta,
-  toTrytonO2M,
+  relationQueueWireValue,
   treeColumns,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +30,10 @@ export function RelationLinesEditor(props: {
   mode: "read" | "write";
   recordValues?: Record<string, unknown>;
   domain?: unknown[];
+  /** Parent-owned queue when the editor participates in a Screen lifecycle. */
+  queue?: RelationCommandQueue;
+  onQueueChange?: (update: (current: RelationCommandQueue) => RelationCommandQueue) => void;
+  /** Serialized Tryton tuples for legacy/uncontrolled hosts and explicit apply. */
   onCommit: (next: unknown) => void;
   /** Open nested related record (O2M/M2M line). */
   onOpenLine?: (model: string, id: number) => void;
@@ -36,22 +41,34 @@ export function RelationLinesEditor(props: {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
   const relation = props.field.relation;
-  const initialIds = useMemo(() => normalizeIds(props.value), [props.value]);
-  const [ids, setIds] = useState<number[]>(initialIds);
-  const [baselineIds, setBaselineIds] = useState<number[]>(initialIds);
-  const [commands, setCommands] = useState<O2MCommand[]>([]);
+  const relationKind = props.field.type === "many2many" ? "many2many" : "one2many";
+  const initialQueue = useMemo(
+    () => createRelationQueue(relationKind, props.value),
+    [props.value, relationKind],
+  );
+  const [localQueue, setLocalQueue] = useState<RelationCommandQueue>(initialQueue);
+  const isControlled = props.queue != null && props.onQueueChange != null;
+  const queue = isControlled && props.queue ? props.queue : localQueue;
+  const { ids, commands } = queue;
   const [searchOpen, setSearchOpen] = useState(false);
   const [lineForm, setLineForm] = useState<LineFormTarget>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    setIds(initialIds);
-    setBaselineIds(initialIds);
-    setCommands([]);
+    if (isControlled) return;
+    setLocalQueue(initialQueue);
     setSelectedId(null);
     setLineForm(null);
-  }, [initialIds]);
+  }, [initialQueue, isControlled]);
+
+  function updateQueue(update: (current: RelationCommandQueue) => RelationCommandQueue) {
+    if (isControlled) {
+      props.onQueueChange?.(update);
+      return;
+    }
+    setLocalQueue(update);
+  }
 
   const treeViewQuery = useQuery({
     queryKey: ["relation-lines-tree", relation],
@@ -139,61 +156,87 @@ export function RelationLinesEditor(props: {
 
   function addId(id: number) {
     if (!Number.isFinite(id)) return;
-    setIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setCommands((prev) => [...prev, { op: "add", id }]);
+    updateQueue((current) =>
+      current.ids.includes(id)
+        ? current
+        : {
+            ...current,
+            ids: [...current.ids, id],
+            commands: [...current.commands, { op: "add", id }],
+          },
+    );
     setSelectedId(id);
   }
 
   function removeId(id: number) {
-    setIds((prev) => prev.filter((x) => x !== id));
-    setCommands((prev) => [...prev, { op: "remove", id }]);
+    updateQueue((current) => ({
+      ...current,
+      ids: current.ids.filter((x) => x !== id),
+      commands: [...current.commands, { op: "remove", id }],
+    }));
     if (selectedId === id) setSelectedId(null);
     if (lineForm?.kind === "edit" && lineForm.id === id) setLineForm(null);
   }
 
   function deleteId(id: number) {
-    setIds((prev) => prev.filter((x) => x !== id));
-    setCommands((prev) => [...prev, { op: "delete", id }]);
+    updateQueue((current) => ({
+      ...current,
+      ids: current.ids.filter((x) => x !== id),
+      commands: [...current.commands, { op: "delete", id }],
+    }));
     if (selectedId === id) setSelectedId(null);
     if (lineForm?.kind === "edit" && lineForm.id === id) setLineForm(null);
   }
 
   function discardQueued(commandIndex: number) {
-    setCommands((prev) => prev.filter((_, i) => i !== commandIndex));
+    updateQueue((current) => ({
+      ...current,
+      commands: current.commands.filter((_, i) => i !== commandIndex),
+    }));
     setSelectedId(null);
     setLineForm(null);
     setNotice("Queued create discarded");
   }
 
   function apply() {
-    if (props.field.type === "many2many") {
-      props.onCommit(toTrytonM2MDelta(baselineIds, ids));
-      setBaselineIds(ids);
-      setCommands([]);
-      setNotice("M2M delta applied — Save parent to write");
-      return;
+    props.onCommit(relationQueueWireValue(queue));
+    if (!isControlled) {
+      updateQueue((current) => ({
+        ...current,
+        baselineIds: [...current.ids],
+        commands: current.kind === "many2many" ? [] : current.commands,
+      }));
     }
-    props.onCommit(toTrytonO2M(commands.length ? commands : ids.map((id) => ({ op: "add", id }))));
-    setBaselineIds(ids);
-    setNotice("O2M commands applied — Save parent to write");
+    setNotice(
+      `${queue.kind === "many2many" ? "M2M delta" : "O2M commands"} applied — Save parent to write`,
+    );
   }
 
   function queueLine(values: RecordValues, lineId: number | null) {
     if (lineForm?.kind === "queued") {
       const idx = lineForm.commandIndex;
-      setCommands((prev) =>
-        prev.map((c, i) => (i === idx && c.op === "create" ? { op: "create", values } : c)),
-      );
-      setNotice("Queued create updated — Apply to attach");
+      updateQueue((current) => ({
+        ...current,
+        commands: current.commands.map((command, index) =>
+          index === idx && command.op === "create" ? { op: "create", values } : command,
+        ),
+      }));
+      setNotice("Queued create updated — Save parent to write");
       setLineForm(null);
       return;
     }
     if (lineId != null) {
-      setCommands((prev) => [...prev, { op: "write", id: lineId, values }]);
-      setNotice(`Write #${lineId} queued — Apply to attach`);
+      updateQueue((current) => ({
+        ...current,
+        commands: [...current.commands, { op: "write", id: lineId, values }],
+      }));
+      setNotice(`Write #${lineId} queued — Save parent to write`);
     } else {
-      setCommands((prev) => [...prev, { op: "create", values }]);
-      setNotice("Create queued — Apply to attach");
+      updateQueue((current) => ({
+        ...current,
+        commands: [...current.commands, { op: "create", values }],
+      }));
+      setNotice("Create queued — Save parent to write");
     }
     setLineForm(null);
   }
@@ -333,45 +376,4 @@ export function RelationLinesEditor(props: {
       </p>
     </Panel>
   );
-}
-
-function normalizeIds(value: unknown): number[] {
-  if (!Array.isArray(value)) return [];
-  if (
-    value.length > 0 &&
-    Array.isArray(value[0]) &&
-    typeof (value[0] as unknown[])[0] === "string"
-  ) {
-    const ids: number[] = [];
-    const removed = new Set<number>();
-    for (const cmd of value) {
-      if (!Array.isArray(cmd) || typeof cmd[0] !== "string") continue;
-      const op = cmd[0];
-      if (op === "add" || op === "write") {
-        const arr = cmd[1];
-        if (!Array.isArray(arr)) continue;
-        for (const id of arr) {
-          const n = Number(id);
-          if (Number.isFinite(n) && !ids.includes(n)) ids.push(n);
-        }
-      } else if (op === "remove" || op === "delete") {
-        const arr = cmd[1];
-        if (!Array.isArray(arr)) continue;
-        for (const id of arr) {
-          const n = Number(id);
-          if (Number.isFinite(n)) removed.add(n);
-        }
-      }
-    }
-    return ids.filter((id) => !removed.has(id));
-  }
-  return value
-    .map((item) => {
-      if (typeof item === "number") return item;
-      if (Array.isArray(item) && typeof item[0] === "number") return item[0];
-      if (item && typeof item === "object" && "id" in item)
-        return Number((item as { id: unknown }).id);
-      return Number.NaN;
-    })
-    .filter((n) => Number.isFinite(n));
 }

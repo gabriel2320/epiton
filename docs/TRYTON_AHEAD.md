@@ -20,7 +20,7 @@ Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
-3. Nested O2M/M2M still command-queue on parent save (queued creates now visible as rows; not live Sao Screen)
+3. Nested O2M/M2M use Screen-owned parent queue (not a full Sao Screen class; still Medium polish vs live nested Screens)
 
 Recently improved (2026-07-31 cont. 8): saved-filter dialogs, email CC/BCC,
 binary MIME/filename, tree sum/average footers;
@@ -88,7 +88,7 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 13. ~~Report picker; dirty form; workspace i18n; optional= columns; field-aware search~~
 14. ~~Attachments depth; graph operators/title; ↑/↓ nav; drawer i18n~~
 15. ~~Saved-filter dialogs; email CC/BCC; binary MIME/filename; tree footers~~
-16. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
+16. ~~Screen host + parent O2M/M2M command-queue~~ (view-engine `ScreenState` + ModelWorkspace); GTK-only plugins remain out of scope; live nested Sao Screens remain Medium polish
 17. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
