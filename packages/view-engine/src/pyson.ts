@@ -144,6 +144,24 @@ export function evalPysonNode(node: PysonNode, ctx: PysonContext): unknown {
       const rec = asRecord(v);
       return rec ? Object.keys(rec).length : 0;
     }
+    case "Add":
+    case "Sub":
+    case "Mul":
+    case "Div": {
+      const left = Number(evalPysonNode(obj.s1 ?? obj.v1 ?? obj.v, ctx));
+      const right = Number(evalPysonNode(obj.s2 ?? obj.v2 ?? obj.d, ctx));
+      if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+      if (cls === "Add") return left + right;
+      if (cls === "Sub") return left - right;
+      if (cls === "Mul") return left * right;
+      if (right === 0) return null;
+      return left / right;
+    }
+    case "Id": {
+      // Sao Id(module, xml_id) — without a catalog, return default or null.
+      if (obj.d !== undefined) return evalPysonNode(obj.d, ctx);
+      return null;
+    }
     default:
       return null;
   }

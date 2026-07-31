@@ -41,6 +41,7 @@ import {
   inferGraphFields,
   mergeDomains,
   mergeTreeRows,
+  parseCalendarArch,
   parseFieldsViewGet,
   parseGraphArch,
   renderView,
@@ -105,6 +106,8 @@ export function ModelWorkspace(props: {
   actionDomains?: ActWindowDomainTab[];
   onHistory?: (action: string) => void;
   onSelectedIdChange?: (id: number | null) => void;
+  /** Multi-select ids for wizard active_ids / bulk context. */
+  onSelectedIdsChange?: (ids: number[]) => void;
   onPushRelated?: (model: string, id: number | null) => void;
   /** Open keyword / related action refs in the shell. */
   onOpenAction?: (ref: string, source: string) => void;
@@ -173,6 +176,29 @@ export function ModelWorkspace(props: {
   function selectId(id: number | null) {
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
+  }
+
+  function setMultiSelect(ids: number[]) {
+    setSelectedIds(ids);
+    props.onSelectedIdsChange?.(ids);
+  }
+
+  async function openKeywordAction(
+    keyword: "tree_open" | "graph_open",
+    recordId: number,
+    source: string,
+  ): Promise<boolean> {
+    if (!client || !props.onOpenAction) return false;
+    try {
+      const actions = await getKeywords(client, keyword, props.model, recordId, rpcContext);
+      const hit = actions[0];
+      if (!hit) return false;
+      props.onOpenAction(hit.ref, source);
+      props.onHistory?.(source);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function downloadCsvBlob(filename: string, csv: string) {
@@ -301,7 +327,7 @@ export function ModelWorkspace(props: {
 
   const calendarViewQuery = useQuery({
     queryKey: ["model", props.model, "calendar-view", calendarViewId],
-    enabled: Boolean(client && viewMode === "calendar"),
+    enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
@@ -315,6 +341,38 @@ export function ModelWorkspace(props: {
     },
   });
 
+  const calendarSpec = useMemo(() => {
+    const view = calendarViewQuery.data;
+    if (!view) return null;
+    return parseCalendarArch(view.arch);
+  }, [calendarViewQuery.data]);
+
+  const listFields = useMemo(() => {
+    const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
+    const hierarchy = treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null;
+    const merged = [
+      ...new Set([
+        "id",
+        ...cols,
+        ...DEFAULT_FIELDS,
+        "start",
+        "end",
+        "date",
+        "appointment_date",
+        "create_date",
+        "dtstart",
+        "dtend",
+        ...(calendarSpec?.dtstart ? [calendarSpec.dtstart] : []),
+        ...(calendarSpec?.dtend ? [calendarSpec.dtend] : []),
+        ...(calendarSpec?.color ? [calendarSpec.color] : []),
+        ...(calendarSpec?.titleField ? [calendarSpec.titleField] : []),
+        ...(hierarchy?.parentField ? [hierarchy.parentField] : []),
+        ...(hierarchy?.sequenceField ? [hierarchy.sequenceField] : []),
+        ...(hierarchy?.childField ? [hierarchy.childField] : []),
+      ]),
+    ];
+    return merged.slice(0, 28);
+  }, [treeViewQuery.data, props.model, calendarSpec]);
   const listFormViewQuery = useQuery({
     queryKey: ["model", props.model, "list-form-view", listFormViewId],
     enabled: Boolean(client && viewMode === "list-form"),
@@ -346,27 +404,6 @@ export function ModelWorkspace(props: {
       }
     },
   });
-
-  const listFields = useMemo(() => {
-    const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
-    const hierarchy = treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null;
-    const merged = [
-      ...new Set([
-        "id",
-        ...cols,
-        ...DEFAULT_FIELDS,
-        "start",
-        "end",
-        "date",
-        "appointment_date",
-        "create_date",
-        ...(hierarchy?.parentField ? [hierarchy.parentField] : []),
-        ...(hierarchy?.sequenceField ? [hierarchy.sequenceField] : []),
-        ...(hierarchy?.childField ? [hierarchy.childField] : []),
-      ]),
-    ];
-    return merged.slice(0, 22);
-  }, [treeViewQuery.data, props.model]);
 
   const hierarchyMeta = useMemo(
     () => (treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null),
@@ -458,25 +495,42 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     if (!client || !session || !hierarchyMeta?.hierarchical) return;
     let cancelled = false;
-    void loadTreeState(client, props.model, session.userId, rpcContext).then((nodes) => {
-      if (cancelled || !nodes.length) return;
-      setExpandedTreeIds(new Set(nodes));
-    });
+    void loadTreeState(client, props.model, session.userId, rpcContext, listDomain).then(
+      (nodes) => {
+        if (cancelled || !nodes.length) return;
+        setExpandedTreeIds(new Set(nodes));
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [client, session, hierarchyMeta?.hierarchical, props.model, rpcContext]);
+  }, [client, session, hierarchyMeta?.hierarchical, props.model, rpcContext, listDomain]);
 
   useEffect(() => {
     if (!client || !session || !hierarchyMeta?.hierarchical) return;
     if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
     treeStateTimer.current = setTimeout(() => {
-      void saveTreeState(client, props.model, session.userId, [...expandedTreeIds], rpcContext);
+      void saveTreeState(
+        client,
+        props.model,
+        session.userId,
+        [...expandedTreeIds],
+        rpcContext,
+        listDomain,
+      );
     }, 600);
     return () => {
       if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
     };
-  }, [client, session, hierarchyMeta?.hierarchical, props.model, expandedTreeIds, rpcContext]);
+  }, [
+    client,
+    session,
+    hierarchyMeta?.hierarchical,
+    props.model,
+    expandedTreeIds,
+    rpcContext,
+    listDomain,
+  ]);
 
   async function openEmail() {
     if (!selectedId) return;
@@ -799,7 +853,7 @@ export function ModelWorkspace(props: {
     },
     onSuccess: async () => {
       selectId(null);
-      setSelectedIds([]);
+      setMultiSelect([]);
       setDraft({});
       setPendingDeleteIds(null);
       setNotice("Deleted");
@@ -841,9 +895,20 @@ export function ModelWorkspace(props: {
     return () => window.removeEventListener("keydown", onKey);
   }, [mode, saveMutation]);
 
-  async function runButton(name: string) {
+  async function runButton(name: string, meta?: { type?: string }) {
     if (!client || !selectedId) {
       setNotice("Select a record before running a button");
+      return;
+    }
+    const buttonType = (meta?.type ?? "").toLowerCase();
+    const looksLikeAction =
+      buttonType === "action" ||
+      /^(ir\.action\.|act_|wizard\.|report\.)/i.test(name) ||
+      /^[\w.-]+,[\d]+$/.test(name);
+    if (looksLikeAction && props.onOpenAction) {
+      setNotice(`Opening action ${name}…`);
+      props.onOpenAction(name, `button:${name}`);
+      props.onHistory?.(`button:action:${name}`);
       return;
     }
     setNotice(`Running ${name}…`);
@@ -894,9 +959,65 @@ export function ModelWorkspace(props: {
   }
 
   const calendarEvents = useMemo(
-    () => rowsToCalendarEvents((listQuery.data ?? []) as Array<Record<string, unknown>>),
-    [listQuery.data],
+    () =>
+      rowsToCalendarEvents((listQuery.data ?? []) as Array<Record<string, unknown>>, {
+        startField: calendarSpec?.dtstart,
+        endField: calendarSpec?.dtend,
+        titleField: calendarSpec?.titleField,
+        colorField: calendarSpec?.color,
+      }),
+    [listQuery.data, calendarSpec],
   );
+
+  async function createCalendarAt(startIso: string, endIso: string | null) {
+    if (!client) return;
+    const startField = calendarSpec?.dtstart ?? "start";
+    const endField = calendarSpec?.dtend;
+    setNotice("Creating calendar event…");
+    try {
+      const defaults = (await client.model(
+        props.model,
+        "default_get",
+        [[startField, ...(endField ? [endField] : []), "name", "rec_name"]],
+        rpcContext,
+      )) as JsonObject;
+      const values: JsonObject = {
+        ...defaults,
+        [startField]: startIso.includes("T") ? startIso.replace("T", " ").slice(0, 19) : startIso,
+      };
+      if (endField && endIso) {
+        values[endField] = endIso.includes("T") ? endIso.replace("T", " ").slice(0, 19) : endIso;
+      }
+      const created = await client.model(props.model, "create", [[values]], rpcContext);
+      const id = Array.isArray(created) ? Number(created[0]) : Number(created);
+      setNotice(Number.isFinite(id) ? `Created #${id}` : "Created");
+      props.onHistory?.("calendar:create");
+      if (Number.isFinite(id)) selectId(id);
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Calendar create failed");
+    }
+  }
+
+  async function dropCalendarEvent(id: number, startIso: string, endIso: string | null) {
+    if (!client) return;
+    const startField = calendarSpec?.dtstart ?? "start";
+    const endField = calendarSpec?.dtend;
+    const values: JsonObject = {
+      [startField]: startIso.includes("T") ? startIso.replace("T", " ").slice(0, 19) : startIso,
+    };
+    if (endField && endIso) {
+      values[endField] = endIso.includes("T") ? endIso.replace("T", " ").slice(0, 19) : endIso;
+    }
+    try {
+      await client.model(props.model, "write", [[id], values], rpcContext);
+      props.onHistory?.("calendar:drop");
+      setNotice(`Moved #${id}`);
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Calendar move failed");
+    }
+  }
 
   const graphSpec = useMemo(() => {
     if (graphViewQuery.data) return parseGraphArch(graphViewQuery.data.arch);
@@ -1216,11 +1337,14 @@ export function ModelWorkspace(props: {
           {viewMode === "calendar" ? (
             <CalendarView
               events={calendarEvents}
+              editable
               onSelect={(id) => {
                 selectId(id);
                 setMode("read");
                 props.onHistory?.("open");
               }}
+              onCreateAt={(start, end) => void createCalendarAt(start, end)}
+              onEventDrop={(id, start, end) => void dropCalendarEvent(id, start, end)}
             />
           ) : viewMode === "graph" ? (
             <GraphView
@@ -1230,6 +1354,21 @@ export function ModelWorkspace(props: {
               chartType={graphFields.chartType}
               yLabel={graphFields.yField}
               insight={graphInsight}
+              onSelectPoint={(label) => {
+                const hit = ((listQuery.data ?? []) as Array<Record<string, unknown>>).find(
+                  (row) => {
+                    const name = String(row.rec_name ?? row.name ?? row.code ?? row.id ?? "");
+                    return name === label || String(row.id) === label;
+                  },
+                );
+                if (!hit) return;
+                const id = Number(hit.id);
+                if (!Number.isFinite(id)) return;
+                selectId(id);
+                void openKeywordAction("graph_open", id, "graph_open").then((opened) => {
+                  if (!opened) props.onHistory?.("graph:select");
+                });
+              }}
             />
           ) : viewMode === "list-form" ? (
             <ListFormView
@@ -1278,15 +1417,19 @@ export function ModelWorkspace(props: {
               onOpen={(id) => {
                 selectId(id);
                 setMode("read");
-                props.onHistory?.("open");
+                void openKeywordAction("tree_open", id, "tree_open").then((opened) => {
+                  if (!opened) props.onHistory?.("open");
+                });
               }}
               onSortChange={(next) => {
                 setOffset(0);
                 setSorts(next);
               }}
               onToggleSelect={(id) => {
-                setSelectedIds((prev) =>
-                  prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                setMultiSelect(
+                  selectedIds.includes(id)
+                    ? selectedIds.filter((x) => x !== id)
+                    : [...selectedIds, id],
                 );
               }}
               onSelect={(id) => {
@@ -1297,9 +1440,15 @@ export function ModelWorkspace(props: {
             />
           )}
         </StateBlock>
-        {calendarViewQuery.data ? (
+        {calendarSpec ? (
           <p className="text-sm text-[var(--epiton-muted)]" role="status">
-            Server calendar arch available
+            Calendar · {calendarSpec.dtstart}
+            {calendarSpec.dtend ? ` → ${calendarSpec.dtend}` : ""}
+            {calendarSpec.color ? ` · color ${calendarSpec.color}` : ""}
+          </p>
+        ) : calendarViewQuery.data ? (
+          <p className="text-sm text-[var(--epiton-muted)]" role="status">
+            Calendar arch loaded (using default date fields)
           </p>
         ) : null}
       </Panel>
@@ -1357,7 +1506,7 @@ export function ModelWorkspace(props: {
               model: props.model,
               widgets,
               onChange: handleFieldChange,
-              onButton: (name) => void runButton(name),
+              onButton: (name, meta) => void runButton(name, meta),
               onOpenRelation: (field, value, domain) => {
                 setRelationField(field);
                 setRelationDomain(domain);

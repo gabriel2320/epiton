@@ -14,7 +14,7 @@ export interface RenderContext {
   model?: string;
   widgets?: WidgetRegistry;
   onChange?: (name: string, value: unknown) => void;
-  onButton?: (name: string) => void;
+  onButton?: (name: string, meta?: { type?: string }) => void;
   onOpenRelation?: (field: ViewField, value: unknown, domain?: unknown[]) => void;
   onBinaryDownload?: (field: ViewField, value: unknown) => void;
   renderField?: (field: ViewField, value: unknown) => ReactNode;
@@ -483,6 +483,7 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
 
   if (node.tag === "button") {
     const name = node.attrs.name ?? "";
+    const buttonType = node.attrs.type;
     const states = resolveStatesAttr(node.attrs.states, ctx.values);
     if (states.invisible) return null;
     return createElement(
@@ -496,7 +497,7 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
           if (node.attrs.confirm && typeof globalThis.confirm === "function") {
             if (!globalThis.confirm(node.attrs.confirm)) return;
           }
-          ctx.onButton?.(name);
+          ctx.onButton?.(name, { type: buttonType });
         },
       },
       node.attrs.string ?? name,
@@ -542,7 +543,7 @@ export function renderView(view: ParsedView, ctx: RenderContext): ReactNode {
                   if (b.confirm && typeof globalThis.confirm === "function") {
                     if (!globalThis.confirm(b.confirm)) return;
                   }
-                  ctx.onButton?.(b.name);
+                  ctx.onButton?.(b.name, { type: b.type });
                 },
               },
               b.string ?? b.name,

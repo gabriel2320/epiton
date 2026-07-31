@@ -9,21 +9,21 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 |------|-----------------|---------------|-------|
 | JSON-RPC 1.0 | `/{db}/` (Tryton 7 docker) and `/{db}/rpc/` | Implemented (`@epiton/protocol`, auto-fallback) | |
 | Session auth | `Authorization: Session` base64(login:uid:token) | Implemented | Web: memory only; Tauri/Capacitor: OS store via bridge |
-| Login | `common.db.login` | Implemented | Password params dict |
+| Login | `common.db.login` (+ `common.db.list`) | Improved | Password params; DB datalist when list exposed |
 | Logout | `common.db.logout` | Implemented | |
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
 | Views | `fields_view_get` arch XML | Implemented | form/tree + list-form/calendar/graph/board hosts |
-| Calendar | calendar arch + date fields | Implemented | FullCalendar over `search_read` |
+| Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back |
+| Attachments | `ir.attachment` | Improved | Data upload/download + link type + DnD |
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
 | Editable tree | `editable` arch / inline write | Improved | Cell editors → `model.write`; toolbar Inline edit toggle |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
-| Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
-| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + `validate` required fields |
+| Buttons | view `button` + confirm | Improved | Method RPC or `type=action` → resolveAction |
+| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + active_ids |
 | Reports | `report.*.execute` | Improved | pdf/odt/csv/xls/html + pdfjs page/zoom; analytics companion |
-| Attachments | `ir.attachment` | Improved | List + upload + download + delete + drag-and-drop |
 | O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
-| PYSON states | `invisible`/`readonly`/`required` | Implemented | JSON `__class__` + string Eval/Not/And/Or/If/Get/In/Date |
+| PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
 | on_change | `on_change_*` / `on_change_with` | Implemented | Debounced in `ModelWorkspace` |
 | Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
@@ -33,7 +33,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
-| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy fetch + soft tree_state + sequence DnD |
+| Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
 | Shell hosts | Tauri / Capacitor | Improved | Secure session hydrate/persist + title/safe-area |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
 | Email compose | mailto / form_action keywords | Improved | Prefer mail keywords; mailto fallback |
@@ -45,7 +45,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |
 | Copy | `model.*.copy` | Implemented | Selected ids → new records |
-| Keywords | `ir.action.keyword.get_keyword` | Implemented | Relate / Print / Action menus |
+| Keywords | `ir.action.keyword.get_keyword` | Improved | Relate/Print/Action + tree_open/graph_open |
 | URL actions | `ir.action.url` | Implemented | Opens external URL (blocks `javascript:`) |
 | Domain tabs | `ir.action.act_window.domain` | Implemented | All + named tabs; `count` → `search_count` badges |
 | Page size | client limit | Implemented | 40/80/120/200 selector |

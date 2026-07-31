@@ -61,7 +61,7 @@ export interface ParsedView {
   type: ViewType;
   arch: ViewNode;
   fields: Record<string, ViewField>;
-  buttons: Array<{ name: string; string?: string; confirm?: string }>;
+  buttons: Array<{ name: string; string?: string; confirm?: string; type?: string }>;
   /** Tryton fields_view_get field_childs (One2Many of children). */
   fieldChilds?: string | null;
 }
@@ -213,6 +213,7 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
         name: node.attrs.name ?? "",
         string: node.attrs.string,
         confirm: node.attrs.confirm,
+        type: node.attrs.type,
       });
     }
     if (node.tag === "field" && node.attrs.name) {

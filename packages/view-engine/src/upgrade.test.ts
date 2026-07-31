@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { rowsToCalendarEvents } from "./calendar";
+import { parseCalendarArch, rowsToCalendarEvents } from "./calendar";
 import { formatTrytonDate } from "./dates";
 import { inferGraphFields, rowsToGraphData } from "./graph";
+import { parseXml } from "./parse";
 import { evalPyson, resolveStatesAttr } from "./pyson";
 
 describe("pyson subset", () => {
@@ -28,6 +29,19 @@ describe("calendar/graph helpers", () => {
     ]);
     expect(events[0]?.title).toBe("Visit");
     expect(events[0]?.start).toContain("2026-07-01");
+  });
+
+  it("parses calendar arch fields", () => {
+    const root = parseXml(
+      `<calendar dtstart="appointment_date" dtend="end_date" color="employee"><field name="name"/></calendar>`,
+    );
+    expect(parseCalendarArch(root)).toEqual({
+      dtstart: "appointment_date",
+      dtend: "end_date",
+      color: "employee",
+      titleField: "name",
+      mode: undefined,
+    });
   });
 
   it("infers graph fields and limits rows", () => {

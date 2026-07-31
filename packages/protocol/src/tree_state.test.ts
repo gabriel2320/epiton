@@ -1,12 +1,33 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadTreeState, saveTreeState } from "./tree_state";
+import { loadTreeState, saveTreeState, serializeTreeDomain } from "./tree_state";
 
 describe("tree_state", () => {
-  it("parses nodes JSON from search_read", async () => {
+  it("serializes domain stably", () => {
+    expect(serializeTreeDomain([])).toBe("[]");
+    expect(serializeTreeDomain([["active", "=", true]])).toBe('[["active","=",true]]');
+  });
+
+  it("parses nodes JSON from search_read with domain key", async () => {
     const client = {
       searchRead: vi.fn().mockResolvedValue([{ id: 1, nodes: "[1,2,3]" }]),
     };
-    await expect(loadTreeState(client as never, "account.account", 1)).resolves.toEqual([1, 2, 3]);
+    const domain = [["active", "=", true]];
+    await expect(loadTreeState(client as never, "account.account", 1, {}, domain)).resolves.toEqual(
+      [1, 2, 3],
+    );
+    expect(client.searchRead).toHaveBeenCalledWith(
+      "ir.ui.view_tree_state",
+      [
+        ["model", "=", "account.account"],
+        ["user", "=", 1],
+        ["domain", "=", serializeTreeDomain(domain)],
+      ],
+      ["nodes", "childs", "model", "domain"],
+      0,
+      1,
+      null,
+      {},
+    );
   });
 
   it("soft-fails when model missing", async () => {
@@ -16,16 +37,28 @@ describe("tree_state", () => {
     await expect(loadTreeState(client as never, "x", 1)).resolves.toEqual([]);
   });
 
-  it("creates when no existing row", async () => {
+  it("creates when no existing row including domain", async () => {
     const client = {
       searchRead: vi.fn().mockResolvedValue([]),
       model: vi.fn().mockResolvedValue([9]),
     };
-    await expect(saveTreeState(client as never, "party.party", 2, [4, 5])).resolves.toBe(true);
+    const domain = [["company", "=", 1]];
+    await expect(
+      saveTreeState(client as never, "party.party", 2, [4, 5], {}, domain),
+    ).resolves.toBe(true);
     expect(client.model).toHaveBeenCalledWith(
       "ir.ui.view_tree_state",
       "create",
-      [[{ model: "party.party", user: 2, nodes: "[4,5]" }]],
+      [
+        [
+          {
+            model: "party.party",
+            user: 2,
+            domain: serializeTreeDomain(domain),
+            nodes: "[4,5]",
+          },
+        ],
+      ],
       {},
     );
   });

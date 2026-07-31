@@ -118,4 +118,23 @@ describe("pyson JSON __class__", () => {
     );
     expect(domain).toEqual([["party", "=", 42]]);
   });
+
+  it("evaluates Add / Sub / Mul / Div / Id", () => {
+    expect(
+      evalPysonNode(
+        {
+          __class__: "Add",
+          s1: { __class__: "Eval", v: "qty" },
+          s2: 3,
+        },
+        { qty: 2 },
+      ),
+    ).toBe(5);
+    expect(evalPysonNode({ __class__: "Sub", s1: 10, s2: 4 }, {})).toBe(6);
+    expect(evalPysonNode({ __class__: "Mul", s1: 3, s2: 4 }, {})).toBe(12);
+    expect(evalPysonNode({ __class__: "Div", s1: 10, s2: 4 }, {})).toBe(2.5);
+    expect(evalPysonNode({ __class__: "Div", s1: 10, s2: 0 }, {})).toBeNull();
+    expect(evalPysonNode({ __class__: "Id", d: 42 }, {})).toBe(42);
+    expect(evalPysonNode({ __class__: "Id", module: "party", xml_id: "x" }, {})).toBeNull();
+  });
 });

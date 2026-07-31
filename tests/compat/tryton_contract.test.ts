@@ -1,9 +1,11 @@
-import { openActionUrl, sessionAuthorization } from "@epiton/protocol";
+import { openActionUrl, serializeTreeDomain, sessionAuthorization } from "@epiton/protocol";
 import {
   aggregateGraphData,
   applyBoardOrder,
   evalPyson,
+  evalPysonNode,
   parseBoardLayout,
+  parseCalendarArch,
   parseGraphArch,
   parseXml,
   summarizeSeries,
@@ -47,6 +49,25 @@ describe("tryton contract shapes (offline)", () => {
     expect(
       evalPyson(JSON.stringify({ __class__: "Eval", v: "active", d: false }), { active: true }),
     ).toBe(true);
+  });
+
+  it("serializes tree_state domain keys and arithmetic PYSON", () => {
+    expect(serializeTreeDomain([["active", "=", true]])).toBe('[["active","=",true]]');
+    expect(evalPysonNode({ __class__: "Add", s1: 2, s2: 3 }, {})).toBe(5);
+  });
+
+  it("parses calendar arch like Tryton XML", () => {
+    const spec = parseCalendarArch(
+      parseXml(
+        `<calendar dtstart="start" dtend="end" color="user"><field name="name"/></calendar>`,
+      ),
+    );
+    expect(spec).toMatchObject({
+      dtstart: "start",
+      dtend: "end",
+      color: "user",
+      titleField: "name",
+    });
   });
 
   it("parses board and graph arch like Tryton XML", () => {

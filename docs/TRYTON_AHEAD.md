@@ -19,10 +19,11 @@ Shared truth ──► trytond JSON-RPC
 Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
-2. Richer `tree_state` domain keys beyond model/user
-3. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
+2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
+3. Nested O2M/M2M as full Sao screens (command-queue lite remains)
 
-Recently improved (2026-07-31): native secure session hydrate, email keyword→wizard,
+Recently improved (2026-07-31): `tree_state` domain keys, print ids require selection,
+`tree_open`/`graph_open` keywords, native secure session hydrate, email keyword→wizard,
 sequence DnD, notebook memory, graph→filter, shell title/safe-area, lazy tree,
 pdfjs, mailto, hierarchy, favorites, `_actions`, form-in-pane, view_search, i18n,
 CSV map, attachments, history, editable tree, notebook, wizard, bus.
@@ -34,12 +35,12 @@ CSV map, attachments, history, editable tree, notebook, wizard, bus.
 | **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | **Improved:** tree/graph/form + multi-y graphs | Small | `BoardPane.tsx`, `RecordFormPane.tsx` |
 | **`_actions` cross-filter** | Click graph/list selection filters sibling panes | **Improved:** `_actions` dict + `active_id`; relation heuristics as fallback | Small | `BoardWorkspace` / `BoardPane` |
 | **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** arch + Inline edit toggle; cell → `write` | Small–Medium | `VirtualPartyTable.tsx`, `treeEditable` |
-| **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy fetch + tree_state + sequence DnD | Small | `tree_hierarchy.ts`, VirtualPartyTable |
+| **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy fetch + tree_state(+domain) + sequence DnD | Small | `tree_hierarchy.ts`, `tree_state.ts` |
 | **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + sessionStorage page memory | Small | `render.tsx` `NotebookHost` |
 | **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
 | **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** `ir.ui.menu.favorite` + star toggle; preset fallback | Small | `Shell.tsx`, `MenuTree.tsx` |
 | **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** login/prefs → `loadTranslationCatalog` + `setCatalog` | Small–Medium | `translations.ts`, `applyClientLanguage` |
-| **Reports** | Broader formats + print pipeline | **Improved:** pdf/odt/csv/xls/html; pdfjs page/zoom preview | Small–Medium | `ReportDownload.tsx`, `PdfPreview.tsx` |
+| **Reports** | Broader formats + print pipeline | **Improved:** pdf/odt/csv/xls/html; pdfjs; no default id `1` | Small–Medium | `ReportDownload.tsx`, `PdfPreview.tsx` |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state `execute` before delete; `validate` required fields | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
 | **Mobile / desktop shells** | GTK native; mature Sao desktop habits | **Improved:** secure session hydrate/persist + title/safe-area; thin hosts | Small–Medium | `secureSessionBridge.ts` |
@@ -54,6 +55,7 @@ CSV map, attachments, history, editable tree, notebook, wizard, bus.
 | CSV column mapping UI | Map headers → fields before import | **Improved:** mapping dialog before `import_data` | Small |
 | Revision / history browser | Browse `__history__` / revisions | **Improved:** History button → read-only `__history__` peek | Small–Medium |
 | Board multi-y series | Multi-series in dashboard graphs | **Improved:** board pane uses `rowsToMultiSeries` | Small |
+| `tree_open` / `graph_open` | Keyword actions on open/select | **Improved:** double-click tree + graph select | Small |
 | GTK-only plugins | Native print, desktop hooks | Out of scope by design (webview) | Large (intentional) |
 
 ## Where Epitón is already comparable or ahead
@@ -75,7 +77,11 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 2. ~~Editable tree / notebook memory / wizard / bus / view_search / i18n / CSV / DnD / history~~
 3. ~~Hierarchical tree / lazy / tree_state / sequence DnD / favorites / pdfjs / email~~
 4. ~~Shell title + safe-area + secure session hydrate~~
-5. Richer `tree_state` domains; GTK-only plugins remain out of scope
+5. ~~Richer `tree_state` domains; print ids; tree/graph_open~~
+6. ~~Wizard on_change + calendar arch/write + board wizard/report open UX~~
+7. ~~Form button action routing + attachment links + PYSON ops + `common.db.list`~~
+8. GTK-only plugins remain out of scope; nested O2M/M2M full Sao screens remain Medium polish
+9. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 

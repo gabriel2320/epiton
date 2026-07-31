@@ -89,12 +89,16 @@ export async function getRecordKeywords(
   relate: KeywordAction[];
   print: KeywordAction[];
   action: KeywordAction[];
+  treeOpen: KeywordAction[];
+  graphOpen: KeywordAction[];
 }> {
   const id = recordId ?? -1;
-  const [relate, print, action] = await Promise.all([
+  const [relate, print, action, treeOpen, graphOpen] = await Promise.all([
     getKeywords(client, "form_relate", model, id, context),
     getKeywords(client, "form_print", model, id, context),
     getKeywords(client, "form_action", model, id, context),
+    getKeywords(client, "tree_open", model, id, context),
+    getKeywords(client, "graph_open", model, id, context),
   ]);
-  return { relate, print, action };
+  return { relate, print, action, treeOpen, graphOpen };
 }

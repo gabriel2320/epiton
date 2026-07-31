@@ -1,5 +1,6 @@
 import {
   type JsonObject,
+  applyFieldChange,
   wizardCreate,
   wizardDataForState,
   wizardDelete,
@@ -50,6 +51,9 @@ export function WizardStepper(props: {
   const [message, setMessage] = useState("Pick a wizard and start");
   const onActionsRef = useRef(props.onActions);
   onActionsRef.current = props.onActions;
+  const runtimeRef = useRef<WizardRuntime | null>(null);
+  runtimeRef.current = runtime;
+  const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function buildContext(): JsonObject {
     const ctx: JsonObject = {};
@@ -59,6 +63,43 @@ export function WizardStepper(props: {
     if (props.activeModel) ctx.active_model = props.activeModel;
     if (props.actionId != null) ctx.action_id = props.actionId;
     return ctx;
+  }
+
+  function handleFieldChange(name: string, value: unknown) {
+    setRuntime((r) => (r ? { ...r, values: { ...r.values, [name]: value } } : r));
+    if (!client) return;
+    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    onChangeTimer.current = setTimeout(() => {
+      void (async () => {
+        const current = runtimeRef.current;
+        if (!client || !current?.view) return;
+        const fieldsMeta: Record<
+          string,
+          { name: string; on_change?: string[]; on_change_with?: string[] }
+        > = {};
+        for (const [fname, field] of Object.entries(current.view.fields)) {
+          fieldsMeta[fname] = {
+            name: fname,
+            on_change: field.on_change,
+            on_change_with: field.on_change_with,
+          };
+        }
+        try {
+          const patch = await applyFieldChange(
+            client,
+            current.name,
+            fieldsMeta,
+            { ...current.values, [name]: value },
+            name,
+            current.context,
+          );
+          if (!Object.keys(patch).length) return;
+          setRuntime((r) => (r ? { ...r, values: { ...r.values, ...patch } } : r));
+        } catch {
+          /* soft-fail */
+        }
+      })();
+    }, 250);
   }
 
   async function start(name = wizardName) {
@@ -252,6 +293,12 @@ export function WizardStepper(props: {
     client,
   ]);
 
+  useEffect(() => {
+    return () => {
+      if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    };
+  }, []);
+
   return (
     <Panel title="Wizard">
       <div className="epiton-toolbar">
@@ -283,8 +330,7 @@ export function WizardStepper(props: {
               values: runtime.values,
               mode: "write",
               density,
-              onChange: (name, value) =>
-                setRuntime((r) => (r ? { ...r, values: { ...r.values, [name]: value } } : r)),
+              onChange: (name, value) => handleFieldChange(name, value),
             })
           : null}
         {runtime?.buttons.length ? (

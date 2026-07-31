@@ -80,10 +80,24 @@ Apps: `web`, `desktop` (Tauri), `mobile` (Capacitor), `gateway` (Rust).
 
 ## Recommended next batches (human priority)
 
-1. Live lab smoke for board DnD + domain-tab counts against trytond 7.
-2. Richer `ir.ui.view_tree_state` domain keys if product needs Sao fidelity.
-3. Formalize `@epiton/ui` Dialog recipe; retire duplicated Radix wrappers gradually.
-4. Keep GNU Health as probe/matrix only until a dedicated trytond+GH lab exists.
+1. Live lab smoke: board Open wizard/report, calendar create/drag, print without selection blocked, email keyword hit (`pnpm compat:live` + manual UI).
+2. Formalize `@epiton/ui` Dialog recipe; retire duplicated Radix wrappers gradually.
+3. Keep GNU Health as probe/matrix only until a dedicated trytond+GH lab exists.
+4. REST Bearer remains **Not probed** (A-04) — prefer Session + gateway; do not claim REST parity.
+5. Do not market Epitón as PHI/HIS-ready (A-01).
+
+## Lab smoke checklist (manual / Playwright)
+
+When trytond lab is up:
+
+1. Login → database datalist populates if `common.db.list` works.
+2. Hierarchical model: expand nodes under two different act_window domains; confirms separate `ir.ui.view_tree_state` rows.
+3. Open Reports drawer with no selection → notice; ids field empty (not `1`).
+4. Board pane with wizard/report action → **Open wizard/report** runs shell path.
+5. Calendar view: click date creates (soft-fail OK); drag moves when model allows write.
+6. Form button `type="action"` opens resolveAction path; method buttons still call `model.method`.
+7. Attachments: Add link + Open; upload data still works.
+8. REST / PHI: no claims — Session only; A-01 still open.
 
 ## Evidence anchors
 

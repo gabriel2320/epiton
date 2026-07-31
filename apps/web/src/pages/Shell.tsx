@@ -129,6 +129,7 @@ export function Shell() {
   const [reportOpen, setReportOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   function updateActiveTab(mutator: (tab: WorkspaceTab) => WorkspaceTab) {
     setTabState((prev) => ({
@@ -376,6 +377,13 @@ export function Shell() {
       return;
     }
     if (resolved.kind === "report") {
+      if (selectedId == null && selectedIds.length === 0) {
+        setWorkspaceNotice("Select a record before running a report");
+        setActiveReport(resolved.report);
+        setReportOpen(true);
+        setHistory((h) => [...h, { model: resolved.report, action: `report:${source}:no-id` }]);
+        return;
+      }
       setActiveReport(resolved.report);
       setReportOpen(true);
       setHistory((h) => [...h, { model: resolved.report, action: `report:${source}` }]);
@@ -505,13 +513,16 @@ export function Shell() {
                   actionId={wizardActionId}
                   activeModel={active}
                   activeId={selectedId}
+                  activeIds={
+                    selectedIds.length ? selectedIds : selectedId != null ? [selectedId] : undefined
+                  }
                   autoStart={Boolean(activeWizard)}
                   onActions={(actions) => {
                     const refs = wizardActionRefs(actions);
                     for (const ref of refs) void openWorkspace(ref, "wizard-action");
                     if (refs.length) setWizardOpen(false);
                   }}
-                />
+                />{" "}
               </Suspense>
             </ToolDrawer>
             <ToolDrawer
@@ -523,8 +534,9 @@ export function Shell() {
               <Suspense fallback={<p role="status">Loading reports…</p>}>
                 <ReportDownload
                   initialReport={activeReport}
-                  initialIds={selectedId != null ? String(selectedId) : "1"}
-                />
+                  initialIds={selectedId != null ? String(selectedId) : ""}
+                  initialModel={active}
+                />{" "}
               </Suspense>
             </ToolDrawer>
             <ToolDrawer
@@ -637,7 +649,11 @@ export function Shell() {
               actionViews={topFrame?.views}
               actionDomains={topFrame?.domains}
               useClinicalWidgets={preset === "clinical"}
-              onSelectedIdChange={setSelectedId}
+              onSelectedIdChange={(id) => {
+                setSelectedId(id);
+                if (id == null) setSelectedIds([]);
+              }}
+              onSelectedIdsChange={setSelectedIds}
               onPushRelated={(model, id) => {
                 pushFrame(model, id);
                 setHistory((h) => [...h, { model, action: "stack:push" }]);

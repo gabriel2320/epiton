@@ -35,7 +35,7 @@ Epitón aims for **wire + UX parity**, not a GPL reimplementation.
 | Graph arch on party | Often module-specific | Host ready | Lab: no party graph view |
 | Board views | Dashboard modules | Host ready | Lab: no board views installed |
 | Unauth `common.server.version` | Varies | Soft probe | Lab returns empty/401 pre-login |
-| Full embedded Sao board screens | Yes | Partial (analytics panes) | Product gap A-02 |
+| Full embedded Sao board screens | Yes | Improved (tree/graph/form + `_actions`) | BoardWorkspace / BoardPane |
 | `_actions` cross-filter | Yes | Improved (`_actions` + heuristics) | BoardWorkspace |
 | REST Bearer | Optional apps | Not probed | Prefer Session + gateway |
 
@@ -92,17 +92,19 @@ PYSON + O2M/M2M + board/graph parse).
 
 See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 
-1. Deeper embedded board act_window hosts (tree inside pane).
+1. ~~Deeper embedded board act_window hosts (tree inside pane).~~
 2. ~~Graph/`_actions` cross-filtering between board panes.~~
-3. Editable tree (`editable` arch).
-4. Hierarchical trees, saved searches, notebook tabs, translation wiring.
-5. Wizard final-execute/validate; bus → open/invalidate; richer reports.
+3. ~~Editable tree (`editable` arch).~~
+4. ~~Hierarchical trees, saved searches, notebook tabs, translation wiring.~~
+5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
 6. Probe Tryton 8 lab (`pnpm lab:up:8`) in the same `compat:live` flow.
 7. GNU Health models — only when a GH trytond is attached (`pnpm gh:check`).
+8. Richer calendar write-back / wizard on_change depth / PYSON arithmetic (in progress on ahead list).
 
 ## Conclusion
 
 Against Tryton 7 lab RPC, Epitón’s Session client and core model/action paths
 are **compatible and verified**. Missing board/graph *data* in the stock lab
-does not block hosts already implemented in the UI. Treat Sao feature depth
-gaps as product backlog, not protocol breakage.
+does not block hosts already implemented in the UI. Treat remaining Sao feature
+depth as product backlog, not protocol breakage. REST Bearer stays **Not probed**.
+Do not claim PHI/HIS readiness.

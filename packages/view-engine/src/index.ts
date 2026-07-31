@@ -45,8 +45,10 @@ export {
   patientBadgeWidget,
 } from "./clinical_widgets";
 export {
+  parseCalendarArch,
   rowsToCalendarEvents,
   type CalendarEventRow,
+  type CalendarSpec,
 } from "./calendar";
 export {
   GRAPH_ROW_LIMIT,

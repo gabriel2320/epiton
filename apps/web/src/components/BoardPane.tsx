@@ -360,9 +360,12 @@ export function BoardPane(props: {
             )}
           </>
         ) : resolved?.kind === "report" || resolved?.kind === "wizard" ? (
-          <p className="epiton-board-pane-empty" role="status">
-            {resolved.kind} action — open to run on Tryton
-          </p>
+          <div className="epiton-board-pane-empty" role="status">
+            <p>{resolved.kind === "wizard" ? "Wizard" : "Report"} pane — run on Tryton</p>
+            <Button variant="primary" onClick={openAction}>
+              Open {resolved.kind}
+            </Button>
+          </div>
         ) : null}
       </StateBlock>
     </Panel>

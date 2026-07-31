@@ -38,6 +38,7 @@ export { importModelCsv, parseCsv } from "./import_csv";
 export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
 export { resolveBoardAction } from "./board";
 export { copyRecords } from "./copy";
+export { listDatabases } from "./databases";
 export {
   getKeywords,
   getRecordKeywords,
@@ -51,7 +52,7 @@ export {
   type ViewSearchRow,
 } from "./view_search";
 export { loadTranslationCatalog, type TranslationRow } from "./translations";
-export { loadTreeState, saveTreeState } from "./tree_state";
+export { loadTreeState, saveTreeState, serializeTreeDomain } from "./tree_state";
 
 export type JsonRpcId = string | number | null;
 

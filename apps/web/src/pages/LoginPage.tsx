@@ -1,7 +1,13 @@
-import { buildSessionContext, createClient, loadUserPreferences } from "@epiton/protocol";
+import {
+  buildSessionContext,
+  createClient,
+  listDatabases,
+  loadUserPreferences,
+} from "@epiton/protocol";
 import { BrandMark, Button, Panel } from "@epiton/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { type LoginValues, loginSchema } from "../lib/schemas";
@@ -18,6 +24,7 @@ export function LoginPage() {
   const setError = useAppStore((s) => s.setError);
   const error = useAppStore((s) => s.error);
   const { t, i18n } = useTranslation();
+  const [databases, setDatabases] = useState<string[]>([]);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -28,6 +35,37 @@ export function LoginPage() {
       password: "",
     },
   });
+
+  const baseUrl = form.watch("baseUrl");
+  const database = form.watch("database");
+
+  useEffect(() => {
+    let cancelled = false;
+    const url = (baseUrl || "").trim();
+    if (!url) {
+      setDatabases([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const probe = createClient({
+            baseUrl: url,
+            database: database || "tryton",
+            correlationId: () => crypto.randomUUID(),
+          });
+          const list = await listDatabases(probe);
+          if (!cancelled) setDatabases(list);
+        } catch {
+          if (!cancelled) setDatabases([]);
+        }
+      })();
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [baseUrl, database]);
 
   async function onSubmit(values: LoginValues) {
     setError(null);
@@ -90,7 +128,14 @@ export function LoginPage() {
           </label>
           <label>
             {t("login.database")}
-            <input {...form.register("database")} />
+            <input {...form.register("database")} list="epiton-db-list" />
+            {databases.length ? (
+              <datalist id="epiton-db-list">
+                {databases.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            ) : null}
           </label>
           <label>
             {t("login.user")}

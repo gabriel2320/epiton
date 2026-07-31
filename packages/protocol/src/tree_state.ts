@@ -1,8 +1,18 @@
 /**
  * Soft-fail persistence for expanded tree nodes (Sao ir.ui.view_tree_state).
+ * Keys by model + user + domain (JSON) so distinct act_windows do not collide.
  */
 
 import type { EpitonClient, JsonObject } from "./index";
+
+/** Stable domain key matching Sao's Char `domain` on view_tree_state. */
+export function serializeTreeDomain(domain: unknown): string {
+  try {
+    return JSON.stringify(domain ?? []);
+  } catch {
+    return "[]";
+  }
+}
 
 function parseNodes(raw: unknown): number[] {
   if (Array.isArray(raw)) {
@@ -24,21 +34,28 @@ function parseNodes(raw: unknown): number[] {
   return [];
 }
 
-/** Load expanded node ids for a model. Soft-fails to []. */
+function domainClause(model: string, userId: number, domainKey: string): unknown[] {
+  return [
+    ["model", "=", model],
+    ["user", "=", userId],
+    ["domain", "=", domainKey],
+  ];
+}
+
+/** Load expanded node ids for a model+domain. Soft-fails to []. */
 export async function loadTreeState(
   client: EpitonClient,
   model: string,
   userId: number,
   context: JsonObject = {},
+  domain: unknown = [],
 ): Promise<number[]> {
+  const domainKey = serializeTreeDomain(domain);
   try {
     const rows = await client.searchRead(
       "ir.ui.view_tree_state",
-      [
-        ["model", "=", model],
-        ["user", "=", userId],
-      ],
-      ["nodes", "childs", "model"],
+      domainClause(model, userId, domainKey) as never[],
+      ["nodes", "childs", "model", "domain"],
       0,
       1,
       null,
@@ -54,22 +71,21 @@ export async function loadTreeState(
   }
 }
 
-/** Persist expanded ids. Soft-fails false. */
+/** Persist expanded ids for model+domain. Soft-fails false. */
 export async function saveTreeState(
   client: EpitonClient,
   model: string,
   userId: number,
   nodes: number[],
   context: JsonObject = {},
+  domain: unknown = [],
 ): Promise<boolean> {
   const payload = JSON.stringify(nodes);
+  const domainKey = serializeTreeDomain(domain);
   try {
     const existing = await client.searchRead(
       "ir.ui.view_tree_state",
-      [
-        ["model", "=", model],
-        ["user", "=", userId],
-      ],
+      domainClause(model, userId, domainKey) as never[],
       ["id"],
       0,
       1,
@@ -84,7 +100,7 @@ export async function saveTreeState(
     await client.model(
       "ir.ui.view_tree_state",
       "create",
-      [[{ model, user: userId, nodes: payload }]],
+      [[{ model, user: userId, domain: domainKey, nodes: payload }]],
       context,
     );
     return true;
