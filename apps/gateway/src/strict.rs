@@ -14,7 +14,13 @@ pub fn parse_model_method(rpc_method: &str) -> Option<(&str, &str)> {
 pub fn is_mutating_method(method: &str) -> bool {
     matches!(
         method,
-        "create" | "write" | "delete" | "copy" | "import_data" | "export_data_domain" | "workflow_trigger"
+        "create"
+            | "write"
+            | "delete"
+            | "copy"
+            | "import_data"
+            | "export_data_domain"
+            | "workflow_trigger"
     ) || method.starts_with("button_")
 }
 

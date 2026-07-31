@@ -10,8 +10,8 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { normalizeConnectionBaseUrl, runtimeConnectionPolicy } from "../lib/runtimeConfig";
 import { type LoginValues, loginSchema } from "../lib/schemas";
-import { saveSecureSession } from "../lib/secureSessionBridge";
 import { useAppStore } from "../lib/store";
 import { applyClientLanguage } from "../lib/translations";
 
@@ -25,6 +25,7 @@ export function LoginPage() {
   const error = useAppStore((s) => s.error);
   const { t, i18n } = useTranslation();
   const [databases, setDatabases] = useState<string[]>([]);
+  const runtimePolicy = runtimeConnectionPolicy();
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -70,7 +71,10 @@ export function LoginPage() {
   async function onSubmit(values: LoginValues) {
     setError(null);
     try {
-      const next = { baseUrl: values.baseUrl, database: values.database };
+      const next = {
+        baseUrl: normalizeConnectionBaseUrl(values.baseUrl),
+        database: values.database.trim(),
+      };
       setConnection(next);
       const client = createClient({
         ...next,
@@ -89,13 +93,6 @@ export function LoginPage() {
       await applyClientLanguage(client, lang);
       setClient(client);
       setSession({ login: session.login, userId: session.userId });
-      void saveSecureSession({
-        login: session.login,
-        userId: session.userId,
-        session: session.session,
-        baseUrl: next.baseUrl,
-        database: next.database,
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     }
@@ -124,7 +121,16 @@ export function LoginPage() {
         <Panel title={t("login.connect")}>
           <label>
             {t("login.server")}
-            <input {...form.register("baseUrl")} />
+            <input
+              {...form.register("baseUrl")}
+              readOnly={runtimePolicy.serverLocked}
+              aria-describedby={runtimePolicy.serverLocked ? "epiton-gateway-policy" : undefined}
+            />
+            {runtimePolicy.serverLocked ? (
+              <small id="epiton-gateway-policy">
+                Production traffic uses the same-origin gateway.
+              </small>
+            ) : null}
           </label>
           <label>
             {t("login.database")}

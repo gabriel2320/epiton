@@ -1,6 +1,7 @@
 import type { Density, WorkspacePreset } from "@epiton/intelligence";
 import type { EpitonClient, JsonObject, SessionPreferences } from "@epiton/protocol";
 import { create } from "zustand";
+import { normalizeConnectionBaseUrl, runtimeConnectionPolicy } from "./runtimeConfig";
 
 export type UiState = "loading" | "empty" | "error" | "data";
 
@@ -36,16 +37,35 @@ interface AppStore {
   setCommandOpen: (open: boolean) => void;
 }
 
-const saved =
-  typeof localStorage !== "undefined" ? localStorage.getItem("epiton.connection") : null;
+const runtimePolicy = runtimeConnectionPolicy();
+
+function loadConnection(): ConnectionConfig {
+  const fallback = { baseUrl: runtimePolicy.baseUrl, database: "epiton_lab" };
+  if (typeof localStorage === "undefined") return fallback;
+  try {
+    const saved = localStorage.getItem("epiton.connection");
+    if (!saved) return fallback;
+    const parsed = JSON.parse(saved) as Partial<ConnectionConfig>;
+    return {
+      baseUrl:
+        runtimePolicy.serverLocked || typeof parsed.baseUrl !== "string"
+          ? runtimePolicy.baseUrl
+          : normalizeConnectionBaseUrl(parsed.baseUrl),
+      database:
+        typeof parsed.database === "string" && parsed.database.trim()
+          ? parsed.database
+          : fallback.database,
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 export const useAppStore = create<AppStore>((set) => ({
   theme: "dark",
   density: "comfortable",
   preset: "general",
-  connection: saved
-    ? (JSON.parse(saved) as ConnectionConfig)
-    : { baseUrl: "http://localhost:8000", database: "epiton_lab" },
+  connection: loadConnection(),
   session: null,
   client: null,
   preferences: {},
@@ -56,8 +76,14 @@ export const useAppStore = create<AppStore>((set) => ({
   setDensity: (density) => set({ density }),
   setPreset: (preset) => set({ preset }),
   setConnection: (connection) => {
-    localStorage.setItem("epiton.connection", JSON.stringify(connection));
-    set({ connection });
+    const safeConnection = {
+      ...connection,
+      baseUrl: runtimePolicy.serverLocked ? runtimePolicy.baseUrl : connection.baseUrl,
+    };
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("epiton.connection", JSON.stringify(safeConnection));
+    }
+    set({ connection: safeConnection });
   },
   setSession: (session) => set({ session }),
   setClient: (client) => set({ client }),

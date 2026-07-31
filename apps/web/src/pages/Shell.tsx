@@ -431,7 +431,7 @@ export function Shell() {
     try {
       await client?.logout();
     } finally {
-      void clearSecureSession();
+      await clearSecureSession();
       setClient(null);
       setSession(null);
       useAppStore.getState().setPreferences({}, {});
@@ -503,7 +503,6 @@ export function Shell() {
               <option value="general">General</option>
               <option value="accounting">Accounting</option>
               <option value="warehouse">Warehouse</option>
-              <option value="clinical">Clinical (GH)</option>
             </select>
             <select value={density} onChange={(e) => setDensity(e.target.value as typeof density)}>
               <option value="comfortable">Comfortable</option>
@@ -677,7 +676,6 @@ export function Shell() {
               actionContext={topFrame?.context}
               actionViews={topFrame?.views}
               actionDomains={topFrame?.domains}
-              useClinicalWidgets={preset === "clinical"}
               onSelectedIdChange={(id) => {
                 setSelectedId(id);
                 if (id == null) setSelectedIds([]);

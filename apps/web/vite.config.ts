@@ -13,14 +13,12 @@ const isProd = process.env.NODE_ENV === "production" || process.env.EPITON_CSP =
  */
 function buildCsp(prod: boolean): string {
   const scriptSrc = prod ? "script-src 'self'" : "script-src 'self' 'unsafe-inline'";
-  const connectSrc = prod
-    ? "connect-src 'self' ws: wss:"
-    : "connect-src 'self' http: https: ws: wss:";
+  const connectSrc = prod ? "connect-src 'self'" : "connect-src 'self' http: https: ws: wss:";
   return [
     "default-src 'self'",
     scriptSrc,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
     "img-src 'self' data: blob:",
     connectSrc,
     "worker-src 'self' blob:",
