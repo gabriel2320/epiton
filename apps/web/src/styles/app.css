@@ -253,6 +253,12 @@
   margin-bottom: 0.75rem;
 }
 
+.epiton-board-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .epiton-board-hint {
   margin: 0;
   flex: 1;
@@ -296,9 +302,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+.epiton-board-pane-modes {
+  margin-bottom: 0.55rem;
 }
 
 .epiton-board-pane-empty {
@@ -309,6 +319,59 @@
 
 .epiton-board-pane-dragging {
   outline: 1px dashed var(--epiton-accent);
+}
+
+.epiton-board-tree {
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+  overflow: hidden;
+  max-height: 240px;
+  display: flex;
+  flex-direction: column;
+  background: var(--epiton-bg);
+}
+
+.epiton-board-tree-head,
+.epiton-board-tree-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr));
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+.epiton-board-tree-head {
+  background: color-mix(in srgb, var(--epiton-bg-elevated) 80%, transparent);
+  color: var(--epiton-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--epiton-border);
+}
+
+.epiton-board-tree-body {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+.epiton-board-tree-row {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--epiton-border) 70%, transparent);
+  background: transparent;
+  color: var(--epiton-fg);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.epiton-board-tree-row:hover {
+  background: color-mix(in srgb, var(--epiton-accent) 10%, transparent);
+}
+
+.epiton-board-tree-row[data-selected="true"] {
+  background: color-mix(in srgb, var(--epiton-accent) 18%, transparent);
 }
 
 .epiton-analytics-strip {

@@ -18,23 +18,24 @@ Shared truth ──► trytond JSON-RPC
 
 Tryton is still clearly ahead on:
 
-1. **Full board embedding** (real screens inside panes)
-2. **Board `_actions` cross-filtering**
-3. **Editable trees**
-4. **Hierarchical tree expand / group-by**
-5. **Saved searches & server favorites**
-6. **Notebook UX** (true tabs vs accordion)
-7. **Translation catalog wiring** for client chrome
-8. **Wizard edge cases** (final execute / validate)
-9. **Bus → open record / invalidate**
-10. **Native desktop/mobile depth** (GTK / device shells)
+1. **Full form-in-pane board embedding** (nested ModelWorkspace / write in pane)
+2. **Editable trees**
+3. **Hierarchical tree expand / group-by**
+4. **Saved searches & server favorites**
+5. **Notebook UX** (true tabs vs accordion)
+6. **Translation catalog wiring** for client chrome
+7. **Wizard edge cases** (final execute / validate)
+8. **Bus → open record / invalidate**
+9. **Native desktop/mobile depth** (GTK / device shells)
+
+Board tree embedding + selection cross-filter landed 2026-07-31 (still short of full Sao `_actions` XML).
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
 | Area | What Sao/GTK does | What Epitón does today | Gap | Evidence |
 |------|-------------------|-------------------------|-----|----------|
-| **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | Analytics preview (count + chart + Open); navigating leaves the board | Large | `BoardPane.tsx`, audit A-02 |
-| **`_actions` cross-filter** | Click graph/list selection filters sibling panes | Panes are isolated; no shared selection domain | Medium | `TRYTON_COMPARE.md`, audit A-03 |
+| **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | **Improved:** in-pane tree + graph modes over `search_read`; Open/double-click opens record. Still not a full nested `ModelWorkspace` (no form-in-pane edit yet) | Medium | `BoardPane.tsx`, `BoardTree.tsx` |
+| **`_actions` cross-filter** | Click graph/list selection filters sibling panes | **Improved:** selection sets `active_id`/`active_model` context + relation-name heuristics for siblings | Medium | `BoardWorkspace` selection state |
 | **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | Tree is read-only virtual table; edit only in form mode | Large | `VirtualPartyTable.tsx`, no `editable` in parse |
 
 ## P1 — Daily UX & deployment parity
@@ -79,12 +80,11 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 ## Recommended close order
 
-1. **Embed tree (or list-form) inside `BoardPane`** for `kind: "model"` actions — largest Sao delta.
-2. **Wire pane selection → sibling domains** (`_actions`-style) once embedding exists.
-3. **Editable tree** from arch `editable` + row `write`.
-4. **Notebook → real tabs**; **`ir.ui.view_search`** + optional server favorites.
-5. **Wizard final-execute/validate**; **bus → invalidateQueries / open id**.
-6. Wire **translation catalog** from preferences language for shell fallbacks.
+1. ~~Embed tree inside `BoardPane`~~ + selection cross-filter (done; deepen to form-in-pane next).
+2. **Editable tree** from arch `editable` + row `write`.
+3. **Notebook → real tabs**; **`ir.ui.view_search`** + optional server favorites.
+4. **Wizard final-execute/validate**; **bus → invalidateQueries / open id**.
+5. Wire **translation catalog** from preferences language for shell fallbacks.
 
 ## How to re-check
 

@@ -569,6 +569,13 @@ export function Shell() {
             key={`${active}:${activeTab?.id}:board`}
             model={active}
             onOpen={(ref) => void openWorkspace(ref, "board")}
+            onOpenRecord={(model, id) => {
+              setActiveWizard(null);
+              setWizardActionId(null);
+              setActiveReport(null);
+              replaceRoot(model, id, { label: `${model}#${id}` });
+              setHistory((h) => [...h, { model, action: "board:open-record" }]);
+            }}
           />
         ) : (
           <Suspense fallback={<p role="status">Loading workspace…</p>}>

@@ -8,7 +8,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
-import { BoardPane } from "./BoardPane";
+import { BoardPane, type BoardSelection } from "./BoardPane";
 
 function layoutStorageKey(model: string): string {
   return `epiton.board.order.${model}`;
@@ -33,18 +33,21 @@ function saveOrder(model: string, order: string[]) {
   }
 }
 
-/** Interactive Tryton board: embedded analytics panes + native HTML5 drag-and-drop. */
+/** Interactive Tryton board: embedded screens + native DnD + selection cross-filter. */
 export function BoardWorkspace(props: {
   model: string;
   onOpen: (actionOrModel: string) => void;
+  onOpenRecord?: (model: string, id: number) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
   const [order, setOrder] = useState<string[]>(() => loadOrder(props.model));
   const [dragId, setDragId] = useState<string | null>(null);
+  const [activeSelection, setActiveSelection] = useState<BoardSelection | null>(null);
 
   useEffect(() => {
     setOrder(loadOrder(props.model));
+    setActiveSelection(null);
   }, [props.model]);
 
   const boardQuery = useQuery({
@@ -118,18 +121,25 @@ export function BoardWorkspace(props: {
     <Panel title={`Board · ${props.model}`}>
       <div className="epiton-board-toolbar">
         <p className="epiton-board-hint" role="note">
-          Drag panes to rearrange. Charts use Tryton `search_read` / graph arch — trytond stays
-          authoritative.
+          Embedded tree/graph panes (Tryton `search_read`). Select a row to cross-filter siblings
+          via `active_id` / relation heuristics. Drag handles rearrange layout.
         </p>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setOrder([]);
-            saveOrder(props.model, []);
-          }}
-        >
-          Reset layout
-        </Button>
+        <div className="epiton-board-toolbar-actions">
+          {activeSelection ? (
+            <Button variant="ghost" onClick={() => setActiveSelection(null)}>
+              Clear filter ({activeSelection.model}#{activeSelection.id})
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setOrder([]);
+              saveOrder(props.model, []);
+            }}
+          >
+            Reset layout
+          </Button>
+        </div>
       </div>
       <StateBlock state={state} message={boardQuery.data?.error ?? "No board actions in arch"}>
         <ul
@@ -152,10 +162,14 @@ export function BoardWorkspace(props: {
                 ⋮⋮
               </div>
               <BoardPane
+                paneId={tile.id}
                 actionName={tile.name}
                 title={tile.string}
                 onOpen={props.onOpen}
+                onOpenRecord={props.onOpenRecord}
                 dragging={dragId === tile.id}
+                activeSelection={activeSelection}
+                onSelectRecord={setActiveSelection}
               />
             </li>
           ))}

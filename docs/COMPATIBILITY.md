@@ -29,7 +29,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | CSV export | `export_data` / `export_data_domain` | Implemented | Selected ids or current domain |
 | CSV import | `import_data` | Implemented | Header row + typed cells |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
-| Board | board arch + actions | Implemented | Embedded panes + native DnD layout; analytics via `search_read` |
+| Board | board arch + actions | Improved | Embedded tree/graph panes + DnD + `active_id` cross-filter |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |
 | act_window | domain/context/views | Implemented | Views by mode; domain/context eval with session prefs |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
