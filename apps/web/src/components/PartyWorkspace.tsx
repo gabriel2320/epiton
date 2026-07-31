@@ -4,6 +4,8 @@ import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
   type ViewField,
+  type WidgetRegistry,
+  clinicalWidgetRegistry,
   parseFieldsViewGet,
   renderView,
   treeColumns,
@@ -15,7 +17,10 @@ import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
-export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
+export function PartyWorkspace(props: {
+  onHistory: (action: string) => void;
+  useClinicalWidgets?: boolean;
+}) {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
@@ -24,6 +29,9 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
   const [draft, setDraft] = useState<RecordValues>({ name: "" });
   const [mode, setMode] = useState<"read" | "write">("read");
   const [relationField, setRelationField] = useState<ViewField | null>(null);
+  const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
+    ? clinicalWidgetRegistry()
+    : undefined;
 
   const listQuery = useQuery({
     queryKey: ["party.party", "list"],
@@ -209,6 +217,8 @@ export function PartyWorkspace(props: { onHistory: (action: string) => void }) {
               values: draft,
               mode,
               density,
+              model: "party.party",
+              widgets,
               onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
               onButton: (name) => props.onHistory(`button:${name}`),
               onOpenRelation: (field) => {

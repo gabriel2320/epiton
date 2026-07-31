@@ -16,7 +16,8 @@
     "lab:up": "docker compose -f docker/docker-compose.yml up -d --build",
     "lab:down": "docker compose -f docker/docker-compose.yml down",
     "lab:smoke": "bash docker/smoke-rpc.sh",
-    "lab:smoke:live": "pnpm --filter @epiton/protocol build && node scripts/lab-smoke.mjs"
+    "lab:smoke:live": "pnpm --filter @epiton/protocol build && node scripts/lab-smoke.mjs",
+    "gateway:smoke": "curl -fsS http://127.0.0.1:8080/healthz"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -31,6 +31,18 @@ export {
   toTrytonO2M,
   type O2MCommand,
 } from "./relations";
+export {
+  createWidgetRegistry,
+  resolveFieldWidget,
+  widgetKey,
+  type FieldWidget,
+  type WidgetRegistry,
+} from "./plugins";
+export {
+  appointmentChipWidget,
+  clinicalWidgetRegistry,
+  patientBadgeWidget,
+} from "./clinical_widgets";
 
 export interface WizardState {
   sessionId: string;

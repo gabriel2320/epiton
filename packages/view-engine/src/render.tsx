@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createElement } from "react";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
+import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
 
 export type RecordValues = Record<string, unknown>;
 
@@ -8,6 +9,8 @@ export interface RenderContext {
   values: RecordValues;
   mode: "read" | "write";
   density: "compact" | "comfortable";
+  model?: string;
+  widgets?: WidgetRegistry;
   onChange?: (name: string, value: unknown) => void;
   onButton?: (name: string) => void;
   onOpenRelation?: (field: ViewField, value: unknown) => void;
@@ -20,6 +23,8 @@ function fieldLabel(field: ViewField | undefined, fallback: string): string {
 
 function renderInput(field: ViewField, value: unknown, ctx: RenderContext): ReactNode {
   if (ctx.renderField) return ctx.renderField(field, value);
+  const plugin = resolveFieldWidget(ctx.widgets, field, ctx.model);
+  if (plugin) return plugin(field, value);
   const disabled = ctx.mode === "read" || field.readonly;
   const common = {
     id: `epiton-field-${field.name}`,

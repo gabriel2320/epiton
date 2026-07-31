@@ -14,7 +14,7 @@ apps/desktop/src-tauri/target/
 apps/gateway/target/
 apps/mobile/android/
 apps/mobile/ios/
+apps/mobile/www/
 *.local
 .idea/
 .vscode/
-test-results/

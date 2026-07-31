@@ -20,6 +20,18 @@ Epiton targets Tryton RPC compatibility first. GNU Health modules install on try
 - `gnuhealth.appointment`
 - `party.party`
 
+## Widget plugins
+
+Epiton view-engine exposes a registry (`clinicalWidgetRegistry`) for GH relations:
+
+| Key | Widget |
+|-----|--------|
+| `relation:gnuhealth.patient` | Patient badge |
+| `model:gnuhealth.patient.name` | Patient badge |
+| `relation:gnuhealth.appointment` | Appointment chip |
+
+Enable via workspace preset **Clinical (GH)** in the shell (`useClinicalWidgets`).
+
 ## Rules
 
 - No real PHI in fixtures or screenshots.

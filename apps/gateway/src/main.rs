@@ -1,3 +1,5 @@
+mod strict;
+
 use axum::{
     body::Bytes,
     extract::{Path, State},
@@ -8,6 +10,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -112,8 +115,32 @@ async fn proxy_rpc_inner(
 
     if state.strict_acl {
         if let Some(m) = rpc_method.as_deref() {
-            if m.starts_with("model.") && m.ends_with(".create") {
-                tracing::warn!(%correlation, %m, "strict mode notes create; enforce via trytond ACLs + future model-access probe");
+            if let Some((model, method_name)) = strict::parse_model_method(m) {
+                if strict::is_mutating_method(method_name) {
+                    let url = if use_rpc_suffix {
+                        format!("{}/{}/rpc/", state.upstream.trim_end_matches('/'), db)
+                    } else {
+                        format!("{}/{}/", state.upstream.trim_end_matches('/'), db)
+                    };
+                    match probe_model_access(&state, &url, &headers, model, &correlation).await {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            tracing::warn!(%correlation, %model, %method_name, "strict ACL deny");
+                            return (
+                                StatusCode::FORBIDDEN,
+                                format!(
+                                    "Epiton strict ACL: model {model} has no ir.model.access rows"
+                                ),
+                            )
+                                .into_response();
+                        }
+                        Err(err) => {
+                            tracing::error!(%correlation, error=%err, "strict ACL probe failed");
+                            return (StatusCode::BAD_GATEWAY, "strict ACL probe failed")
+                                .into_response();
+                        }
+                    }
+                }
             }
         }
     }
@@ -130,6 +157,32 @@ async fn proxy_rpc_inner(
             (StatusCode::BAD_GATEWAY, "upstream error").into_response()
         }
     }
+}
+
+async fn probe_model_access(
+    state: &AppState,
+    url: &str,
+    headers: &HeaderMap,
+    model: &str,
+    correlation: &str,
+) -> Result<bool, reqwest::Error> {
+    let body = json!({
+        "id": 1,
+        "method": "model.ir.model.access.search_read",
+        "params": [[["model.model", "=", model]], 0, 1, null, ["id"], {}]
+    });
+    let mut req = state.http.post(url).json(&body);
+    if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION) {
+        req = req.header(axum::http::header::AUTHORIZATION, auth.clone());
+    }
+    req = req.header("x-correlation-id", correlation);
+    let resp = req.send().await?;
+    let payload: Value = resp.json().await?;
+    if let Some(result) = payload.get("result") {
+        return Ok(strict::access_rows_present(result));
+    }
+    // If probe itself errors (auth, missing model), fail closed in strict mode.
+    Ok(false)
 }
 
 async fn proxy_bus(

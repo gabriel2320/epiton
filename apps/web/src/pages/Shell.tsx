@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AttachmentsPanel } from "../components/AttachmentsPanel";
 import { BusBanner } from "../components/BusBanner";
+import { CardsWorkspace } from "../components/CardsWorkspace";
 import { CommandPalette } from "../components/CommandPalette";
 import { PartyWorkspace } from "../components/PartyWorkspace";
 import { ReportDownload } from "../components/ReportDownload";
@@ -162,8 +163,23 @@ export function Shell() {
           <Button onClick={logout}>Logout</Button>
         </div>
 
-        {active === "party.party" || active.includes("party") ? (
+        {layout.layout === "cards" ? (
+          <CardsWorkspace
+            title="Records"
+            items={(menusQuery.data ?? []).slice(0, 20).map((m) => ({
+              id: m.id,
+              title: m.name,
+              subtitle: m.action ?? undefined,
+            }))}
+            menus={menusQuery.data ?? []}
+            onOpen={(id) => {
+              const hit = (menusQuery.data ?? []).find((m) => m.id === id);
+              if (hit?.action) setActive(String(hit.action));
+            }}
+          />
+        ) : active === "party.party" || active.includes("party") ? (
           <PartyWorkspace
+            useClinicalWidgets={preset === "clinical"}
             onHistory={(action) => setHistory((h) => [...h, { model: "party.party", action }])}
           />
         ) : (

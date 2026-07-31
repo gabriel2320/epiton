@@ -27,6 +27,15 @@
     }
   },
   "files": {
-    "ignore": ["**/dist/**", "**/node_modules/**", "**/target/**", "**/.turbo/**", "**/dev-dist/**"]
+    "ignore": [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/target/**",
+      "**/.turbo/**",
+      "**/dev-dist/**",
+      "**/www/**",
+      "**/test-results/**",
+      "**/playwright-report/**"
+    ]
   }
 }

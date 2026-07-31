@@ -1,7 +1,7 @@
 {
   "appId": "app.epiton.mobile",
   "appName": "Epiton",
-  "webDir": "../web/dist",
+  "webDir": "www",
   "server": {
     "androidScheme": "https"
   },

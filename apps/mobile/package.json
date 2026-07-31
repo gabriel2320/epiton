@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "build:web": "pnpm --filter @epiton/web build",
-    "sync": "pnpm build:web && npx cap sync",
+    "prepare:www": "rm -rf www && cp -R ../web/dist www",
+    "sync": "pnpm build:web && pnpm prepare:www && npx cap sync",
     "open:android": "npx cap open android",
     "open:ios": "npx cap open ios",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'mobile tests run via web package'",
-    "build": "echo 'Use pnpm sync to prepare native shells'"
+    "build": "pnpm prepare:www"
   },
   "dependencies": {
     "@capacitor/core": "^7.0.0",
