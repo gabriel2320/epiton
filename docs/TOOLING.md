@@ -17,7 +17,7 @@ or a parallel Python stack beside trytond.
 | **ReportLab** | PDF generation | **Reject (core)** | Same: server reports, not client PDF authors. |
 | **FastAPI** | HTTP API | **Reject (core)** | Gateway is already **Axum**. A second Python API would split auth/CSP/audit. |
 | **Tailwind** | Utility CSS | **Keep (already)** | Tailwind CSS **4** is in `@epiton/web` (`@tailwindcss/vite`). |
-| **shadcn/ui** | Component recipes | **Adopt selectively** | Already use Radix + CVA + `tailwind-merge` + `clsx`. Prefer porting recipes into `@epiton/ui` over wiring the shadcn CLI / dumping a `components/ui` tree. |
+| **shadcn/ui** | Component recipes | **Adopt selectively** | `@epiton/ui` now ships Input/Badge/Tabs/Separator/MetaStrip (Radix remains in web for dialog/command). Prefer recipes over CLI dump. |
 
 ## What to use instead
 

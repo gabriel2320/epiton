@@ -49,3 +49,105 @@ h2,
   font-weight: 600;
   letter-spacing: -0.02em;
 }
+
+.epiton-ui-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--epiton-border);
+  background: var(--epiton-bg-elevated);
+  color: var(--epiton-fg);
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+}
+
+.epiton-ui-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--epiton-border);
+  background: var(--epiton-bg-elevated);
+  color: var(--epiton-fg);
+}
+
+.epiton-ui-badge-accent {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--epiton-accent) 22%, transparent);
+  color: var(--epiton-fg);
+}
+
+.epiton-ui-badge-danger {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--epiton-danger) 18%, transparent);
+  color: var(--epiton-danger);
+}
+
+.epiton-ui-badge-muted {
+  color: var(--epiton-muted);
+}
+
+.epiton-ui-separator {
+  border: 0;
+  border-top: 1px solid var(--epiton-border);
+  margin: 0.75rem 0;
+}
+
+.epiton-ui-separator-vertical {
+  border-top: 0;
+  border-left: 1px solid var(--epiton-border);
+  width: 1px;
+  height: 1.25rem;
+  margin: 0 0.35rem;
+  display: inline-block;
+}
+
+.epiton-ui-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.epiton-ui-tab {
+  appearance: none;
+  border: 1px solid var(--epiton-border);
+  background: var(--epiton-bg);
+  color: var(--epiton-fg);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.epiton-ui-tab[data-active="true"],
+.epiton-ui-tab[aria-selected="true"] {
+  border-color: var(--epiton-accent);
+  background: color-mix(in srgb, var(--epiton-accent) 14%, var(--epiton-bg));
+}
+
+.epiton-ui-meta {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--epiton-border);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: var(--epiton-muted);
+}
+
+.epiton-ui-meta div {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.5rem;
+}
+
+.epiton-ui-meta dt {
+  margin: 0;
+  font-weight: 600;
+}
+
+.epiton-ui-meta dd {
+  margin: 0;
+}

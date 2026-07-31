@@ -10,7 +10,7 @@ import {
   modelHasAccessRows,
   viewIdForMode,
 } from "@epiton/protocol";
-import { Button, Panel, StateBlock } from "@epiton/ui";
+import { Badge, Button, MetaStrip, Panel, StateBlock, Tab, Tabs } from "@epiton/ui";
 import {
   type RecordValues,
   type ViewField,
@@ -359,7 +359,16 @@ export function ModelWorkspace(props: {
     enabled: Boolean(client && selectedId),
     queryFn: async () => {
       if (!client || !selectedId) return null;
-      const fieldNames = Object.keys(formViewQuery.data?.fields ?? { name: true });
+      const fieldNames = [
+        ...new Set([
+          ...Object.keys(formViewQuery.data?.fields ?? { name: true }),
+          "create_date",
+          "write_date",
+          "create_uid",
+          "write_uid",
+          "rec_name",
+        ]),
+      ];
       const result = await client.model(
         props.model,
         "read",
@@ -618,35 +627,29 @@ export function ModelWorkspace(props: {
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
       <Panel title={props.model}>
         {domainTabs.length ? (
-          <div className="epiton-domain-tabs" role="tablist" aria-label="Action domains">
-            <button
-              type="button"
-              role="tab"
-              data-active={domainTab < 0}
-              aria-selected={domainTab < 0}
+          <Tabs aria-label="Action domains" className="epiton-domain-tabs">
+            <Tab
+              active={domainTab < 0}
               onClick={() => {
                 setDomainTab(-1);
                 setOffset(0);
               }}
             >
               All
-            </button>
+            </Tab>
             {domainTabs.map((tab, index) => (
-              <button
+              <Tab
                 key={`${tab.name}-${index}`}
-                type="button"
-                role="tab"
-                data-active={domainTab === index}
-                aria-selected={domainTab === index}
+                active={domainTab === index}
                 onClick={() => {
                   setDomainTab(index);
                   setOffset(0);
                 }}
               >
                 {tab.name}
-              </button>
+              </Tab>
             ))}
-          </div>
+          </Tabs>
         ) : null}
         <div className="epiton-toolbar">
           <Button variant="primary" onClick={() => void startNew()}>
@@ -819,6 +822,7 @@ export function ModelWorkspace(props: {
         {notice ? <p role="status">{notice}</p> : null}
         <div className="epiton-toolbar">
           <Button onClick={() => setMode(mode === "read" ? "write" : "read")}>Mode: {mode}</Button>
+          <Badge tone={mode === "write" ? "accent" : "muted"}>{mode}</Badge>
           <Button
             variant="primary"
             disabled={saveMutation.isPending}
@@ -837,6 +841,7 @@ export function ModelWorkspace(props: {
             Copy
           </Button>
         </div>
+        <MetaStrip values={draft} />
         {props.onOpenAction ? (
           <RecordActionsMenu
             model={props.model}

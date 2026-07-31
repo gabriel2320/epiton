@@ -35,9 +35,10 @@
 | URL actions | `ir.action.url` | Implemented | Opens external URL (blocks `javascript:`) |
 | Domain tabs | `ir.action.act_window.domain` | Implemented | All + named domain tabs |
 | Page size | client limit | Implemented | 40/80/120/200 selector |
-| Shortcuts | Ctrl/Cmd+S, Esc | Implemented | Save in write mode; Esc → read |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Implemented | widget= arch override + read links |
-| Wizard actions | execute `actions` | Implemented | `wizardActionRefs` → openWorkspace |
+| Audit meta | create/write date+uid | Implemented | `MetaStrip` under form toolbar |
+| Shortcuts | Ctrl/Cmd+S Esc T W | Implemented | Save / read / new tab / close tab |
+| UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip |
 | Bus | `/{db}/bus` | Implemented | Long-poll + notification panel |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |

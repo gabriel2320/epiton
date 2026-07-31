@@ -9,7 +9,7 @@ import { type JsonValue, openActionUrl, resolveAction, wizardActionRefs } from "
 import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { BoardWorkspace } from "../components/BoardWorkspace";
 import { BusBanner } from "../components/BusBanner";
 import { CardsWorkspace } from "../components/CardsWorkspace";
@@ -275,6 +275,32 @@ export function Shell() {
       return { tabs: nextTabs, activeTabId: nextActive };
     });
   }
+
+  const openNewTabRef = useRef(openNewTab);
+  openNewTabRef.current = openNewTab;
+  const closeTabRef = useRef(closeTab);
+  closeTabRef.current = closeTab;
+  const activeTabIdRef = useRef(activeTab?.id);
+  activeTabIdRef.current = activeTab?.id;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "t") {
+        e.preventDefault();
+        openNewTabRef.current();
+        return;
+      }
+      if (key === "w") {
+        e.preventDefault();
+        const id = activeTabIdRef.current;
+        if (id) closeTabRef.current(id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function openWorkspace(actionOrModel: string, source: string, asNewTab = false) {
     if (!client) {
