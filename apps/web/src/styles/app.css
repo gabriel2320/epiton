@@ -444,6 +444,27 @@
   margin-top: 0.35rem;
 }
 
+.epiton-graph-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.epiton-attachment-preview {
+  margin-top: 0.75rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--epiton-border);
+}
+
+.epiton-attachment-image {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  margin-top: 0.45rem;
+  border-radius: 8px;
+  border: 1px solid var(--epiton-border);
+}
+
 .epiton-analytics-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

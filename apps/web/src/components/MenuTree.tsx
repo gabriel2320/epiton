@@ -1,5 +1,6 @@
 import type { MenuItem } from "@epiton/intelligence";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface TreeNode extends MenuItem {
   children: TreeNode[];
@@ -32,6 +33,7 @@ function MenuNode(props: {
   const [open, setOpen] = useState(props.depth < 1);
   const hasChildren = props.node.children.length > 0;
   const menuId = Number(props.node.id);
+  const { t } = useTranslation();
 
   return (
     <li>
@@ -52,7 +54,7 @@ function MenuNode(props: {
           <button
             type="button"
             className="epiton-menu-fav"
-            aria-label={props.node.favorite ? "Unfavorite" : "Favorite"}
+            aria-label={props.node.favorite ? t("shell.unfavorite") : t("shell.favorite")}
             aria-pressed={Boolean(props.node.favorite)}
             onClick={(e) => {
               e.stopPropagation();

@@ -1,5 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 export function ToolDrawer(props: {
   open: boolean;
@@ -8,6 +9,7 @@ export function ToolDrawer(props: {
   children: ReactNode;
   triggerLabel: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Dialog.Root open={props.open} onOpenChange={props.onOpenChange}>
       <Dialog.Trigger asChild>
@@ -22,7 +24,7 @@ export function ToolDrawer(props: {
           <div className="epiton-drawer-body">{props.children}</div>
           <Dialog.Close asChild>
             <button type="button" className="epiton-drawer-close">
-              Close
+              {t("shell.close")}
             </button>
           </Dialog.Close>
         </Dialog.Content>

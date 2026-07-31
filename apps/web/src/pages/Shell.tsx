@@ -524,16 +524,16 @@ export function Shell() {
             <ToolDrawer
               open={prefsOpen}
               onOpenChange={setPrefsOpen}
-              title="Preferences"
-              triggerLabel="Prefs"
+              title={t("shell.prefs")}
+              triggerLabel={t("shell.prefs")}
             >
               <PreferencesPanel />
             </ToolDrawer>
             <ToolDrawer
               open={wizardOpen}
               onOpenChange={setWizardOpen}
-              title="Wizard"
-              triggerLabel="Wizard"
+              title={t("shell.wizard")}
+              triggerLabel={t("shell.wizard")}
             >
               <Suspense fallback={<p role="status">Loading wizard…</p>}>
                 <WizardStepper
@@ -557,8 +557,8 @@ export function Shell() {
             <ToolDrawer
               open={reportOpen}
               onOpenChange={setReportOpen}
-              title="Reports"
-              triggerLabel="Reports"
+              title={t("shell.reports")}
+              triggerLabel={t("shell.reports")}
             >
               <Suspense fallback={<p role="status">Loading reports…</p>}>
                 <ReportDownload
@@ -571,8 +571,8 @@ export function Shell() {
             <ToolDrawer
               open={attachOpen}
               onOpenChange={setAttachOpen}
-              title="Attachments"
-              triggerLabel="Attachments"
+              title={t("shell.attachments")}
+              triggerLabel={t("shell.attachments")}
             >
               <Suspense fallback={<p role="status">Loading attachments…</p>}>
                 <AttachmentsPanel model={active} recordId={selectedId ?? undefined} />

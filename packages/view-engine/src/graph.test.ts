@@ -18,7 +18,21 @@ describe("graph", () => {
       type: "pie",
       xFields: ["state"],
       yFields: ["amount", "qty"],
+      yOperators: ["sum", "sum"],
       string: "By state",
+    });
+  });
+
+  it("parses y field operators", () => {
+    const root = parseXml(
+      `<graph type="vbar"><x><field name="state"/></x><y><field name="amount" operator="average"/><field name="id" operator="count"/></y></graph>`,
+    );
+    expect(parseGraphArch(root)).toEqual({
+      type: "vbar",
+      xFields: ["state"],
+      yFields: ["amount", "id"],
+      yOperators: ["average", "count"],
+      string: undefined,
     });
   });
 
@@ -32,6 +46,14 @@ describe("graph", () => {
     expect(data).toEqual([
       { x: "A", y: 15 },
       { x: "B", y: 3 },
+    ]);
+    expect(aggregateGraphData(rows, "name", "amount", "average")).toEqual([
+      { x: "A", y: 7.5 },
+      { x: "B", y: 3 },
+    ]);
+    expect(aggregateGraphData(rows, "name", "amount", "count")).toEqual([
+      { x: "A", y: 2 },
+      { x: "B", y: 1 },
     ]);
     const insight = summarizeSeries(data);
     expect(insight.sum).toBe(18);

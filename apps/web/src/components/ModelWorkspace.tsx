@@ -175,10 +175,12 @@ export function ModelWorkspace(props: {
     startNew: () => Promise<void>;
     requestDelete: (ids: number[]) => void;
     confirmDiscard: () => boolean;
+    selectAdjacent: (delta: -1 | 1) => void;
   }>({
     startNew: async () => {},
     requestDelete: (_ids: number[]) => {},
     confirmDiscard: () => true,
+    selectAdjacent: (_delta: -1 | 1) => {},
   });
 
   const actionCtxOverlay = useMemo(
@@ -955,7 +957,23 @@ export function ModelWorkspace(props: {
     setPendingDeleteIds(ids);
   }
 
-  keyHandlersRef.current = { startNew, requestDelete, confirmDiscard };
+  function selectAdjacent(delta: -1 | 1) {
+    const ids = ((listQuery.data ?? []) as Array<Record<string, unknown>>)
+      .map((r) => Number(r.id))
+      .filter((n) => Number.isFinite(n));
+    if (!ids.length) return;
+    const idx = selectedId == null ? -1 : ids.indexOf(selectedId);
+    let nextIdx: number;
+    if (idx < 0) nextIdx = delta > 0 ? 0 : ids.length - 1;
+    else nextIdx = Math.min(ids.length - 1, Math.max(0, idx + delta));
+    const next = ids[nextIdx];
+    if (next == null || next === selectedId) return;
+    selectId(next);
+    setMode("read");
+    props.onHistory?.("nav");
+  }
+
+  keyHandlersRef.current = { startNew, requestDelete, confirmDiscard, selectAdjacent };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -986,6 +1004,11 @@ export function ModelWorkspace(props: {
         keyHandlersRef.current.requestDelete(
           selectedIds.length ? selectedIds : selectedId ? [selectedId] : [],
         );
+        return;
+      }
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !typing) {
+        e.preventDefault();
+        keyHandlersRef.current.selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
         return;
       }
       if (e.key === "Escape" && mode === "write" && !typing) {
@@ -1223,7 +1246,9 @@ export function ModelWorkspace(props: {
         xField: graphSpec.xFields[0] ?? "rec_name",
         yField: graphSpec.yFields[0] ?? "id",
         yFields: graphSpec.yFields,
+        yOperator: graphSpec.yOperators[0] ?? "sum",
         chartType: graphSpec.type,
+        title: graphSpec.string,
       };
     }
     const names = columns.map((c) => c.name);
@@ -1232,7 +1257,9 @@ export function ModelWorkspace(props: {
       xField: inferred.xField,
       yField: inferred.yField,
       yFields: [inferred.yField],
+      yOperator: "sum" as const,
       chartType: "vbar" as const,
+      title: undefined as string | undefined,
     };
   }, [columns, graphSpec]);
 
@@ -1242,6 +1269,7 @@ export function ModelWorkspace(props: {
         (listQuery.data ?? []) as Array<Record<string, unknown>>,
         graphFields.xField,
         graphFields.yField,
+        graphFields.yOperator,
       ),
     [listQuery.data, graphFields],
   );
@@ -1586,6 +1614,7 @@ export function ModelWorkspace(props: {
               yKeys={graphFields.yFields.length > 1 ? graphFields.yFields : undefined}
               chartType={graphFields.chartType}
               yLabel={graphFields.yField}
+              title={graphFields.title}
               insight={graphInsight}
               onSelectPoint={(label) => {
                 const hit = ((listQuery.data ?? []) as Array<Record<string, unknown>>).find(

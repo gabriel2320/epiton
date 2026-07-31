@@ -62,6 +62,7 @@ export {
   parseGraphArch,
   aggregateGraphData,
   rowsToMultiSeries,
+  type GraphAggregateOp,
   type GraphChartType,
   type GraphSpec,
 } from "./graph";

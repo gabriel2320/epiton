@@ -151,6 +151,8 @@ export function BoardPane(props: {
       let xField = "rec_name";
       let yField = "id";
       let yFields = ["id"];
+      let yOperator: "sum" | "average" | "count" = "sum";
+      let graphTitle: string | undefined;
       let fields = ["id", "rec_name", "name", "code", "active"];
 
       try {
@@ -178,6 +180,8 @@ export function BoardPane(props: {
           xField = spec.xFields[0] ?? xField;
           yFields = spec.yFields.length ? spec.yFields : [yField];
           yField = yFields[0] ?? yField;
+          yOperator = spec.yOperators[0] ?? "sum";
+          graphTitle = spec.string;
           fields = [...new Set([...fields, xField, ...yFields])];
         }
       } catch {
@@ -199,7 +203,7 @@ export function BoardPane(props: {
         rows = [];
       }
 
-      const data = aggregateGraphData(rows, xField, yField);
+      const data = aggregateGraphData(rows, xField, yField, yOperator);
       const multi = yFields.length > 1 ? rowsToMultiSeries(rows, xField, yFields) : undefined;
       return {
         count,
@@ -209,6 +213,7 @@ export function BoardPane(props: {
         xField,
         yField,
         yFields,
+        graphTitle,
         data,
         multi,
         insight: summarizeSeries(data),
@@ -339,6 +344,7 @@ export function BoardPane(props: {
                 multi={screenQuery.data.multi}
                 chartType={screenQuery.data.chartType}
                 yLabel={screenQuery.data.yField}
+                title={screenQuery.data.graphTitle}
                 yKeys={screenQuery.data.yFields.length > 1 ? screenQuery.data.yFields : undefined}
                 height={200}
                 insight={screenQuery.data.insight}

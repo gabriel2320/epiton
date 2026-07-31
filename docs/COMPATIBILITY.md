@@ -14,8 +14,8 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
 | Views | `fields_view_get` arch XML | Implemented | form/tree + list-form/calendar/graph/board hosts |
 | Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back |
-| Attachments | `ir.attachment` | Improved | Data upload/download + link type + DnD |
-| Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
+| Attachments | `ir.attachment` | Improved | Multi-upload + rename/description + MIME preview |
+| Graph | graph arch | Improved | y operator sum/average/count + arch title |
 | Editable tree | `editable` arch / inline write | Improved | selection/date/m2o + optional= column toggles |
 | O2M / M2M / M2O | field types in view engine | Improved | Queued create rows; tree+form; nested lines; M2M preserve |
 | Revision history | `model.__history__` | Improved | Diff vs draft + resolve write_uid; strip create_* on restore |

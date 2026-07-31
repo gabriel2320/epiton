@@ -22,9 +22,9 @@ Tryton is still clearly ahead on:
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
 3. Nested O2M/M2M still command-queue on parent save (queued creates now visible as rows; not live Sao Screen)
 
-Recently improved (2026-07-31 cont. 6): report picker, dirty form + discard confirm,
-Shell/workspace i18n chrome, optional= columns, field-aware search, real command recents;
-plus queued creates, history diff, wizard M2O.
+Recently improved (2026-07-31 cont. 7): attachments rename/multi/MIME preview,
+graph y operators + title, ↑/↓ record nav, drawer/menu i18n;
+plus report picker, dirty form, optional columns.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -48,11 +48,12 @@ plus queued creates, history diff, wizard M2O.
 
 | Area | What Sao/GTK does | What Epitón does today | Gap |
 |------|-------------------|-------------------------|-----|
-| Attachment drag-and-drop | Drop files onto record | **Improved:** dropzone on Attachments panel | Small |
+| Attachment drag-and-drop | Drop files onto record | **Improved:** multi-file drop + rename/description + preview | Small |
 | Email compose | Record email wizards / SMTP flows | **Improved:** form_action mail keywords first, mailto fallback | Small |
 | CSV column mapping UI | Map headers → fields before import | **Improved:** mapping dialog before `import_data` | Small |
 | Revision / history browser | Browse `__history__` / revisions | **Improved:** Diff vs draft + uid names + restore strip | Small |
 | Board multi-y series | Multi-series in dashboard graphs | **Improved:** board pane uses `rowsToMultiSeries` | Small |
+| Graph operators / title | y `operator` + arch string | **Improved:** sum/average/count + title in GraphView | Small |
 | `tree_open` / `graph_open` | Keyword actions on open/select | **Improved:** double-click tree + graph select | Small |
 | GTK-only plugins | Native print, desktop hooks | Out of scope by design (webview) | Large (intentional) |
 
@@ -84,8 +85,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 11. ~~Relation tree+form split; nested O2M/M2M editors; M2M cmd preserve; relation badge count~~
 12. ~~Queued create rows; editable selection/date; `t()` labels; history diff; wizard M2O~~
 13. ~~Report picker; dirty form; workspace i18n; optional= columns; field-aware search~~
-14. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
-15. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
+14. ~~Attachments depth; graph operators/title; ↑/↓ nav; drawer i18n~~
+15. GTK-only plugins remain out of scope; full live Sao Screen / global command-queue remain Medium polish
+16. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 

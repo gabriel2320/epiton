@@ -3,11 +3,14 @@ import type { ViewNode } from "./parse";
 export const GRAPH_ROW_LIMIT = 500;
 
 export type GraphChartType = "vbar" | "hbar" | "line" | "pie";
+export type GraphAggregateOp = "sum" | "average" | "count";
 
 export interface GraphSpec {
   type: GraphChartType;
   xFields: string[];
   yFields: string[];
+  /** Per-y-field aggregate from Sao `operator` (defaults to sum). */
+  yOperators: GraphAggregateOp[];
   string?: string;
 }
 
@@ -20,6 +23,13 @@ export function inferGraphFields(fieldNames: string[]): { xField: string; yField
     fieldNames.find((n) => n !== x) ??
     "id";
   return { xField: x, yField: y };
+}
+
+function parseOperator(raw: string | undefined): GraphAggregateOp {
+  const op = (raw ?? "sum").toLowerCase();
+  if (op === "average" || op === "avg" || op === "mean") return "average";
+  if (op === "count") return "count";
+  return "sum";
 }
 
 /**
@@ -39,17 +49,28 @@ export function parseGraphArch(root: ViewNode): GraphSpec | null {
 
   const xFields: string[] = [];
   const yFields: string[] = [];
+  const yOperators: GraphAggregateOp[] = [];
 
-  function collect(section: ViewNode | undefined, into: string[]) {
+  function collectX(section: ViewNode | undefined) {
     if (!section) return;
     for (const child of section.children) {
-      if (child.tag === "field" && child.attrs.name) into.push(child.attrs.name);
+      if (child.tag === "field" && child.attrs.name) xFields.push(child.attrs.name);
+    }
+  }
+
+  function collectY(section: ViewNode | undefined) {
+    if (!section) return;
+    for (const child of section.children) {
+      if (child.tag === "field" && child.attrs.name) {
+        yFields.push(child.attrs.name);
+        yOperators.push(parseOperator(child.attrs.operator));
+      }
     }
   }
 
   for (const child of node.children) {
-    if (child.tag === "x") collect(child, xFields);
-    if (child.tag === "y") collect(child, yFields);
+    if (child.tag === "x") collectX(child);
+    if (child.tag === "y") collectY(child);
   }
 
   // Flat field list fallback (some modules omit x/y wrappers)
@@ -57,17 +78,26 @@ export function parseGraphArch(root: ViewNode): GraphSpec | null {
     const fields = node.children.filter((c) => c.tag === "field" && c.attrs.name);
     if (fields.length >= 2) {
       xFields.push(fields[0]!.attrs.name!);
-      for (const f of fields.slice(1)) yFields.push(f.attrs.name!);
+      for (const f of fields.slice(1)) {
+        yFields.push(f.attrs.name!);
+        yOperators.push(parseOperator(f.attrs.operator));
+      }
     } else if (fields.length === 1) {
       xFields.push(fields[0]!.attrs.name!);
     }
   }
 
   if (!xFields.length && !yFields.length) return null;
+  const resolvedY = yFields.length ? yFields : ["id"];
+  const resolvedOps =
+    yOperators.length === resolvedY.length
+      ? yOperators
+      : resolvedY.map((_, i) => yOperators[i] ?? "sum");
   return {
     type,
     xFields: xFields.length ? xFields : ["rec_name"],
-    yFields: yFields.length ? yFields : ["id"],
+    yFields: resolvedY,
+    yOperators: resolvedOps,
     string: node.attrs.string || undefined,
   };
 }
@@ -83,20 +113,29 @@ export function rowsToGraphData(
   }));
 }
 
-/** Group by x and sum y — extracts distribution value from raw rows. */
+/** Group by x and aggregate y (sum | average | count). */
 export function aggregateGraphData(
   rows: Array<Record<string, unknown>>,
   xField: string,
   yField: string,
+  operator: GraphAggregateOp = "sum",
 ): Array<{ x: string; y: number }> {
-  const map = new Map<string, number>();
+  const map = new Map<string, { sum: number; count: number }>();
   for (const row of rows.slice(0, GRAPH_ROW_LIMIT * 2)) {
     const x = cellLabel(row[xField] ?? row.rec_name ?? row.id);
     const y = cellNumber(row[yField]);
-    map.set(x, (map.get(x) ?? 0) + y);
+    const cur = map.get(x) ?? { sum: 0, count: 0 };
+    cur.sum += y;
+    cur.count += 1;
+    map.set(x, cur);
   }
   return [...map.entries()]
-    .map(([x, y]) => ({ x, y }))
+    .map(([x, { sum, count }]) => {
+      let y = sum;
+      if (operator === "count") y = count;
+      else if (operator === "average") y = count ? sum / count : 0;
+      return { x, y };
+    })
     .sort((a, b) => b.y - a.y)
     .slice(0, GRAPH_ROW_LIMIT);
 }

@@ -1,8 +1,9 @@
 import { Button, Panel } from "@epiton/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { PdfPreview } from "./PdfPreview";
 
-/** Sao-parity attachments: list / upload / download / link via ir.attachment. */
+/** Sao-parity attachments: list / upload / download / link / rename via ir.attachment. */
 export function AttachmentsPanel(props: { model: string; recordId?: number }) {
   const client = useAppStore((s) => s.client);
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
@@ -11,6 +12,10 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
   const [dragOver, setDragOver] = useState(false);
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [preview, setPreview] = useState<{ url: string; mime: string; name: string } | null>(null);
 
   const resource = props.recordId != null ? `${props.model},${props.recordId}` : null;
 
@@ -23,7 +28,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
       const result = await client.searchRead(
         "ir.attachment",
         domain as never,
-        ["name", "resource", "type", "data_size", "link"],
+        ["name", "resource", "type", "data_size", "link", "description"],
         0,
         40,
       );
@@ -42,33 +47,50 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
     if (props.recordId != null) void load();
   }, [props.recordId, load]);
 
-  async function upload(file: File) {
+  useEffect(() => {
+    return () => {
+      if (preview?.url) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview?.url]);
+
+  async function uploadMany(fileList: FileList | File[]) {
+    const files = [...fileList];
+    if (!files.length) return;
     if (!client || !resource) {
       setMessage("Select a record before uploading");
       return;
     }
     setBusy(true);
+    let ok = 0;
     try {
-      const b64 = await readFileBase64(file);
-      await client.model(
-        "ir.attachment",
-        "create",
-        [
+      for (const file of files) {
+        const b64 = await readFileBase64(file);
+        await client.model(
+          "ir.attachment",
+          "create",
           [
-            {
-              name: file.name,
-              type: "data",
-              resource,
-              data: b64,
-            },
+            [
+              {
+                name: file.name,
+                type: "data",
+                resource,
+                data: b64,
+              },
+            ],
           ],
-        ],
-        {},
-      );
-      setMessage(`Uploaded ${file.name}`);
+          {},
+        );
+        ok += 1;
+      }
+      setMessage(ok === 1 ? `Uploaded ${files[0]!.name}` : `Uploaded ${ok} file(s)`);
       await load();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Upload failed");
+      setMessage(
+        err instanceof Error
+          ? `Upload stopped after ${ok}: ${err.message}`
+          : `Upload stopped after ${ok}`,
+      );
+      await load();
     } finally {
       setBusy(false);
     }
@@ -112,7 +134,27 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
     }
   }
 
-  async function download(id: number, name: string) {
+  async function saveMeta(id: number) {
+    if (!client) return;
+    setBusy(true);
+    try {
+      await client.model(
+        "ir.attachment",
+        "write",
+        [[id], { name: editName.trim() || `attachment-${id}`, description: editDescription }],
+        {},
+      );
+      setEditId(null);
+      setMessage(`Updated #${id}`);
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function download(id: number, name: string, previewOnly = false) {
     if (!client) return;
     setBusy(true);
     try {
@@ -138,13 +180,22 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
         return;
       }
       const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "application/octet-stream" });
+      const fileName = String(row?.name ?? name ?? `attachment-${id}`);
+      const mime = guessMime(fileName);
+      const blob = new Blob([bytes], { type: mime });
       const url = URL.createObjectURL(blob);
+      if (previewOnly && (mime.startsWith("image/") || mime === "application/pdf")) {
+        if (preview?.url) URL.revokeObjectURL(preview.url);
+        setPreview({ url, mime, name: fileName });
+        setMessage(`Preview ${fileName}`);
+        return;
+      }
       const a = document.createElement("a");
       a.href = url;
-      a.download = String(row?.name ?? name ?? `attachment-${id}`);
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
+      setMessage(`Downloaded ${fileName}`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Download failed");
     } finally {
@@ -158,6 +209,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
     setBusy(true);
     try {
       await client.model("ir.attachment", "delete", [[id]], {});
+      if (editId === id) setEditId(null);
       await load();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Delete failed");
@@ -181,10 +233,10 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
           <span>Upload</span>
           <input
             type="file"
+            multiple
             disabled={busy || !resource}
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void upload(file);
+              if (e.target.files?.length) void uploadMany(e.target.files);
               e.target.value = "";
             }}
           />
@@ -226,15 +278,14 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
           e.preventDefault();
           setDragOver(false);
           if (!resource || busy) return;
-          const file = e.dataTransfer.files?.[0];
-          if (file) void upload(file);
+          if (e.dataTransfer.files?.length) void uploadMany(e.dataTransfer.files);
         }}
       >
         <p role="status">
           {resource
             ? dragOver
-              ? "Drop file to attach…"
-              : "Drag & drop a file here to attach"
+              ? "Drop files to attach…"
+              : "Drag & drop files here to attach"
             : "Select a record to enable drop upload"}
         </p>
       </div>
@@ -244,32 +295,118 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
           const id = Number(r.id);
           const name = String(r.name ?? id);
           const kind = String(r.type ?? "data");
+          const description = String(r.description ?? "");
+          const editing = editId === id;
+          const canPreview = kind !== "link" && canPreviewName(name);
           return (
             <li key={String(id)}>
-              <span>
-                {name}
-                {kind === "link" ? " · link" : ""}
-                {r.data_size != null ? ` · ${String(r.data_size)} B` : ""}
-              </span>
-              <Button
-                disabled={busy || !Number.isFinite(id)}
-                onClick={() => void download(id, name)}
-              >
-                {kind === "link" ? "Open" : "Download"}
-              </Button>
-              <Button
-                variant="danger"
-                disabled={busy || !Number.isFinite(id)}
-                onClick={() => void remove(id)}
-              >
-                Delete
-              </Button>
+              {editing ? (
+                <div className="epiton-toolbar" style={{ flexWrap: "wrap", width: "100%" }}>
+                  <input
+                    aria-label="Attachment name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    style={{ minWidth: "10rem" }}
+                  />
+                  <input
+                    aria-label="Attachment description"
+                    placeholder="Description"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    style={{ minWidth: "12rem", flex: 1 }}
+                  />
+                  <Button disabled={busy} variant="primary" onClick={() => void saveMeta(id)}>
+                    Save
+                  </Button>
+                  <Button disabled={busy} onClick={() => setEditId(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <span>
+                    {name}
+                    {kind === "link" ? " · link" : ""}
+                    {r.data_size != null ? ` · ${String(r.data_size)} B` : ""}
+                    {description ? ` · ${description.slice(0, 60)}` : ""}
+                  </span>
+                  <Button
+                    disabled={busy || !Number.isFinite(id)}
+                    onClick={() => {
+                      setEditId(id);
+                      setEditName(name);
+                      setEditDescription(description);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  {canPreview ? (
+                    <Button
+                      disabled={busy || !Number.isFinite(id)}
+                      onClick={() => void download(id, name, true)}
+                    >
+                      Preview
+                    </Button>
+                  ) : null}
+                  <Button
+                    disabled={busy || !Number.isFinite(id)}
+                    onClick={() => void download(id, name, false)}
+                  >
+                    {kind === "link" ? "Open" : "Download"}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={busy || !Number.isFinite(id)}
+                    onClick={() => void remove(id)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
             </li>
           );
         })}
       </ul>
+      {preview ? (
+        <div className="epiton-attachment-preview">
+          <div className="epiton-toolbar">
+            <strong>{preview.name}</strong>
+            <Button
+              onClick={() => {
+                URL.revokeObjectURL(preview.url);
+                setPreview(null);
+              }}
+            >
+              Close preview
+            </Button>
+          </div>
+          {preview.mime.startsWith("image/") ? (
+            <img src={preview.url} alt={preview.name} className="epiton-attachment-image" />
+          ) : (
+            <PdfPreview url={preview.url} title={preview.name} />
+          )}
+        </div>
+      ) : null}
     </Panel>
   );
+}
+
+function guessMime(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".txt") || lower.endsWith(".csv")) return "text/plain";
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html";
+  return "application/octet-stream";
+}
+
+function canPreviewName(name: string): boolean {
+  const mime = guessMime(name);
+  return mime.startsWith("image/") || mime === "application/pdf";
 }
 
 function readFileBase64(file: File): Promise<string> {

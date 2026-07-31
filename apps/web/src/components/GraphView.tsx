@@ -25,6 +25,7 @@ export function GraphView(props: {
   yKeys?: string[];
   chartType?: GraphChartType;
   yLabel?: string;
+  title?: string;
   height?: number;
   insight?: SeriesInsight | null;
   /** Sao board: click a category to cross-filter. */
@@ -44,7 +45,8 @@ export function GraphView(props: {
   }
 
   return (
-    <div className="epiton-graph" role="img" aria-label="Graph view">
+    <div className="epiton-graph" role="img" aria-label={props.title ?? "Graph view"}>
+      {props.title ? <h3 className="epiton-graph-title">{props.title}</h3> : null}
       {props.insight && props.insight.count > 0 ? (
         <dl className="epiton-analytics-strip" aria-label="Series insights">
           <div>
