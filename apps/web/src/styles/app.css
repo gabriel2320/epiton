@@ -244,6 +244,41 @@
   margin: 0;
 }
 
+.epiton-list-form {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.epiton-list-form-card {
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+  background: var(--epiton-bg);
+  color: var(--epiton-fg);
+  padding: 0.65rem 0.8rem;
+  cursor: pointer;
+  font: inherit;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.epiton-list-form-card[data-selected="true"] {
+  border-color: var(--epiton-accent);
+  box-shadow: inset 0 0 0 1px var(--epiton-accent);
+}
+
+.epiton-list-form-field {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
 .epiton-progress {
   display: flex;
   align-items: center;

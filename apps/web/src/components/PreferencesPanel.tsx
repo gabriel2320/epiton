@@ -1,33 +1,75 @@
-import { buildSessionContext, reloadSessionPreferences } from "@epiton/protocol";
+import { type JsonObject, buildSessionContext, reloadSessionPreferences } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
-import { useState } from "react";
+import { type RecordValues, parseFieldsViewGet, renderView } from "@epiton/view-engine";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
 
-/** Edit common Tryton session preferences (company / language). */
+/** Preferences form from res.user fields_view_get (preferences context). */
 export function PreferencesPanel() {
   const client = useAppStore((s) => s.client);
   const session = useAppStore((s) => s.session);
   const preferences = useAppStore((s) => s.preferences);
+  const sessionContext = useAppStore((s) => s.sessionContext);
+  const density = useAppStore((s) => s.density);
   const setPreferences = useAppStore((s) => s.setPreferences);
 
-  const [company, setCompany] = useState(String(preferences.company ?? ""));
-  const [language, setLanguage] = useState(String(preferences.language ?? ""));
+  const [draft, setDraft] = useState<RecordValues>({ ...preferences });
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
-  const [message, setMessage] = useState("Adjust company / language and save");
+  const [message, setMessage] = useState("Load preferences form from server");
+
+  const viewQuery = useQuery({
+    queryKey: ["res.user", "preferences-view"],
+    enabled: Boolean(client),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!client) return null;
+      try {
+        return parseFieldsViewGet(
+          await client.fieldsViewGet("res.user", null, "form", {
+            ...sessionContext,
+            preferences: true,
+          }),
+        );
+      } catch {
+        return parseFieldsViewGet({
+          arch: `<form><group string="Preferences"><field name="company"/><field name="language"/><field name="employee"/></group></form>`,
+          fields: {
+            company: { type: "many2one", string: "Company", relation: "company.company" },
+            language: { type: "char", string: "Language" },
+            employee: { type: "many2one", string: "Employee" },
+          },
+        });
+      }
+    },
+  });
+
+  useEffect(() => {
+    setDraft({ ...preferences });
+  }, [preferences]);
 
   async function save() {
     if (!client || !session) return;
     setStatus("loading");
     setMessage("Saving preferences…");
-    const patch: Record<string, string | number> = {};
-    const companyNum = Number(company);
-    if (company.trim() && Number.isFinite(companyNum)) patch.company = companyNum;
-    if (language.trim()) patch.language = language.trim();
+    const patch: JsonObject = {};
+    const fields = viewQuery.data?.fields ?? {};
+    const keys = Object.keys(fields).length
+      ? Object.keys(fields)
+      : ["company", "language", "employee"];
+    for (const key of keys) {
+      if (!(key in draft)) continue;
+      const raw = draft[key];
+      if (Array.isArray(raw) && typeof raw[0] === "number") {
+        patch[key] = raw[0];
+      } else if (raw !== undefined) {
+        patch[key] = raw as JsonObject[string];
+      }
+    }
     try {
       const next = await reloadSessionPreferences(client, session.userId, patch);
       setPreferences(next.preferences, next.sessionContext);
-      setCompany(String(next.preferences.company ?? company));
-      setLanguage(String(next.preferences.language ?? language));
+      setDraft({ ...next.preferences });
       setStatus("data");
       setMessage("Preferences saved");
     } catch (err) {
@@ -42,8 +84,7 @@ export function PreferencesPanel() {
     try {
       const next = await reloadSessionPreferences(client, session.userId);
       setPreferences(next.preferences, next.sessionContext);
-      setCompany(String(next.preferences.company ?? ""));
-      setLanguage(String(next.preferences.language ?? ""));
+      setDraft({ ...next.preferences });
       setStatus("data");
       setMessage("Preferences reloaded");
     } catch (err) {
@@ -52,39 +93,55 @@ export function PreferencesPanel() {
     }
   }
 
+  const blockState = status === "idle" ? (viewQuery.isLoading ? "loading" : "empty") : status;
+
   return (
     <Panel title="Preferences">
-      <StateBlock state={status === "idle" ? "empty" : status} message={message}>
-        <div className="epiton-toolbar" style={{ flexDirection: "column", alignItems: "stretch" }}>
-          <label>
-            Company id
-            <input
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              inputMode="numeric"
-              aria-label="Company id"
-            />
-          </label>
-          <label>
-            Language
-            <input
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              placeholder="en / es / …"
-              aria-label="Language"
-            />
-          </label>
-          <div className="epiton-toolbar">
-            <Button variant="primary" onClick={() => void save()}>
-              Save
-            </Button>
-            <Button onClick={() => void reload()}>Reload</Button>
+      <StateBlock state={blockState} message={message}>
+        {viewQuery.data ? (
+          renderView(viewQuery.data, {
+            values: draft,
+            mode: "write",
+            density,
+            model: "res.user",
+            onChange: (name, value) => setDraft((d) => ({ ...d, [name]: value })),
+          })
+        ) : (
+          <div
+            className="epiton-toolbar"
+            style={{ flexDirection: "column", alignItems: "stretch" }}
+          >
+            <label>
+              Company id
+              <input
+                value={String(draft.company ?? "")}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, company: Number(e.target.value) || e.target.value }))
+                }
+                inputMode="numeric"
+                aria-label="Company id"
+              />
+            </label>
+            <label>
+              Language
+              <input
+                value={String(draft.language ?? "")}
+                onChange={(e) => setDraft((d) => ({ ...d, language: e.target.value }))}
+                aria-label="Language"
+              />
+            </label>
           </div>
-          <p className="text-sm text-[var(--epiton-muted)]">
-            Session context keys:{" "}
-            {Object.keys(buildSessionContext(preferences)).slice(0, 8).join(", ") || "—"}
-          </p>
+        )}
+        <div className="epiton-toolbar">
+          <Button variant="primary" onClick={() => void save()}>
+            Save
+          </Button>
+          <Button onClick={() => void reload()}>Reload</Button>
         </div>
+        <p className="text-sm text-[var(--epiton-muted)]">
+          Session context keys:{" "}
+          {Object.keys(buildSessionContext(preferences)).slice(0, 8).join(", ") || "—"}
+        </p>
       </StateBlock>
     </Panel>
   );

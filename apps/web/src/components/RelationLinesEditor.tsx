@@ -1,6 +1,13 @@
 import { Button, Panel } from "@epiton/ui";
-import { type O2MCommand, type ViewField, toTrytonM2M, toTrytonO2M } from "@epiton/view-engine";
+import {
+  type O2MCommand,
+  type RecordValues,
+  type ViewField,
+  toTrytonM2M,
+  toTrytonO2M,
+} from "@epiton/view-engine";
 import { useMemo, useState } from "react";
+import { RelationLineForm } from "./RelationLineForm";
 import { RelationSearch } from "./RelationSearch";
 
 /** Inline editor for One2Many / Many2Many line commands (Sao parity). */
@@ -17,9 +24,9 @@ export function RelationLinesEditor(props: {
   const initialIds = useMemo(() => normalizeIds(props.value), [props.value]);
   const [ids, setIds] = useState<number[]>(initialIds);
   const [draftId, setDraftId] = useState("");
-  const [createJson, setCreateJson] = useState("{}");
   const [commands, setCommands] = useState<O2MCommand[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [lineForm, setLineForm] = useState<"create" | number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   function addId(id: number) {
@@ -43,26 +50,23 @@ export function RelationLinesEditor(props: {
     setCommands((prev) => [...prev, { op: "delete", id }]);
   }
 
-  function createLine() {
-    try {
-      const values = JSON.parse(createJson) as Record<string, unknown>;
-      if (!values || typeof values !== "object" || Array.isArray(values)) {
-        setNotice("Create values must be a JSON object");
-        return;
-      }
-      setCommands((prev) => [...prev, { op: "create", values }]);
-      setNotice("Create command queued — Apply to attach");
-    } catch {
-      setNotice("Invalid JSON for create values");
-    }
-  }
-
   function apply() {
     if (props.field.type === "many2many") {
       props.onCommit(toTrytonM2M(ids));
       return;
     }
     props.onCommit(toTrytonO2M(commands.length ? commands : ids.map((id) => ({ op: "add", id }))));
+  }
+
+  function queueLine(values: RecordValues, lineId: number | null) {
+    if (lineId != null) {
+      setCommands((prev) => [...prev, { op: "write", id: lineId, values }]);
+      setNotice(`Write #${lineId} queued — Apply to attach`);
+    } else {
+      setCommands((prev) => [...prev, { op: "create", values }]);
+      setNotice("Create queued — Apply to attach");
+    }
+    setLineForm(null);
   }
 
   return (
@@ -75,6 +79,9 @@ export function RelationLinesEditor(props: {
               <Button onClick={() => props.onOpenLine?.(props.field.relation as string, id)}>
                 Open
               </Button>
+            ) : null}
+            {props.mode === "write" && props.field.type === "one2many" ? (
+              <Button onClick={() => setLineForm(id)}>Edit</Button>
             ) : null}
             {props.mode === "write" ? (
               <>
@@ -92,38 +99,30 @@ export function RelationLinesEditor(props: {
         ))}
       </ul>
       {props.mode === "write" ? (
-        <div className="epiton-toolbar" style={{ flexDirection: "column", alignItems: "stretch" }}>
-          <div className="epiton-toolbar">
-            <input
-              value={draftId}
-              onChange={(e) => setDraftId(e.target.value)}
-              placeholder="record id"
-              aria-label="Related record id"
-            />
-            <Button onClick={addFromInput}>Add id</Button>
-            <Button onClick={() => setSearchOpen(true)}>Search add</Button>
-          </div>
-          {props.field.type === "one2many" ? (
-            <div
-              className="epiton-toolbar"
-              style={{ flexDirection: "column", alignItems: "stretch" }}
-            >
-              <label>
-                Create values (JSON)
-                <textarea
-                  value={createJson}
-                  onChange={(e) => setCreateJson(e.target.value)}
-                  rows={3}
-                  aria-label="O2M create values JSON"
-                />
-              </label>
-              <Button onClick={createLine}>Queue create</Button>
-            </div>
+        <div className="epiton-toolbar">
+          <input
+            value={draftId}
+            onChange={(e) => setDraftId(e.target.value)}
+            placeholder="record id"
+            aria-label="Related record id"
+          />
+          <Button onClick={addFromInput}>Add id</Button>
+          <Button onClick={() => setSearchOpen(true)}>Search add</Button>
+          {props.field.type === "one2many" && props.field.relation ? (
+            <Button onClick={() => setLineForm("create")}>New line</Button>
           ) : null}
           <Button variant="primary" onClick={apply}>
             Apply relation commands
           </Button>
         </div>
+      ) : null}
+      {lineForm != null && props.field.relation ? (
+        <RelationLineForm
+          model={props.field.relation}
+          lineId={lineForm === "create" ? null : lineForm}
+          onCancel={() => setLineForm(null)}
+          onSave={queueLine}
+        />
       ) : null}
       {searchOpen && props.field.relation ? (
         <RelationSearch

@@ -4,6 +4,7 @@ import {
   type JsonValue,
   applyFieldChange,
   exportModelCsv,
+  importModelCsv,
   modelHasAccessRows,
   viewIdForMode,
 } from "@epiton/protocol";
@@ -31,6 +32,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { GraphView } from "./GraphView";
+import { ListFormView } from "./ListFormView";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { VirtualPartyTable } from "./VirtualPartyTable";
@@ -77,11 +79,12 @@ export function ModelWorkspace(props: {
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"tree" | "calendar" | "graph">("tree");
+  const [viewMode, setViewMode] = useState<"tree" | "list-form" | "calendar" | "graph">("tree");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const actionCtxOverlay = useMemo(
@@ -97,6 +100,7 @@ export function ModelWorkspace(props: {
   const treeViewId = viewIdForMode(props.actionViews, "tree");
   const formViewId = viewIdForMode(props.actionViews, "form");
   const calendarViewId = viewIdForMode(props.actionViews, "calendar");
+  const listFormViewId = viewIdForMode(props.actionViews, "list-form");
 
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
@@ -135,6 +139,20 @@ export function ModelWorkspace(props: {
       props.onHistory?.("export_csv");
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
+  async function importCsvFile(file: File) {
+    if (!client) return;
+    setNotice("Importing CSV…");
+    try {
+      const text = await file.text();
+      const count = await importModelCsv(client, props.model, text, { context: rpcContext });
+      setNotice(`Imported ${count} record(s)`);
+      props.onHistory?.("import_csv");
+      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Import failed");
     }
   }
 
@@ -194,6 +212,22 @@ export function ModelWorkspace(props: {
         );
       } catch {
         return null;
+      }
+    },
+  });
+
+  const listFormViewQuery = useQuery({
+    queryKey: ["model", props.model, "list-form-view", listFormViewId],
+    enabled: Boolean(client && viewMode === "list-form"),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!client) return null;
+      try {
+        return parseFieldsViewGet(
+          await client.fieldsViewGet(props.model, listFormViewId, "list-form", rpcContext),
+        );
+      } catch {
+        return treeViewQuery.data;
       }
     },
   });
@@ -476,16 +510,18 @@ export function ModelWorkspace(props: {
     }
   }
 
-  const columns = useMemo(
-    () =>
-      treeViewQuery.data
-        ? treeColumns(treeViewQuery.data)
-        : [
-            { name: "id", string: "ID" },
-            { name: "rec_name", string: "Name" },
-          ],
-    [treeViewQuery.data],
-  );
+  const columns = useMemo(() => {
+    const source =
+      viewMode === "list-form" && listFormViewQuery.data
+        ? listFormViewQuery.data
+        : treeViewQuery.data;
+    return source
+      ? treeColumns(source)
+      : [
+          { name: "id", string: "ID" },
+          { name: "rec_name", string: "Name" },
+        ];
+  }, [viewMode, listFormViewQuery.data, treeViewQuery.data]);
 
   const calendarEvents = useMemo(
     () => rowsToCalendarEvents((listQuery.data ?? []) as Array<Record<string, unknown>>),
@@ -530,6 +566,7 @@ export function ModelWorkspace(props: {
           </Button>
           <Button onClick={() => listQuery.refetch()}>Refresh</Button>
           <Button onClick={() => setViewMode("tree")}>Tree</Button>
+          <Button onClick={() => setViewMode("list-form")}>List-form</Button>
           <Button onClick={() => setViewMode("calendar")}>Calendar</Button>
           <Button onClick={() => setViewMode("graph")}>Graph</Button>
           <Button
@@ -549,6 +586,21 @@ export function ModelWorkspace(props: {
           >
             Export CSV
           </Button>
+          <Button disabled={!client} onClick={() => importInputRef.current?.click()}>
+            Import CSV
+          </Button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            aria-label="Import CSV file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void importCsvFile(file);
+            }}
+          />
         </div>
         <div className="epiton-toolbar">
           <input
@@ -610,6 +662,17 @@ export function ModelWorkspace(props: {
             />
           ) : viewMode === "graph" ? (
             <GraphView data={graphData} yLabel={graphFields.yField} />
+          ) : viewMode === "list-form" ? (
+            <ListFormView
+              rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
+              columns={columns}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                selectId(id);
+                setMode("read");
+                props.onHistory?.("open");
+              }}
+            />
           ) : (
             <VirtualPartyTable
               rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}

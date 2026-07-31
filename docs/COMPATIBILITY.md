@@ -7,14 +7,14 @@
 | Login | `common.db.login` | Implemented | Password params dict |
 | Logout | `common.db.logout` | Implemented | |
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
-| Views | `fields_view_get` arch XML | Implemented | form/tree + calendar/graph hosts |
+| Views | `fields_view_get` arch XML | Implemented | form/tree + list-form/calendar/graph/board hosts |
 | Calendar | calendar arch + date fields | Implemented | FullCalendar over `search_read` |
 | Graph | graph arch | Implemented | Recharts client-side (≤500 rows) |
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
 | Wizards | `wizard.*.create/execute/delete` | Implemented | Sao-shaped data + drawer host |
 | Reports | `report.*.execute` | Implemented | Download + iframe preview; `ir.action.report` resolve |
 | Attachments | `ir.attachment` | Implemented | List + upload + download + delete |
-| O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Open/create/delete O2M + M2M search-add |
+| O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
 | PYSON states | `invisible`/`readonly`/`required` | Implemented | JSON `__class__` + string Eval/Not/And/Or/If/Get/In/Date |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
@@ -22,8 +22,10 @@
 | Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
 | Workspace tabs | multi-tab actions | Implemented | Independent stacks per tab; Ctrl/Cmd+favorite opens new |
 | CSV export | `export_data` / `export_data_domain` | Implemented | Selected ids or current domain |
-| Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs drawer (company / language) |
+| CSV import | `import_data` | Implemented | Header row + typed cells |
+| Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
 | Board | board arch + actions | Implemented | `BoardWorkspace` tiles → resolveAction |
+| List-form | list-form arch | Implemented | Card list host over `search_read` |
 | act_window | domain/context/views | Implemented | Views by mode; domain/context eval with session prefs |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
 | Server order | column sort | Implemented | `name ASC` via search_read order |

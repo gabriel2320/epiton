@@ -28,6 +28,7 @@ export {
 } from "./session_context";
 export { wizardActionRefs } from "./wizard_actions";
 export { csvEscape, exportModelCsv, rowsToCsv } from "./export_csv";
+export { importModelCsv, parseCsv } from "./import_csv";
 export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
 export { resolveBoardAction } from "./board";
 
