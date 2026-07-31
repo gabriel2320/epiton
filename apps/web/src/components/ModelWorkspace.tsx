@@ -1047,7 +1047,9 @@ export function ModelWorkspace(props: {
           target.isContentEditable);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        if (mode === "write") saveMutation.mutate();
+        if (mode === "write" && isScreenReadyToSave(screenRef.current, selectedId)) {
+          saveMutation.mutate();
+        }
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !typing) {
