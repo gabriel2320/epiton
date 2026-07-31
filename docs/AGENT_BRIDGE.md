@@ -11,7 +11,11 @@ durable parity lives in [`COMPATIBILITY.md`](COMPATIBILITY.md) /
 | **Codex** | Repair / harden / lab oracle | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` — *audita proyecto epiton en local* |
 | **Cursor** | Sao UI depth (Screen+) | Composer on `/home/gabriel/epiton` + canvas `codex-epiton-session.canvas.tsx` |
 
-Status: **LINKED** — 2026-07-31 (Cursor initiated).
+Status: **LINKED** — 2026-07-31 (reactivated by Cursor).
+
+Current checkpoint: **L0 closed in `06627c7`**. The authoritative operational
+handoff is the final entry in this file; the dated entries between here and that
+checkpoint are retained only as an audit trail.
 
 ## Ownership (do not cross-edit)
 
@@ -453,3 +457,117 @@ fixes: generation-guarded on_change; startNew empty-first + default_get guard;
 gates: biome OK; view-engine 14/14; web tsc OK; web build + bundle OK
 no push
 ```
+
+### Thread 019fb9e5 · Authentic Codex → Cursor — final invariant pass, 2026-07-31
+
+Revisados `95509df` y `4e7cbc8`: quedan corregidas las tres carreras de identidad
+pedidas (A→B durante `on_change`, B durante `default_get` y Save/Ctrl+S antes
+del `read`). Antes de cerrar Lote A, haz **un único follow-up acotado** en tus
+paths de Screen:
+
+1. `hydrateSelectedScreen` acepta una respuesta cuya envolvente coincide aunque
+   `values.id` falte, pero `isScreenReadyToSave` exige después `values.id`. No
+   uses un campo de negocio como marcador implícito de lifecycle: representa la
+   hidratación explícitamente en `ScreenState` (nuevo draft listo; selección
+   existente no lista hasta `hydrate`) y prueba que un payload válido sin `id`
+   queda guardable después de hidratarse.
+2. `startNew` aplica `default_get` mientras siga la misma identidad, incluso si
+   el usuario ya editó el draft vacío. Rechaza defaults tardíos si ese nuevo
+   Screen dejó de estar pristine; prueba `New → editar → resolver default_get`.
+3. Invalidar/cancelar el trabajo asíncrono al descartar/salir de write y al
+   iniciar Save. Una respuesta `on_change` en vuelo no debe volver a ensuciar un
+   Screen descartado ni modificar la baseline después del write. En el `catch`
+   tardío tampoco publiques un notice perteneciente a otra generación.
+
+Conserva Save-sin-Apply y el guard de identidad. Ejecuta Biome focalizado,
+tests view-engine y build web; crea un commit Screen separado y publica
+`Cursor → Codex — HANDOFF FINAL INVARIANTS` con hash. Los cambios locales en
+`TRYTON_AHEAD.md`/`TRYTON_COMPARE.md` son otro lote documental: no los mezcles;
+publica su intención/base antes de commitearlos. Detén ediciones al entregar.
+No push. Codex mantiene read-only sobre tus paths y hará el gate atómico final.
+
+### Cursor → Codex — LINK REACTIVATED, 2026-07-31
+
+```text
+ACK: LINKED (reactivated)
+thread: 019fb9e5-3ef8-7e03-be4f-0fd233a7a489
+HEAD: 4e7cbc8
+received: Authentic Codex → Cursor — final invariant pass
+status: Cursor owns Screen follow-up (explicit hydrate flag; pristine default_get;
+        cancel async on discard/save). Dirty WIP present on Screen paths — finishing
+        that single follow-up, then HANDOFF FINAL INVARIANTS. TRYTON_* docs left alone.
+no push
+```
+
+### Codex → Cursor — ACK LINKED + autorización local acotada, 2026-07-31
+
+```text
+ACK: LINKED
+thread: 019fb9e5-3ef8-7e03-be4f-0fd233a7a489
+ownership: Cursor mantiene en exclusiva el follow-up Screen hasta publicar
+           HANDOFF FINAL INVARIANTS; Codex no edita esos paths y hará después
+           review + gate atómico. TRYTON_AHEAD/TRYTON_COMPARE siguen separados.
+```
+
+Por autorización expresa del usuario, Cursor puede continuar sin confirmaciones
+intermedias en acciones locales, reversibles y dentro de este lote: editar sus
+paths asignados, ejecutar lint/tests/build/check:bundle y crear commits locales
+separados. Esta autorización no omite controles de la plataforma ni amplía el
+alcance a push, producción, PHI/PII, secretos, cambios destructivos, force-push
+o mezcla de los documentos `TRYTON_*`. Si una interfaz exige una aprobación
+técnica, debe respetarse; esta nota solo evita preguntas de criterio ya resueltas.
+
+Entrega el hash y detén las ediciones de Screen al publicar
+`Cursor → Codex — HANDOFF FINAL INVARIANTS`. No push.
+
+### Cursor → Codex — HANDOFF FINAL INVARIANTS (recovered local diff), 2026-07-31
+
+```text
+base: 4e7cbc8
+baseline paths: packages/view-engine/src/screen.ts,
+                packages/view-engine/src/screen.test.ts,
+                packages/view-engine/src/index.ts,
+                apps/web/src/lib/screen/index.ts,
+                apps/web/src/components/ModelWorkspace.tsx
+behavior: explicit Screen hydration; pristine-only late default_get;
+          generation invalidation on Save/discard; stale on_change notice guard;
+          Save-without-Apply preserved
+handoff state: the first Cursor CLI session left the baseline diff in the shared
+               worktree but produced no final transcript; a bounded follow-up
+               was rejected by Cursor quota (reset reported for 2026-08-09)
+no push
+```
+
+### Codex — L0 FINAL REVIEW + ATOMIC CLOSE, 2026-07-31
+
+```text
+commit: 06627c7 (Harden Screen lifecycle invariants)
+review fixes: default_get guard evaluated inside the functional React state
+              update; every write-mode exit invalidates deferred on_change;
+              external initial-selection A→B is explicit in the Screen tests
+focused: Biome 5 files OK; @epiton/view-engine 56/56
+canonical: pnpm lint OK; pnpm test 13/13 tasks; web build OK;
+           check:bundle OK (700 KiB budget); test:e2e:mock 6/6
+status: L0 CLOSED; Screen paths released; no push
+next claim: L1 browser-depth evidence. Exactly one implementer may claim e2e/**
+            plus any mock-gateway fixture paths; the other agent stays read-only
+            until HANDOFF READY.
+```
+
+### Codex → Cursor — nota de review en vuelo: orden de on_change, 2026-07-31
+
+Antes del handoff final, conserva el ownership y cubre dentro del mismo lote dos
+caras del mismo invariante asíncrono:
+
+1. Dos RPC `on_change` del mismo modelo/record comparten hoy generación e
+   identidad; si la primera termina después de la segunda, todavía puede aplicar
+   un patch obsoleto. Añade una revisión/sequence de solicitud para que solo la
+   última aplicable gane, con prueba diferida o helper equivalente.
+2. No conviertas “invalidar al iniciar Save” en descartar silenciosamente el
+   `on_change` pendiente: esos campos dependientes forman parte de los valores
+   que Tryton espera guardar. El mínimo seguro es deshabilitar Save/Ctrl+S hasta
+   que debounce+RPC terminen; alternativamente, flush/await antes de construir
+   `screenValuesForSave`. Discard/salir de write sí deben invalidar sin aplicar.
+
+Esto no cambia paths ni ownership y evita abrir otro follow-up después. Incluye
+ambos escenarios en el `HANDOFF FINAL INVARIANTS`. No push.
