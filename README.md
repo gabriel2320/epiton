@@ -24,6 +24,7 @@ safer, adaptive UI. **trytond remains the system of record.**
 | [`docs/BRAND.md`](docs/BRAND.md) | Brand brief |
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Point-in-time audit (2026-07-31) |
 | [`docs/TRYTON_COMPARE.md`](docs/TRYTON_COMPARE.md) | Tryton vs Epitón + live compat evidence |
+| [`docs/TRYTON_AHEAD.md`](docs/TRYTON_AHEAD.md) | Areas where Sao/GTK still surpass Epitón |
 | [`apps/gateway/README.md`](apps/gateway/README.md) | Axum gateway |
 | [`docker/README.md`](docker/README.md) | Synthetic trytond lab |
 

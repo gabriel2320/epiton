@@ -3,6 +3,7 @@
 Canonical parity table. Authority and agent rails: [`CANON.md`](CANON.md),
 [`GOVERNANCE.md`](GOVERNANCE.md), [`../AGENTS.md`](../AGENTS.md).
 Live evidence vs Tryton lab: [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md) (`pnpm compat:live`).
+Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 
 | Area | Tryton contract | Epiton status | Notes |
 |------|-----------------|---------------|-------|

@@ -90,11 +90,15 @@ PYSON + O2M/M2M + board/graph parse).
 
 ## Remaining gaps vs Sao (priority)
 
+See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
+
 1. Deeper embedded board act_window hosts (tree inside pane).
 2. Graph/`_actions` cross-filtering between board panes.
-3. Richer report format negotiation + pdf.js canvas path.
-4. Probe Tryton 8 lab profile (`pnpm lab:up:8`) in the same `compat:live` flow.
-5. GNU Health models — only when a GH trytond is attached (`pnpm gh:check`).
+3. Editable tree (`editable` arch).
+4. Hierarchical trees, saved searches, notebook tabs, translation wiring.
+5. Wizard final-execute/validate; bus → open/invalidate; richer reports.
+6. Probe Tryton 8 lab (`pnpm lab:up:8`) in the same `compat:live` flow.
+7. GNU Health models — only when a GH trytond is attached (`pnpm gh:check`).
 
 ## Conclusion
 

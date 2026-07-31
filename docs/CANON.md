@@ -28,6 +28,7 @@ disagree, this file wins on **authority**; then the linked specialist doc.
 | Brand | [`docs/BRAND.md`](BRAND.md) |
 | Point-in-time audit | [`docs/AUDIT.md`](AUDIT.md) |
 | Tryton comparison + live compat | [`docs/TRYTON_COMPARE.md`](TRYTON_COMPARE.md) |
+| Where Tryton still leads (Sao depth) | [`docs/TRYTON_AHEAD.md`](TRYTON_AHEAD.md) |
 | Gateway ops | [`apps/gateway/README.md`](../apps/gateway/README.md) |
 | Lab credentials (synthetic) | [`docker/README.md`](../docker/README.md) |
 | Hub README | [`README.md`](../README.md) |
