@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { type LoginValues, loginSchema } from "../lib/schemas";
 import { useAppStore } from "../lib/store";
+import { applyClientLanguage } from "../lib/translations";
 
 export function LoginPage() {
   const connection = useAppStore((s) => s.connection);
@@ -40,6 +41,13 @@ export function LoginPage() {
       const session = await client.login(values.username, values.password, i18n.language);
       const preferences = await loadUserPreferences(client);
       setPreferences(preferences, buildSessionContext(preferences, { user: session.userId }));
+      const lang =
+        typeof preferences.language === "string"
+          ? preferences.language
+          : Array.isArray(preferences.language)
+            ? String(preferences.language[0] ?? i18n.language)
+            : i18n.language;
+      await applyClientLanguage(client, lang);
       setClient(client);
       setSession({ login: session.login, userId: session.userId });
     } catch (err) {

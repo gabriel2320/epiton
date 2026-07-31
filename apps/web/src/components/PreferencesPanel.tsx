@@ -4,6 +4,7 @@ import { type RecordValues, parseFieldsViewGet, renderView } from "@epiton/view-
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { applyClientLanguage } from "../lib/translations";
 
 /** Preferences form from res.user fields_view_get (preferences context). */
 export function PreferencesPanel() {
@@ -70,6 +71,13 @@ export function PreferencesPanel() {
       const next = await reloadSessionPreferences(client, session.userId, patch);
       setPreferences(next.preferences, next.sessionContext);
       setDraft({ ...next.preferences });
+      const lang =
+        typeof next.preferences.language === "string"
+          ? next.preferences.language
+          : Array.isArray(next.preferences.language)
+            ? String(next.preferences.language[0] ?? "")
+            : "";
+      if (lang) await applyClientLanguage(client, lang);
       setStatus("data");
       setMessage("Preferences saved");
     } catch (err) {

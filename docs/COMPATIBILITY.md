@@ -20,7 +20,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
 | Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + `validate` required fields |
 | Reports | `report.*.execute` | Implemented | Download/preview + formats; visual analytics companion over same ids |
-| Attachments | `ir.attachment` | Implemented | List + upload + download + delete |
+| Attachments | `ir.attachment` | Improved | List + upload + download + delete + drag-and-drop |
 | O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
 | PYSON states | `invisible`/`readonly`/`required` | Implemented | JSON `__class__` + string Eval/Not/And/Or/If/Get/In/Date |
@@ -29,9 +29,12 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
 | Workspace tabs | multi-tab actions | Implemented | Independent stacks per tab; Ctrl/Cmd+favorite opens new |
 | CSV export | `export_data` / `export_data_domain` | Implemented | Selected ids or current domain |
-| CSV import | `import_data` | Implemented | Header row + typed cells |
+| CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
+| Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
-| Board | board arch + actions | Improved | Embedded tree/graph panes + DnD + `active_id` cross-filter |
+| Board | board arch + actions | Improved | Tree/graph/form panes + DnD + `active_id` cross-filter |
+| Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
+| Revision history | `model.__history__` | Improved | Read-only History panel when server exposes it |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |
 | act_window | domain/context/views | Implemented | Views by mode; domain/context eval with session prefs |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |

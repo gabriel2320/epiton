@@ -44,6 +44,13 @@ export {
   type ActionKeyword,
   type KeywordAction,
 } from "./keywords";
+export {
+  createViewSearch,
+  deleteViewSearch,
+  loadViewSearches,
+  type ViewSearchRow,
+} from "./view_search";
+export { loadTranslationCatalog, type TranslationRow } from "./translations";
 
 export type JsonRpcId = string | number | null;
 

@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { BoardTree } from "./BoardTree";
 import { GraphView } from "./GraphView";
+import { RecordFormPane } from "./RecordFormPane";
 
 const PREVIEW_LIMIT = 60;
 
@@ -41,7 +42,7 @@ export function BoardPane(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
-  const [mode, setMode] = useState<"tree" | "graph">("tree");
+  const [mode, setMode] = useState<"tree" | "graph" | "form">("tree");
   const [localSelectedId, setLocalSelectedId] = useState<number | null>(null);
 
   const resolvedQuery = useQuery({
@@ -274,11 +275,26 @@ export function BoardPane(props: {
               <Tab active={mode === "graph"} onClick={() => setMode("graph")}>
                 Graph
               </Tab>
+              <Tab
+                active={mode === "form"}
+                onClick={() => {
+                  if (selectedId != null) setMode("form");
+                }}
+              >
+                Form
+              </Tab>
             </Tabs>
             {screenQuery.isLoading ? (
               <p className="epiton-board-pane-empty" role="status">
                 Loading screen…
               </p>
+            ) : mode === "form" && selectedId != null && model ? (
+              <RecordFormPane
+                model={model}
+                recordId={selectedId}
+                rpcContext={rpcContext}
+                onSaved={() => void screenQuery.refetch()}
+              />
             ) : mode === "tree" ? (
               <BoardTree
                 rows={screenQuery.data?.rows ?? []}

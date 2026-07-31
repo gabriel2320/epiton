@@ -8,6 +8,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const resource = props.recordId != null ? `${props.model},${props.recordId}` : null;
 
@@ -134,6 +135,34 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
             }}
           />
         </label>
+      </div>
+      <div
+        className={`epiton-dropzone${dragOver ? " epiton-dropzone-active" : ""}`}
+        data-disabled={busy || !resource ? "true" : "false"}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          if (resource && !busy) setDragOver(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (!resource || busy) return;
+          const file = e.dataTransfer.files?.[0];
+          if (file) void upload(file);
+        }}
+      >
+        <p role="status">
+          {resource
+            ? dragOver
+              ? "Drop file to attach…"
+              : "Drag & drop a file here to attach"
+            : "Select a record to enable drop upload"}
+        </p>
       </div>
       <p role="status">{message}</p>
       <ul className="epiton-menu-list">

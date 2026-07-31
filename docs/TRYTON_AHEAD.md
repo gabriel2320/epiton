@@ -18,21 +18,20 @@ Shared truth ──► trytond JSON-RPC
 
 Tryton is still clearly ahead on:
 
-1. **Full form-in-pane board embedding** (nested ModelWorkspace / write in pane)
-2. **Hierarchical tree expand / group-by**
-3. **Saved searches (`ir.ui.view_search`) & server favorites**
-4. **Translation catalog wiring** for client chrome
-5. **Native desktop/mobile depth** (GTK / device shells)
-6. Deeper `_actions` XML (beyond active_id heuristics)
+1. **Hierarchical tree expand / group-by**
+2. **Native desktop/mobile depth** (GTK / device shells)
+3. Deeper `_actions` XML (beyond active_id heuristics)
+4. Richer report/pdfjs pipeline & email compose wizards
 
-Recently improved (2026-07-31): board tree embed + cross-filter, editable tree,
-notebook tabs, wizard end-execute/validate, bus invalidate/open.
+Recently improved (2026-07-31): board form-in-pane, `ir.ui.view_search`,
+translation catalog wiring, attachment DnD, CSV column map, revision peek,
+editable tree, notebook tabs, wizard end-execute/validate, bus invalidate/open.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
 | Area | What Sao/GTK does | What Epitón does today | Gap | Evidence |
 |------|-------------------|-------------------------|-----|----------|
-| **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | **Improved:** in-pane tree + graph modes over `search_read`; Open/double-click opens record. Still not a full nested `ModelWorkspace` (no form-in-pane edit yet) | Medium | `BoardPane.tsx`, `BoardTree.tsx` |
+| **Board embedding** | Each board `<action>` hosts a live act_window (tree/form/graph) in-pane | **Improved:** tree/graph + compact form-in-pane write; Open still escapes to full workspace | Small–Medium | `BoardPane.tsx`, `RecordFormPane.tsx` |
 | **`_actions` cross-filter** | Click graph/list selection filters sibling panes | **Improved:** selection sets `active_id`/`active_model` context + relation-name heuristics for siblings | Medium | `BoardWorkspace` selection state |
 | **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** arch + Inline edit toggle; cell → `write` | Small–Medium | `VirtualPartyTable.tsx`, `treeEditable` |
 
@@ -41,9 +40,9 @@ notebook tabs, wizard end-execute/validate, bus invalidate/open.
 | Area | What Sao/GTK does | What Epitón does today | Gap | Evidence |
 |------|-------------------|-------------------------|-----|----------|
 | **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tab host | Small | `render.tsx` `NotebookHost` |
-| **Saved filters** | `ir.ui.view_search` named domains per model/user | Ad-hoc ilike / JSON domain bar only | Medium | No `view_search` usage in repo |
+| **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
 | **Server favorites / bookmarks** | Persisted user shortcuts on server | Local intelligence presets + in-memory history | Medium | `intelligence` presets; Shell favorites |
-| **Translations** | Lang-aware strings via trytond / catalogs | Login `lang` sent; shell i18next static; `setCatalog` not wired from web | Medium | `view-engine/src/i18n.ts` unused by web |
+| **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** login/prefs → `loadTranslationCatalog` + `setCatalog` | Small–Medium | `translations.ts`, `applyClientLanguage` |
 | **Reports** | Broader formats + print pipeline | `pdf`/`odt`/`csv`; iframe preview; pdfjs mostly unused | Medium | `ReportDownload.tsx`, audit A-06 |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state `execute` before delete; `validate` required fields | Small | `WizardStepper.tsx` |
 | **Bus depth** | Notify → refresh / open document | **Improved:** invalidate queries; open model#id from payload | Small | `BusBanner.tsx` |
@@ -53,10 +52,10 @@ notebook tabs, wizard end-execute/validate, bus invalidate/open.
 
 | Area | What Sao/GTK does | What Epitón does today | Gap |
 |------|-------------------|-------------------------|-----|
-| Attachment drag-and-drop | Drop files onto record | File input only | Small |
+| Attachment drag-and-drop | Drop files onto record | **Improved:** dropzone on Attachments panel | Small |
 | Email compose | Record email wizards / SMTP flows | `mailto` / email widget | Medium |
-| CSV column mapping UI | Map headers → fields before import | Assumes header = field name | Medium |
-| Revision / history browser | Browse `__history__` / revisions | `MetaStrip` create/write meta only | Medium |
+| CSV column mapping UI | Map headers → fields before import | **Improved:** mapping dialog before `import_data` | Small |
+| Revision / history browser | Browse `__history__` / revisions | **Improved:** History button → read-only `__history__` peek | Small–Medium |
 | Board multi-y series | Multi-series in dashboard graphs | Full graph mode supports multi-y; board pane uses first y | Small–Medium |
 | GTK-only plugins | Native print, desktop hooks | Out of scope by design (webview) | Large (intentional) |
 
@@ -75,11 +74,11 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 ## Recommended close order
 
-1. ~~Embed tree inside `BoardPane`~~ + selection cross-filter (done; deepen to form-in-pane next).
-2. **Editable tree** from arch `editable` + row `write`.
-3. **Notebook → real tabs**; **`ir.ui.view_search`** + optional server favorites.
-4. **Wizard final-execute/validate**; **bus → invalidateQueries / open id**.
-5. Wire **translation catalog** from preferences language for shell fallbacks.
+1. ~~Embed tree inside `BoardPane`~~ + selection cross-filter + form-in-pane.
+2. ~~Editable tree~~; ~~notebook tabs~~; ~~wizard end/validate~~; ~~bus open~~.
+3. ~~`ir.ui.view_search`~~; ~~translation catalog~~; ~~CSV map~~; ~~attachment DnD~~; ~~history peek~~.
+4. Hierarchical tree / group-by; server favorites; deeper `_actions` XML.
+5. Report/pdfjs depth; email compose; thinner desktop/mobile shells.
 
 ## How to re-check
 

@@ -633,6 +633,60 @@
   max-width: 11rem;
 }
 
+.epiton-dropzone {
+  margin-top: 0.5rem;
+  border: 1px dashed var(--epiton-border);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  color: var(--epiton-muted);
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.epiton-dropzone-active {
+  border-color: var(--epiton-accent, #3b82f6);
+  background: color-mix(in srgb, var(--epiton-accent, #3b82f6) 12%, transparent);
+  color: var(--epiton-fg);
+}
+
+.epiton-dropzone[data-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.epiton-csv-import {
+  max-width: min(32rem, 92vw);
+  max-height: min(80vh, 36rem);
+  overflow: auto;
+}
+
+.epiton-csv-map {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.epiton-csv-map-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  font: inherit;
+}
+
+.epiton-csv-map-header {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--epiton-muted);
+}
+
+.epiton-board-form {
+  margin-top: 0.5rem;
+  max-height: 22rem;
+  overflow: auto;
+}
+
 .epiton-drawer-trigger,
 .epiton-drawer-close {
   appearance: none;

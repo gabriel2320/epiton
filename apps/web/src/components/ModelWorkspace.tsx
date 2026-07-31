@@ -5,8 +5,11 @@ import {
   type JsonValue,
   applyFieldChange,
   copyRecords,
+  createViewSearch,
+  deleteViewSearch,
   exportModelCsv,
   importModelCsv,
+  loadViewSearches,
   modelHasAccessRows,
   viewIdForMode,
 } from "@epiton/protocol";
@@ -47,9 +50,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
+import { CsvImportDialog, applyCsvColumnMapping } from "./CsvImportDialog";
 import { GraphView } from "./GraphView";
 import { ListFormView } from "./ListFormView";
 import { RecordActionsMenu } from "./RecordActionsMenu";
+import { RecordHistoryPanel } from "./RecordHistoryPanel";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { VirtualPartyTable } from "./VirtualPartyTable";
@@ -97,6 +102,7 @@ export function ModelWorkspace(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
+  const session = useAppStore((s) => s.session);
   const sessionContext = useAppStore((s) => s.sessionContext);
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(props.initialSelectedId ?? null);
@@ -115,6 +121,8 @@ export function ModelWorkspace(props: {
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
   const [forceTreeEdit, setForceTreeEdit] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
+  const [csvImportText, setCsvImportText] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -127,6 +135,16 @@ export function ModelWorkspace(props: {
     () => ({ ...sessionContext, ...actionCtxOverlay }) as JsonObject,
     [sessionContext, actionCtxOverlay],
   );
+
+  const viewSearchesQuery = useQuery({
+    queryKey: ["view-search", props.model, session?.userId],
+    enabled: Boolean(client && session?.userId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!client || !session) return [];
+      return loadViewSearches(client, props.model, session.userId, rpcContext);
+    },
+  });
 
   const treeViewId = viewIdForMode(props.actionViews, "tree");
   const formViewId = viewIdForMode(props.actionViews, "form");
@@ -176,10 +194,26 @@ export function ModelWorkspace(props: {
 
   async function importCsvFile(file: File) {
     if (!client) return;
-    setNotice("Importing CSV…");
     try {
       const text = await file.text();
-      const count = await importModelCsv(client, props.model, text, { context: rpcContext });
+      setCsvImportText(text);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to read CSV");
+    }
+  }
+
+  async function confirmCsvImport(mapping: string[]) {
+    if (!client || !csvImportText) return;
+    setNotice("Importing CSV…");
+    try {
+      const { fields, dataCsv } = applyCsvColumnMapping(csvImportText, mapping);
+      if (!fields.length) throw new Error("No columns mapped");
+      const count = await importModelCsv(client, props.model, dataCsv, {
+        fields,
+        header: false,
+        context: rpcContext,
+      });
+      setCsvImportText(null);
       setNotice(`Imported ${count} record(s)`);
       props.onHistory?.("import_csv");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
@@ -780,6 +814,17 @@ export function ModelWorkspace(props: {
           if (pendingDeleteIds?.length) deleteMutation.mutate(pendingDeleteIds);
         }}
       />
+      <CsvImportDialog
+        open={csvImportText != null}
+        csvText={csvImportText ?? ""}
+        fieldNames={
+          Object.keys(formViewQuery.data?.fields ?? {}).length
+            ? Object.keys(formViewQuery.data?.fields ?? {})
+            : columns.map((c) => c.name).filter(Boolean)
+        }
+        onCancel={() => setCsvImportText(null)}
+        onConfirm={(mapping) => void confirmCsvImport(mapping)}
+      />
       <Panel title={props.model}>
         {domainTabs.length ? (
           <Tabs aria-label="Action domains" className="epiton-domain-tabs">
@@ -891,6 +936,84 @@ export function ModelWorkspace(props: {
             }}
           >
             Clear
+          </Button>
+          <select
+            aria-label="Saved searches"
+            value=""
+            disabled={!viewSearchesQuery.data?.length}
+            onChange={(e) => {
+              const id = Number(e.target.value);
+              e.target.value = "";
+              const row = viewSearchesQuery.data?.find((r) => r.id === id);
+              if (!row) return;
+              const text =
+                typeof row.domain === "string" ? row.domain : JSON.stringify(row.domain ?? []);
+              setSearchInput(text);
+              setSearchQuery(text);
+              setOffset(0);
+              setNotice(`Applied saved search “${row.name}”`);
+            }}
+          >
+            <option value="">Saved searches…</option>
+            {(viewSearchesQuery.data ?? []).map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+                {row.user == null ? " (shared)" : ""}
+              </option>
+            ))}
+          </select>
+          <Button
+            disabled={!client || !session || !searchQuery.trim()}
+            onClick={() => {
+              void (async () => {
+                if (!client || !session) return;
+                const name = globalThis.prompt("Name for saved search");
+                if (!name?.trim()) return;
+                try {
+                  const domain = buildSearchDomain(searchQuery);
+                  await createViewSearch(
+                    client,
+                    {
+                      name: name.trim(),
+                      model: props.model,
+                      domain: (domain as JsonValue) ?? [],
+                      user: session.userId,
+                    },
+                    rpcContext,
+                  );
+                  await viewSearchesQuery.refetch();
+                  setNotice(`Saved search “${name.trim()}”`);
+                } catch (err) {
+                  setNotice(err instanceof Error ? err.message : "Could not save search");
+                }
+              })();
+            }}
+          >
+            Save filter
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={!viewSearchesQuery.data?.length}
+            onClick={() => {
+              void (async () => {
+                if (!client) return;
+                const pick = globalThis.prompt(
+                  "Delete saved search id",
+                  String(viewSearchesQuery.data?.[0]?.id ?? ""),
+                );
+                const id = Number(pick);
+                if (!Number.isFinite(id)) return;
+                try {
+                  await deleteViewSearch(client, id, rpcContext);
+                  await viewSearchesQuery.refetch();
+                  setNotice(`Deleted saved search #${id}`);
+                } catch (err) {
+                  setNotice(err instanceof Error ? err.message : "Delete search failed");
+                }
+              })();
+            }}
+          >
+            Delete filter
           </Button>
         </div>
         <div className="epiton-toolbar">
@@ -1011,8 +1134,18 @@ export function ModelWorkspace(props: {
           <Button disabled={!client || !selectedId} onClick={() => void copySelected()}>
             Copy
           </Button>
+          <Button disabled={!selectedId} onClick={() => setShowHistory((v) => !v)}>
+            History
+          </Button>
         </div>
         <MetaStrip values={draft} />
+        {showHistory && selectedId != null ? (
+          <RecordHistoryPanel
+            model={props.model}
+            recordId={selectedId}
+            onClose={() => setShowHistory(false)}
+          />
+        ) : null}{" "}
         {props.onOpenAction ? (
           <RecordActionsMenu
             model={props.model}
