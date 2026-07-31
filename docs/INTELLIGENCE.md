@@ -11,7 +11,7 @@ Governance: never auto-write — see [`GOVERNANCE.md`](GOVERNANCE.md) and [`../A
 4. **Board analytics** — embedded panes over Tryton board arch; native DnD layout prefs in `sessionStorage`.
 5. **Field assistant** — uses `help` from `fields_view_get` (no silent writes).
 6. **Strict ACL coach** — warns when `ir.model.access` rows are missing (Tryton fail-open).
-7. **Workspace presets** — general, accounting, warehouse, clinical (GNU Health favorites).
+7. **Workspace presets** — generic, accounting, and warehouse; industry modules remain server-driven.
 8. **Series insights** — client-side sum/avg/top over `search_read` (never a second SoT).
 
 ## Safety

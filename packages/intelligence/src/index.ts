@@ -2,7 +2,7 @@ import Fuse from "fuse.js";
 
 export type Density = "compact" | "comfortable";
 export type LayoutMode = "tree-form" | "list-form" | "cards";
-export type WorkspacePreset = "general" | "accounting" | "warehouse" | "clinical";
+export type WorkspacePreset = "general" | "accounting" | "warehouse";
 
 export interface MenuItem {
   id: number | string;
@@ -123,9 +123,6 @@ export function adaptiveLayout(input: {
   if (input.preset === "warehouse") {
     return { layout: "tree-form", density: "compact" };
   }
-  if (input.preset === "clinical") {
-    return { layout: input.preferTree ? "tree-form" : "list-form", density: "comfortable" };
-  }
   return {
     layout: input.preferTree ? "tree-form" : "list-form",
     density: input.preset === "accounting" ? "compact" : "comfortable",
@@ -158,8 +155,6 @@ export function workspaceFavorites(preset: WorkspacePreset): string[] {
       return ["account.move", "account.account", "party.party"];
     case "warehouse":
       return ["stock.shipment.in", "stock.shipment.out", "product.product"];
-    case "clinical":
-      return ["gnuhealth.patient", "gnuhealth.appointment", "party.party"];
     default:
       return ["party.party", "company.company"];
   }

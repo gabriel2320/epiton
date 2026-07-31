@@ -1,69 +1,76 @@
-# GNU Health / HIS matrix
+# GNU Health compatibility contract
 
-Epiton targets Tryton RPC compatibility first. GNU Health modules install on trytond and should open through the same view engine.
+Epitón supports GNU Health through the same dynamic Tryton contract used for
+every module: menus, actions, `fields_view_get`, PYSON, relations, wizards,
+reports, and Session RPC. It does not maintain a parallel clinical API, schema,
+workspace preset, or list of hard-coded patient/appointment widgets.
 
-| Module / model (typical) | Expected view types | Epiton gap | Plugin plan |
-|--------------------------|---------------------|------------|-------------|
-| `gnuhealth.patient` | form, tree | Validate arch widgets | Patient badge widget |
-| `gnuhealth.appointment` | calendar, form | Calendar renderer MVP | Full calendar pack |
-| `gnuhealth.prescription.order` | form + O2M lines | Embedded O2M line form | Nested notebook polish |
-| `gnuhealth.lab` | form, tree | Binary/report attach | Lab result panel |
-| `gnuhealth.hospital.bed` | tree | OK with stock tree | Floor map optional |
-| Maternity / neonatology extensions | form notebooks | Notebook/page supported | Specialty presets |
-| FHIR bridge (if present) | REST | Use gateway REST proxy | Not in UI v1 |
+This keeps the client compatible with the GNU Health version and modules that
+the connected trytond instance actually exposes. It also avoids treating model
+names as proof that a clinical workflow is correct.
 
-## Workspace preset
+## Current evidence
 
-`clinical` preset favorites:
+| Boundary | Status | Meaning |
+|----------|--------|---------|
+| Generic Tryton 7/8 protocol | Verified | Core metadata, CRUD, actions, keywords, attachments |
+| Generic browser CRUD | Verified | Browser → gateway → trytond → browser on both tiers |
+| GNU Health namespace discovery | Implemented | Reads `ir.model` metadata for `gnuhealth.*` only |
+| Dedicated GNU Health lab | Not yet verified | No module- or workflow-level compatibility claim |
+| PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
-- `gnuhealth.patient`
-- `gnuhealth.appointment`
-- `party.party`
+The stock Docker lab contains party/company modules only. Therefore
+`pnpm gh:check` exits `2` there by design. Exit `0` means at least one
+`gnuhealth.*` model was discovered and its tree/form view capability was
+probed; it does **not** certify that model's workflow.
 
-## Widget plugins
+## Metadata-only discovery
 
-Epiton view-engine exposes a registry (`clinicalWidgetRegistry`) for GH relations:
-
-| Key | Widget |
-|-----|--------|
-| `relation:gnuhealth.patient` | Patient badge |
-| `model:gnuhealth.patient.name` | Patient badge |
-| `relation:gnuhealth.appointment` | Appointment chip |
-
-Enable via workspace preset **Clinical (GH)** in the shell (`useClinicalWidgets`).
-
-## Lab bootstrap (no PHI)
-
-Default `docker/` lab ships party/company only — **not** GNU Health.
-
-1. Point Epiton at a Tryton 7.x server that already has `health_*` / `gnuhealth.*` modules installed, **or**
-2. Build the optional scaffold image (fill in pinned wheels first):
-
-```bash
-# after editing docker/Dockerfile.gnuhealth with real package pins
-docker build -f docker/Dockerfile.gnuhealth -t epiton/tryton-gh:7.0 docker/
-```
-
-3. Probe models (synthetic admin only):
+Run against a synthetic, dedicated GNU Health environment:
 
 ```bash
 pnpm --filter @epiton/protocol build
-pnpm gh:check
+EPITON_GH_ENVIRONMENT_KIND=synthetic-gnu-health pnpm gh:check
 ```
 
-`gh:check` exits `2` when no GH models are present (expected on the stock lab), `0` when at least one opens via `fields_view_get`.
+Connection variables follow the other lab scripts:
+`EPITON_BASE`, `EPITON_DB`, `EPITON_USER`, and `EPITON_PASSWORD`. They are used
+in memory and are deliberately excluded from the receipt.
 
-Compose profile sketch (optional override):
+The default receipt is
+`tests/compat/receipts/gnu-health-latest.json` (gitignored, mode `0600`) with
+schema `epiton.gnu-health-discovery.v1`. It contains only:
 
-```yaml
-# docker-compose.gnuhealth.yml (local override — do not commit secrets)
-services:
-  tryton:
-    image: epiton/tryton-gh:7.0
-```
+- an operator-supplied environment kind;
+- technical `gnuhealth.*` model names;
+- whether tree/form metadata could be obtained;
+- explicit flags confirming no business-row reads, writes, or PHI.
+
+Upstream error details are redacted. The probe never searches, reads, creates,
+writes, deletes, or exports GNU Health business records.
+
+## Dedicated lab requirements
+
+`docker/Dockerfile.gnuhealth` is an intentionally non-functional scaffold,
+because GNU Health packages must be pinned to a compatible Tryton series. A
+future supported lab must:
+
+1. pin every GNU Health and Tryton package exactly;
+2. use a disposable database and synthetic fixtures only;
+3. route the browser through the Epitón gateway;
+4. run metadata discovery before model-specific browser scenarios;
+5. clean up all synthetic writes and publish only redacted receipts;
+6. add evidence to `COMPATIBILITY.md` before changing any support claim.
+
+Prefer composing against a maintained GNU Health trytond image over adding
+GNU Health or Proteus to the Epitón runtime. Proteus remains an isolated lab
+oracle; it is not shipped in the UI, gateway, or production images.
 
 ## Rules
 
-- No real PHI in fixtures or screenshots.
-- Fail-closed clinical writes belong to the HIS (e.g. Epione); Epiton remains a Tryton-compatible client.
-- Custom GH widgets register via view-engine plugin registry without forking modules.
+- No real PHI/PII in fixtures, screenshots, logs, receipts, or agent context.
+- No clinical model names in runtime presets or special-case render paths.
+- Server views, domains, states, ACLs, wizards, and reports remain authoritative.
+- Optional industry widgets must be supplied by a separate, versioned plugin
+  and cannot be used as compatibility evidence by themselves.
+- Epitón is a Tryton client, not a clinical system of record.

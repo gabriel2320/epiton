@@ -40,7 +40,7 @@ describe("intelligence", () => {
     expect(strictAclCoach("x.y", true)).toBeNull();
   });
 
-  it("returns clinical favorites", () => {
-    expect(workspaceFavorites("clinical")).toContain("gnuhealth.patient");
+  it("returns only generic Tryton favorites", () => {
+    expect(workspaceFavorites("general")).toEqual(["party.party", "company.company"]);
   });
 });

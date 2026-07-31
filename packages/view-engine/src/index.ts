@@ -45,11 +45,6 @@ export {
   type WidgetRegistry,
 } from "./plugins";
 export {
-  appointmentChipWidget,
-  clinicalWidgetRegistry,
-  patientBadgeWidget,
-} from "./clinical_widgets";
-export {
   parseCalendarArch,
   rowsToCalendarEvents,
   type CalendarEventRow,
