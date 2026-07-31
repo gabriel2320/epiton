@@ -248,6 +248,20 @@ export async function resolveAction(
     }
   }
 
+  // Menus/modules often store polymorphic ir.action,{id}; resolve concrete type then recurse.
+  if (type === "ir.action") {
+    try {
+      const rows = await client.searchRead("ir.action", [["id", "=", id]], ["type"], 0, 1);
+      const concrete = rows[0]?.type;
+      if (typeof concrete === "string" && concrete.length > 0 && concrete !== "ir.action") {
+        return resolveAction(client, `${concrete},${id}`);
+      }
+      return { kind: "unsupported", ref: raw, reason: "ir.action missing concrete type" };
+    } catch {
+      return { kind: "unsupported", ref: raw, reason: "ir.action lookup failed" };
+    }
+  }
+
   return { kind: "unsupported", ref: raw, reason: `unsupported action type ${type}` };
 }
 

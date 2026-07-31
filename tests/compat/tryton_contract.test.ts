@@ -10,6 +10,7 @@ import {
   parseXml,
   summarizeSeries,
   toTrytonM2M,
+  toTrytonM2MDelta,
   toTrytonO2M,
 } from "@epiton/view-engine";
 import { describe, expect, it } from "vitest";
@@ -41,6 +42,10 @@ describe("tryton contract shapes (offline)", () => {
   it("encodes O2M/M2M commands Tryton expects", () => {
     expect(toTrytonO2M([{ op: "create", values: { name: "L" } }])[0]?.[0]).toBe("create");
     expect(toTrytonM2M([4, 5])).toEqual([["add", [4, 5]]]);
+    expect(toTrytonM2MDelta([1, 2], [2, 3])).toEqual([
+      ["add", [3]],
+      ["remove", [1]],
+    ]);
   });
 
   it("evaluates PYSON Eval like view states", () => {

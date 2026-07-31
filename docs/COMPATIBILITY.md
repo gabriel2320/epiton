@@ -18,17 +18,17 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
 | Editable tree | `editable` arch / inline write | Improved | Cell editors → `model.write`; toolbar Inline edit toggle |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
-| Buttons | view `button` + confirm | Improved | Method RPC or `type=action` → resolveAction |
+| Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |
 | Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + active_ids |
 | Reports | `report.*.execute` | Improved | pdf/odt/csv/xls/html + pdfjs page/zoom; analytics companion |
-| O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
+| O2M / M2M / M2O | field types in view engine | Improved | rec_name labels + M2M add/remove delta + line form |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
 | PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
 | on_change | `on_change_*` / `on_change_with` | Implemented | Debounced in `ModelWorkspace` |
 | Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
 | Workspace tabs | multi-tab actions | Implemented | Independent stacks per tab; Ctrl/Cmd+favorite opens new |
-| CSV export | `export_data` / `export_data_domain` | Implemented | Selected ids or current domain |
+| CSV export | `export_data` / `export_data_domain` | Improved | Field picker dialog before export |
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
@@ -40,21 +40,21 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Translations | `ir.translation` catalog | Improved | Login/prefs wire `setCatalog` / shell lang |
 | Revision history | `model.__history__` | Improved | Read-only History panel when server exposes it |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |
-| act_window | domain/context/views | Implemented | Views by mode; domain/context eval with session prefs |
+| act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |
 | Copy | `model.*.copy` | Implemented | Selected ids → new records |
 | Keywords | `ir.action.keyword.get_keyword` | Improved | Relate/Print/Action + tree_open/graph_open |
 | URL actions | `ir.action.url` | Implemented | Opens external URL (blocks `javascript:`) |
-| Domain tabs | `ir.action.act_window.domain` | Implemented | All + named tabs; `count` → `search_count` badges |
+| Domain tabs | `ir.action.act_window.domain` | Improved | Named tabs + count badges + sessionStorage memory |
 | Page size | client limit | Implemented | 40/80/120/200 selector |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Implemented | widget= arch override + read links |
 | Audit meta | create/write date+uid | Implemented | `MetaStrip` under form toolbar |
 | Shortcuts | Ctrl/Cmd+S Esc T W | Implemented | Save / read / new tab / close tab |
 | UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip, Alert, ConfirmDialog |
 | Notices | status banners | Implemented | `Alert` tones; delete uses `ConfirmDialog` |
-| Bus | `/{db}/bus` | Improved | Long-poll; invalidate queries; open model#id when payload has target |
+| Bus | `/{db}/bus` | Improved | user+client channels; title/message; auto-open record payloads |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |
 | CSP | Web security headers | Prod hardened | Prefer web→gateway so `connect-src 'self'` |

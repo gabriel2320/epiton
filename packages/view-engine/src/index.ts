@@ -29,6 +29,7 @@ export {
 } from "./i18n";
 export {
   toTrytonM2M,
+  toTrytonM2MDelta,
   toTrytonO2M,
   type O2MCommand,
 } from "./relations";

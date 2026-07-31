@@ -146,6 +146,38 @@ describe("resolveAction", () => {
     });
   });
 
+  it("resolves polymorphic ir.action,{id} via concrete type", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string };
+      if (body.method === "model.ir.action.search_read") {
+        return new Response(
+          JSON.stringify({ id: 1, result: [{ id: 12, type: "ir.action.act_window" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (body.method === "model.ir.action.act_window.domain.search_read") {
+        return new Response(JSON.stringify({ id: 1, result: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      expect(body.method).toBe("model.ir.action.act_window.search_read");
+      return new Response(
+        JSON.stringify({
+          id: 1,
+          result: [{ id: 12, res_model: "party.party", name: "Parties", domain: "[]", views: [] }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
+    await expect(resolveAction(client, "ir.action,12")).resolves.toMatchObject({
+      kind: "model",
+      model: "party.party",
+      actionId: 12,
+    });
+  });
+
   it("rejects incomplete ir.action types", async () => {
     const client = clientWithFetch(vi.fn() as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action.act_window")).resolves.toMatchObject({

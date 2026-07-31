@@ -11,6 +11,12 @@ interface BusNote {
   at: number;
   model?: string;
   recordId?: number;
+  autoOpened?: boolean;
+}
+
+function asRecord(message: unknown): Record<string, unknown> | null {
+  if (!message || typeof message !== "object" || Array.isArray(message)) return null;
+  return message as Record<string, unknown>;
 }
 
 function summarize(message: unknown): string {
@@ -18,30 +24,47 @@ function summarize(message: unknown): string {
   if (typeof message === "string") return message.slice(0, 120);
   if (typeof message === "number" || typeof message === "boolean") return String(message);
   if (Array.isArray(message)) return `list[${message.length}]`;
-  if (typeof message === "object") {
-    const obj = message as Record<string, unknown>;
-    if (typeof obj.type === "string") return obj.type;
-    if (typeof obj.message === "string") return obj.message.slice(0, 120);
-    return Object.keys(obj).slice(0, 4).join(", ") || "object";
+  const obj = asRecord(message);
+  if (!obj) return String(message);
+  if (typeof obj.title === "string" && obj.title.trim()) return obj.title.slice(0, 120);
+  if (typeof obj.message === "string" && obj.message.trim()) return obj.message.slice(0, 120);
+  if (typeof obj.type === "string") {
+    const detail =
+      typeof obj.body === "string" ? obj.body : typeof obj.text === "string" ? obj.text : undefined;
+    return detail ? `${obj.type}: ${detail.slice(0, 80)}` : obj.type;
   }
-  return String(message);
+  return Object.keys(obj).slice(0, 4).join(", ") || "object";
 }
 
 function extractTarget(message: unknown): { model?: string; recordId?: number } {
-  if (!message || typeof message !== "object" || Array.isArray(message)) return {};
-  const obj = message as Record<string, unknown>;
+  const obj = asRecord(message);
+  if (!obj) return {};
+  const nested = asRecord(obj.data) ?? asRecord(obj.record) ?? obj;
   const model =
-    typeof obj.model === "string"
-      ? obj.model
-      : typeof obj.active_model === "string"
-        ? obj.active_model
-        : undefined;
-  const rawId = obj.id ?? obj.active_id ?? obj.record_id;
+    typeof nested.model === "string"
+      ? nested.model
+      : typeof nested.active_model === "string"
+        ? nested.active_model
+        : typeof obj.model === "string"
+          ? obj.model
+          : typeof obj.active_model === "string"
+            ? obj.active_model
+            : undefined;
+  const rawId =
+    nested.id ?? nested.active_id ?? nested.record_id ?? obj.id ?? obj.active_id ?? obj.record_id;
   const recordId = typeof rawId === "number" ? rawId : Number(rawId);
   return {
     model,
     recordId: Number.isFinite(recordId) ? recordId : undefined,
   };
+}
+
+function shouldAutoOpen(message: unknown): boolean {
+  const obj = asRecord(message);
+  if (!obj) return false;
+  if (obj.open === true || obj.auto_open === true) return true;
+  const type = typeof obj.type === "string" ? obj.type.toLowerCase() : "";
+  return type === "record" || type === "open" || type === "open_record";
 }
 
 /** Live bus indicator with invalidate + open-record hooks (Sao parity). */
@@ -63,9 +86,10 @@ export function BusBanner(props: {
     const bus = new BusClient(client.busUrl(), session);
     let active = true;
     setStatus("listening");
+    const channels = [`user:${session.userId}`, "client"];
     void (async () => {
       try {
-        for await (const msg of bus.listen([`user:${session.userId}`])) {
+        for await (const msg of bus.listen(channels)) {
           if (!active) break;
           appendNote(msg);
         }
@@ -80,6 +104,9 @@ export function BusBanner(props: {
 
     function appendNote(msg: BusMessage) {
       const target = extractTarget(msg.message);
+      const auto =
+        Boolean(target.model && target.recordId != null && props.onOpenRecord) &&
+        shouldAutoOpen(msg.message);
       const note: BusNote = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         channel: msg.channel,
@@ -87,6 +114,7 @@ export function BusBanner(props: {
         at: msg.timestamp ?? Date.now(),
         model: target.model,
         recordId: target.recordId,
+        autoOpened: auto,
       };
       setNotes((prev) => [note, ...prev].slice(0, 20));
       setOpen(true);
@@ -95,8 +123,11 @@ export function BusBanner(props: {
       if (target.model) {
         void queryClient.invalidateQueries({ queryKey: ["model", target.model] });
       }
+      if (auto && target.model && target.recordId != null) {
+        props.onOpenRecord?.(target.model, target.recordId);
+      }
     }
-  }, [client, queryClient]);
+  }, [client, queryClient, props.onOpenRecord]);
 
   const latest = notes[0];
 
@@ -133,6 +164,7 @@ export function BusBanner(props: {
                       onClick={() => props.onOpenRecord?.(n.model!, n.recordId!)}
                     >
                       <code>{n.channel}</code> · {n.summary} → {n.model}#{n.recordId}
+                      {n.autoOpened ? " · opened" : ""}
                     </button>
                   ) : (
                     <span className="text-sm">

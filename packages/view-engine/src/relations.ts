@@ -23,6 +23,20 @@ export function toTrytonO2M(commands: O2MCommand[]): unknown[] {
   });
 }
 
+/** Set-style M2M write (add all ids). Prefer `toTrytonM2MDelta` when editing. */
 export function toTrytonM2M(ids: number[]): unknown[] {
   return [["add", ids]];
+}
+
+/** Sao-style M2M delta: add newcomers, remove dropouts. */
+export function toTrytonM2MDelta(previous: number[], next: number[]): unknown[] {
+  const prev = new Set(previous);
+  const nxt = new Set(next);
+  const add = next.filter((id) => !prev.has(id));
+  const remove = previous.filter((id) => !nxt.has(id));
+  const cmds: unknown[] = [];
+  if (add.length) cmds.push(["add", add]);
+  if (remove.length) cmds.push(["remove", remove]);
+  if (!cmds.length && next.length) return [["add", next]];
+  return cmds;
 }

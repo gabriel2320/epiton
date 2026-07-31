@@ -20,13 +20,12 @@ Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
-3. Nested O2M/M2M as full Sao screens (command-queue lite remains)
+3. Nested O2M/M2M as *full* Sao screens (Epitón now has rec_name + M2M deltas; still command-queue, not embedded tree/form screens)
 
-Recently improved (2026-07-31): `tree_state` domain keys, print ids require selection,
-`tree_open`/`graph_open` keywords, native secure session hydrate, email keyword→wizard,
-sequence DnD, notebook memory, graph→filter, shell title/safe-area, lazy tree,
-pdfjs, mailto, hierarchy, favorites, `_actions`, form-in-pane, view_search, i18n,
-CSV map, attachments, history, editable tree, notebook, wizard, bus.
+Recently improved (2026-07-31 cont.): polymorphic `ir.action,{id}`, O2M/M2M rec_name +
+M2M add/remove deltas, button `active_ids`, bus title/auto-open + client channel,
+CSV export field picker, domain-tab session memory; plus earlier tree_state domains,
+calendar write-back, wizard on_change, attachment links, PYSON arithmetic, db.list.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -80,8 +79,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 5. ~~Richer `tree_state` domains; print ids; tree/graph_open~~
 6. ~~Wizard on_change + calendar arch/write + board wizard/report open UX~~
 7. ~~Form button action routing + attachment links + PYSON ops + `common.db.list`~~
-8. GTK-only plugins remain out of scope; nested O2M/M2M full Sao screens remain Medium polish
-9. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
+8. ~~Polymorphic `ir.action`; O2M/M2M labels+deltas; button active_ids; bus depth; CSV export picker; domain-tab memory~~
+9. GTK-only plugins remain out of scope; full nested Sao relation screens remain Medium polish
+10. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## How to re-check
 

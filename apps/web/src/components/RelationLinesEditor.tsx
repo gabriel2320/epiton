@@ -3,10 +3,11 @@ import {
   type O2MCommand,
   type RecordValues,
   type ViewField,
-  toTrytonM2M,
+  toTrytonM2MDelta,
   toTrytonO2M,
 } from "@epiton/view-engine";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAppStore } from "../lib/store";
 import { RelationLineForm } from "./RelationLineForm";
 import { RelationSearch } from "./RelationSearch";
 
@@ -21,13 +22,55 @@ export function RelationLinesEditor(props: {
   /** Open nested related record (O2M/M2M line). */
   onOpenLine?: (model: string, id: number) => void;
 }) {
+  const client = useAppStore((s) => s.client);
   const initialIds = useMemo(() => normalizeIds(props.value), [props.value]);
   const [ids, setIds] = useState<number[]>(initialIds);
+  const [baselineIds, setBaselineIds] = useState<number[]>(initialIds);
+  const [labels, setLabels] = useState<Record<number, string>>({});
   const [draftId, setDraftId] = useState("");
   const [commands, setCommands] = useState<O2MCommand[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [lineForm, setLineForm] = useState<"create" | number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIds(initialIds);
+    setBaselineIds(initialIds);
+    setCommands([]);
+  }, [initialIds]);
+
+  useEffect(() => {
+    const relation = props.field.relation;
+    if (!client || !relation || !ids.length) {
+      setLabels({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await client.searchRead(
+          relation,
+          [["id", "in", ids]],
+          ["id", "rec_name", "name"],
+          0,
+          ids.length,
+        );
+        if (cancelled) return;
+        const next: Record<number, string> = {};
+        for (const row of rows) {
+          const id = Number(row.id);
+          if (!Number.isFinite(id)) continue;
+          next[id] = String(row.rec_name ?? row.name ?? `#${id}`);
+        }
+        setLabels(next);
+      } catch {
+        if (!cancelled) setLabels({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, props.field.relation, ids]);
 
   function addId(id: number) {
     if (!Number.isFinite(id)) return;
@@ -52,10 +95,15 @@ export function RelationLinesEditor(props: {
 
   function apply() {
     if (props.field.type === "many2many") {
-      props.onCommit(toTrytonM2M(ids));
+      props.onCommit(toTrytonM2MDelta(baselineIds, ids));
+      setBaselineIds(ids);
+      setCommands([]);
+      setNotice("M2M delta applied");
       return;
     }
     props.onCommit(toTrytonO2M(commands.length ? commands : ids.map((id) => ({ op: "add", id }))));
+    setBaselineIds(ids);
+    setNotice("O2M commands applied");
   }
 
   function queueLine(values: RecordValues, lineId: number | null) {
@@ -74,7 +122,7 @@ export function RelationLinesEditor(props: {
       <ul className="epiton-menu-list">
         {ids.map((id) => (
           <li key={id} className="epiton-menu-row">
-            <span>#{id}</span>
+            <span>{labels[id] ? `${labels[id]} (#${id})` : `#${id}`}</span>
             {props.field.relation && props.onOpenLine ? (
               <Button onClick={() => props.onOpenLine?.(props.field.relation as string, id)}>
                 Open

@@ -59,6 +59,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
+import { CsvExportDialog } from "./CsvExportDialog";
 import { CsvImportDialog, applyCsvColumnMapping } from "./CsvImportDialog";
 import { EmailComposeDialog } from "./EmailComposeDialog";
 import { GraphView } from "./GraphView";
@@ -139,6 +140,7 @@ export function ModelWorkspace(props: {
   const [lazyTreeRows, setLazyTreeRows] = useState<Array<Record<string, unknown>>>([]);
   const [emptyTreeParents, setEmptyTreeParents] = useState<Set<number>>(() => new Set());
   const [emailOpen, setEmailOpen] = useState(false);
+  const [csvExportOpen, setCsvExportOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,11 +213,11 @@ export function ModelWorkspace(props: {
     URL.revokeObjectURL(url);
   }
 
-  async function exportCsv() {
+  async function exportCsv(fields?: string[]) {
     if (!client) return;
     setNotice("Exporting CSV…");
     try {
-      const fieldNames = columns.map((c) => c.name).filter(Boolean);
+      const fieldNames = fields?.length ? fields : columns.map((c) => c.name).filter(Boolean);
       const ids =
         selectedIds.length > 0 ? selectedIds : selectedId != null ? [selectedId] : undefined;
       const csv = await exportModelCsv(client, props.model, {
@@ -433,13 +435,33 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     void props.model;
     void props.actionDomains;
-    setDomainTab(-1);
     setOffset(0);
     setExpandedTreeIds(new Set());
     setLazyTreeRows([]);
     setEmptyTreeParents(new Set());
+    const key = domainTabStorageKey(props.model, props.actionDomains);
+    if (!key) {
+      setDomainTab(-1);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(key);
+      const n = raw == null ? -1 : Number(raw);
+      setDomainTab(Number.isFinite(n) ? n : -1);
+    } catch {
+      setDomainTab(-1);
+    }
   }, [props.model, props.actionDomains]);
 
+  useEffect(() => {
+    const key = domainTabStorageKey(props.model, props.actionDomains);
+    if (!key) return;
+    try {
+      sessionStorage.setItem(key, String(domainTab));
+    } catch {
+      /* ignore */
+    }
+  }, [domainTab, props.model, props.actionDomains]);
   const listQuery = useQuery({
     queryKey: [
       "model",
@@ -911,11 +933,17 @@ export function ModelWorkspace(props: {
       props.onHistory?.(`button:action:${name}`);
       return;
     }
+    const ids = selectedIds.length ? selectedIds : [selectedId];
     setNotice(`Running ${name}…`);
     try {
-      await client.model(props.model, name, [[selectedId]], rpcContext);
+      await client.model(props.model, name, [ids], {
+        ...rpcContext,
+        active_id: ids[0]!,
+        active_ids: ids,
+        active_model: props.model,
+      });
       props.onHistory?.(`button:${name}`);
-      setNotice(`Button ${name} OK`);
+      setNotice(`Button ${name} OK (${ids.length})`);
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Button failed");
@@ -1109,6 +1137,20 @@ export function ModelWorkspace(props: {
         values={draft}
         onCancel={() => setEmailOpen(false)}
       />
+      <CsvExportDialog
+        open={csvExportOpen}
+        fieldNames={
+          Object.keys(formViewQuery.data?.fields ?? {}).length
+            ? ["id", "rec_name", ...Object.keys(formViewQuery.data?.fields ?? {})]
+            : ["id", "rec_name", ...columns.map((c) => c.name).filter(Boolean)]
+        }
+        initialSelected={columns.map((c) => c.name).filter(Boolean)}
+        onCancel={() => setCsvExportOpen(false)}
+        onConfirm={(fields) => {
+          setCsvExportOpen(false);
+          void exportCsv(fields);
+        }}
+      />
       <Panel title={props.model}>
         {domainTabs.length ? (
           <Tabs aria-label="Action domains" className="epiton-domain-tabs">
@@ -1170,7 +1212,7 @@ export function ModelWorkspace(props: {
           </Button>
           <Button
             disabled={!client || (!selectedIds.length && !selectedId && !listQuery.data?.length)}
-            onClick={() => void exportCsv()}
+            onClick={() => setCsvExportOpen(true)}
           >
             Export CSV
           </Button>
@@ -1581,4 +1623,12 @@ export function ModelWorkspace(props: {
       </Panel>
     </div>
   );
+}
+
+function domainTabStorageKey(
+  model: string,
+  domains?: Array<{ name: string }> | null,
+): string | null {
+  if (!domains?.length) return null;
+  return `epiton.domainTab.${model}.${domains.map((d) => d.name).join("|")}`;
 }

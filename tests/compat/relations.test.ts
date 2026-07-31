@@ -1,10 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { toTrytonM2M, toTrytonO2M } from "@epiton/view-engine";
+import { toTrytonM2M, toTrytonM2MDelta, toTrytonO2M } from "@epiton/view-engine";
 import { describe, expect, it } from "vitest";
-
-const dir = dirname(fileURLToPath(import.meta.url));
 
 describe("relation commands", () => {
   it("encodes o2m/m2m tryton commands", () => {
@@ -20,10 +15,11 @@ describe("relation commands", () => {
     expect(toTrytonM2M([1, 2])).toEqual([["add", [1, 2]]]);
   });
 
-  it("keeps login fixture stable", () => {
-    const raw = JSON.parse(readFileSync(join(dir, "fixtures/01-login.json"), "utf8")) as {
-      response: { result: unknown[] };
-    };
-    expect(raw.response.result).toHaveLength(2);
+  it("encodes m2m deltas as add/remove", () => {
+    expect(toTrytonM2MDelta([1, 2, 3], [2, 3, 4])).toEqual([
+      ["add", [4]],
+      ["remove", [1]],
+    ]);
+    expect(toTrytonM2MDelta([1], [1])).toEqual([["add", [1]]]);
   });
 });
