@@ -297,6 +297,35 @@ export function evalDomain(domain: unknown, ctx: PysonContext): unknown[] {
   return Array.isArray(evaluated) ? evaluated : [];
 }
 
+/** Evaluate a PYSON/JSON context dict against session values. */
+export function evalContext(contextNode: unknown, ctx: PysonContext): Record<string, unknown> {
+  let node = contextNode;
+  if (typeof node === "string") {
+    const t = node.trim();
+    if (!t || t === "{}") return {};
+    try {
+      node = JSON.parse(t);
+    } catch {
+      try {
+        node = JSON.parse(
+          t
+            .replace(/'/g, '"')
+            .replace(/\bTrue\b/g, "true")
+            .replace(/\bFalse\b/g, "false")
+            .replace(/\bNone\b/g, "null"),
+        );
+      } catch {
+        return {};
+      }
+    }
+  }
+  const evaluated = evalPysonNode(node, ctx);
+  if (evaluated && typeof evaluated === "object" && !Array.isArray(evaluated)) {
+    return evaluated as Record<string, unknown>;
+  }
+  return {};
+}
+
 /** Parse states="{...}" attribute; returns resolved flags for current values. */
 export function resolveStatesAttr(
   statesAttr: string | undefined,

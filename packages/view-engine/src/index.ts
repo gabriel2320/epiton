@@ -54,6 +54,7 @@ export {
   mergeDomains,
 } from "./search";
 export {
+  evalContext,
   evalDomain,
   evalPyson,
   evalPysonNode,

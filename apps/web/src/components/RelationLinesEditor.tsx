@@ -1,24 +1,31 @@
 import { Button, Panel } from "@epiton/ui";
 import { type O2MCommand, type ViewField, toTrytonM2M, toTrytonO2M } from "@epiton/view-engine";
 import { useMemo, useState } from "react";
+import { RelationSearch } from "./RelationSearch";
 
 /** Inline editor for One2Many / Many2Many line commands (Sao parity). */
 export function RelationLinesEditor(props: {
   field: ViewField;
   value: unknown;
   mode: "read" | "write";
+  recordValues?: Record<string, unknown>;
+  domain?: unknown[];
   onCommit: (next: unknown) => void;
 }) {
   const initialIds = useMemo(() => normalizeIds(props.value), [props.value]);
   const [ids, setIds] = useState<number[]>(initialIds);
   const [draftId, setDraftId] = useState("");
   const [commands, setCommands] = useState<O2MCommand[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  function addId() {
-    const id = Number(draftId);
+  function addId(id: number) {
     if (!Number.isFinite(id)) return;
     setIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setCommands((prev) => [...prev, { op: "add", id }]);
+  }
+
+  function addFromInput() {
+    addId(Number(draftId));
     setDraftId("");
   }
 
@@ -57,11 +64,25 @@ export function RelationLinesEditor(props: {
             placeholder="record id"
             aria-label="Related record id"
           />
-          <Button onClick={addId}>Add</Button>
+          <Button onClick={addFromInput}>Add id</Button>
+          <Button onClick={() => setSearchOpen(true)}>Search add</Button>
           <Button variant="primary" onClick={apply}>
             Apply relation commands
           </Button>
         </div>
+      ) : null}
+      {searchOpen && props.field.relation ? (
+        <RelationSearch
+          field={props.field}
+          recordValues={props.recordValues ?? {}}
+          domain={props.domain}
+          mode={props.mode}
+          onCancel={() => setSearchOpen(false)}
+          onPick={(id) => {
+            addId(id);
+            setSearchOpen(false);
+          }}
+        />
       ) : null}
       <p className="text-sm text-[var(--epiton-muted)]">
         Relation: {props.field.relation ?? "—"} · pending ops: {commands.length}

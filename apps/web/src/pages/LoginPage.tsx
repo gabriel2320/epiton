@@ -1,4 +1,4 @@
-import { createClient } from "@epiton/protocol";
+import { buildSessionContext, createClient, loadUserPreferences } from "@epiton/protocol";
 import { BrandMark, Button, Panel } from "@epiton/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
@@ -12,6 +12,7 @@ export function LoginPage() {
   const setConnection = useAppStore((s) => s.setConnection);
   const setClient = useAppStore((s) => s.setClient);
   const setSession = useAppStore((s) => s.setSession);
+  const setPreferences = useAppStore((s) => s.setPreferences);
   const setError = useAppStore((s) => s.setError);
   const error = useAppStore((s) => s.error);
   const { t, i18n } = useTranslation();
@@ -37,6 +38,8 @@ export function LoginPage() {
       });
       await client.detectCapabilities();
       const session = await client.login(values.username, values.password, i18n.language);
+      const preferences = await loadUserPreferences(client);
+      setPreferences(preferences, buildSessionContext(preferences, { user: session.userId }));
       setClient(client);
       setSession({ login: session.login, userId: session.userId });
     } catch (err) {

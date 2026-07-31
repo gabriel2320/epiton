@@ -238,6 +238,21 @@
   font: inherit;
 }
 
+.epiton-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--epiton-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.epiton-upload input {
+  max-width: 11rem;
+}
+
 .epiton-drawer-trigger,
 .epiton-drawer-close {
   appearance: none;

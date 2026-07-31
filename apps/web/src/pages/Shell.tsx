@@ -5,8 +5,7 @@ import {
   unifiedSearch,
   workspaceFavorites,
 } from "@epiton/intelligence";
-import { resolveAction } from "@epiton/protocol";
-import type { JsonObject } from "@epiton/protocol";
+import { type JsonValue, resolveAction, wizardActionRefs } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,8 +35,9 @@ interface ActionFrame {
   model: string;
   id: number | null;
   label: string;
-  domain?: unknown;
-  context?: JsonObject;
+  domain?: JsonValue;
+  context?: JsonValue;
+  views?: Array<[number | null, string]>;
 }
 
 export function Shell() {
@@ -157,7 +157,12 @@ export function Shell() {
   function replaceRoot(
     model: string,
     id: number | null = null,
-    extras?: { domain?: unknown; context?: JsonObject; label?: string },
+    extras?: {
+      domain?: JsonValue;
+      context?: JsonValue;
+      views?: Array<[number | null, string]>;
+      label?: string;
+    },
   ) {
     setStack([
       {
@@ -166,6 +171,7 @@ export function Shell() {
         label: extras?.label ?? model,
         domain: extras?.domain,
         context: extras?.context,
+        views: extras?.views,
       },
     ]);
   }
@@ -193,6 +199,7 @@ export function Shell() {
       replaceRoot(resolved.model, null, {
         domain: resolved.domain,
         context: resolved.context,
+        views: resolved.views,
         label: resolved.name ?? resolved.model,
       });
       setHistory((h) => [...h, { model: resolved.model, action: source }]);
@@ -220,6 +227,7 @@ export function Shell() {
     } finally {
       setClient(null);
       setSession(null);
+      useAppStore.getState().setPreferences({}, {});
     }
   }
 
@@ -307,6 +315,11 @@ export function Shell() {
                   activeModel={active}
                   activeId={selectedId}
                   autoStart={Boolean(activeWizard)}
+                  onActions={(actions) => {
+                    const refs = wizardActionRefs(actions);
+                    for (const ref of refs) void openWorkspace(ref, "wizard-action");
+                    if (refs.length) setWizardOpen(false);
+                  }}
                 />
               </Suspense>
             </ToolDrawer>
@@ -389,6 +402,7 @@ export function Shell() {
               initialSelectedId={selectedId}
               actionDomain={stack[stack.length - 1]?.domain}
               actionContext={stack[stack.length - 1]?.context}
+              actionViews={stack[stack.length - 1]?.views}
               useClinicalWidgets={preset === "clinical"}
               onSelectedIdChange={setSelectedId}
               onPushRelated={(model, id) => {

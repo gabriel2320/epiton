@@ -19,6 +19,14 @@ export {
   type FieldOnChangeMeta,
   type OnChangeValues,
 } from "./onchange";
+export {
+  asJsonObject,
+  buildSessionContext,
+  loadUserPreferences,
+  viewIdForMode,
+  type SessionPreferences,
+} from "./session_context";
+export { wizardActionRefs } from "./wizard_actions";
 
 export type JsonRpcId = string | number | null;
 

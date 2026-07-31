@@ -13,7 +13,7 @@ import {
   parseWizardPayload,
   renderView,
 } from "@epiton/view-engine";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 
 interface WizardRuntime {
@@ -39,6 +39,8 @@ export function WizardStepper(props: {
   activeModel?: string | null;
   actionId?: number | null;
   autoStart?: boolean;
+  /** Called when wizard ends with Tryton actions to open. */
+  onActions?: (actions: unknown[]) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
@@ -46,6 +48,8 @@ export function WizardStepper(props: {
   const [runtime, setRuntime] = useState<WizardRuntime | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
   const [message, setMessage] = useState("Pick a wizard and start");
+  const onActionsRef = useRef(props.onActions);
+  onActionsRef.current = props.onActions;
 
   function buildContext(): JsonObject {
     const ctx: JsonObject = {};
@@ -70,7 +74,12 @@ export function WizardStepper(props: {
         await wizardDelete(client, session, context);
         setRuntime(null);
         setStatus("idle");
-        setMessage("Wizard finished immediately");
+        if (parsed.actions.length) onActionsRef.current?.(parsed.actions);
+        setMessage(
+          parsed.actions.length
+            ? `Finished with ${parsed.actions.length} action(s)`
+            : "Wizard finished immediately",
+        );
         return;
       }
       setRuntime({
@@ -114,6 +123,7 @@ export function WizardStepper(props: {
         await wizardDelete(client, runtime, runtime.context);
         setRuntime(null);
         setStatus("idle");
+        if (parsed.actions.length) onActionsRef.current?.(parsed.actions);
         setMessage(
           parsed.actions.length ? `Ended with ${parsed.actions.length} action(s)` : "Wizard ended",
         );
@@ -175,7 +185,12 @@ export function WizardStepper(props: {
           if (!cancelled) {
             setRuntime(null);
             setStatus("idle");
-            setMessage("Wizard finished immediately");
+            if (parsed.actions.length) onActionsRef.current?.(parsed.actions);
+            setMessage(
+              parsed.actions.length
+                ? `Finished with ${parsed.actions.length} action(s)`
+                : "Wizard finished immediately",
+            );
           }
           return;
         }

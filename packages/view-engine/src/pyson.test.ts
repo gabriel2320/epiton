@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evalDomain, evalPyson, evalPysonNode, resolveStatesAttr } from "./pyson";
+import { evalContext, evalDomain, evalPyson, evalPysonNode, resolveStatesAttr } from "./pyson";
 
 describe("pyson JSON __class__", () => {
   it("evaluates Eval / Not / And / Or / If", () => {
@@ -73,5 +73,11 @@ describe("pyson JSON __class__", () => {
     expect(evalPyson("Eval('active')", { active: 1 })).toBe(true);
     expect(evalPyson("Not(Eval('active'))", { active: false })).toBe(true);
     expect(evalPyson("And(Eval('a'), Eval('b'))", { a: true, b: true })).toBe(true);
+  });
+
+  it("evaluates context with Eval", () => {
+    expect(
+      evalContext({ company: { __class__: "Eval", v: "company", d: null } }, { company: 4 }),
+    ).toEqual({ company: 4 });
   });
 });

@@ -8,7 +8,8 @@ export type ResolvedAction =
       name?: string;
       /** Concrete or PYSON-encoded domain from act_window. */
       domain?: JsonValue;
-      context?: JsonObject;
+      /** Dict or PYSON-encoded context string from act_window. */
+      context?: JsonValue;
       views?: Array<[number | null, string]>;
     }
   | { kind: "wizard"; wizard: string; actionId: number | null }
@@ -138,7 +139,7 @@ export async function resolveAction(
           actionId: id,
           name: typeof row?.name === "string" ? row.name : undefined,
           domain: parseDomainField(row?.domain),
-          context: asObject(row?.context) ?? undefined,
+          context: parseDomainField(row?.context) ?? asObject(row?.context),
           views: parseViews(row?.views),
         };
       }

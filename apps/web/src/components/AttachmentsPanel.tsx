@@ -2,25 +2,27 @@ import { Button, Panel } from "@epiton/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
 
-/** Sao-parity: attachments via ir.attachment search_read for the active record. */
+/** Sao-parity attachments: list / upload / download via ir.attachment. */
 export function AttachmentsPanel(props: { model: string; recordId?: number }) {
   const client = useAppStore((s) => s.client);
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const resource = props.recordId != null ? `${props.model},${props.recordId}` : null;
 
   const load = useCallback(async () => {
     if (!client) return;
     try {
-      const domain: unknown[] =
-        props.recordId != null
-          ? [["resource", "=", `${props.model},${props.recordId}`]]
-          : [["resource", "like", `${props.model},%`]];
+      const domain: unknown[] = resource
+        ? [["resource", "=", resource]]
+        : [["resource", "like", `${props.model},%`]];
       const result = await client.searchRead(
         "ir.attachment",
         domain as never,
-        ["name", "resource", "type"],
+        ["name", "resource", "type", "data_size"],
         0,
-        20,
+        40,
       );
       setRows(result);
       setMessage(
@@ -31,11 +33,83 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Attachments unavailable");
     }
-  }, [client, props.model, props.recordId]);
+  }, [client, props.model, props.recordId, resource]);
 
   useEffect(() => {
     if (props.recordId != null) void load();
   }, [props.recordId, load]);
+
+  async function upload(file: File) {
+    if (!client || !resource) {
+      setMessage("Select a record before uploading");
+      return;
+    }
+    setBusy(true);
+    try {
+      const b64 = await readFileBase64(file);
+      await client.model(
+        "ir.attachment",
+        "create",
+        [
+          [
+            {
+              name: file.name,
+              type: "data",
+              resource,
+              data: b64,
+            },
+          ],
+        ],
+        {},
+      );
+      setMessage(`Uploaded ${file.name}`);
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function download(id: number, name: string) {
+    if (!client) return;
+    setBusy(true);
+    try {
+      const result = await client.model("ir.attachment", "read", [[id], ["name", "data"]], {});
+      const row = Array.isArray(result) ? (result[0] as Record<string, unknown>) : null;
+      const data = row?.data;
+      if (typeof data !== "string" || data.startsWith("javascript:")) {
+        setMessage("No binary data on attachment");
+        return;
+      }
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = String(row?.name ?? name ?? `attachment-${id}`);
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: number) {
+    if (!client) return;
+    if (!globalThis.confirm(`Delete attachment #${id}?`)) return;
+    setBusy(true);
+    try {
+      await client.model("ir.attachment", "delete", [[id]], {});
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <Panel title="Attachments">
@@ -44,13 +118,67 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
           Select a record to scope attachments, or load all for this model.
         </p>
       ) : null}
-      <Button onClick={() => void load()}>Load attachments</Button>
+      <div className="epiton-toolbar">
+        <Button disabled={busy} onClick={() => void load()}>
+          Load
+        </Button>
+        <label className="epiton-upload">
+          <span>Upload</span>
+          <input
+            type="file"
+            disabled={busy || !resource}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void upload(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      </div>
       <p role="status">{message}</p>
-      <ul>
-        {rows.map((r) => (
-          <li key={String(r.id)}>{String(r.name ?? r.id)}</li>
-        ))}
+      <ul className="epiton-menu-list">
+        {rows.map((r) => {
+          const id = Number(r.id);
+          const name = String(r.name ?? id);
+          return (
+            <li key={String(id)}>
+              <span>
+                {name}
+                {r.data_size != null ? ` · ${String(r.data_size)} B` : ""}
+              </span>
+              <Button
+                disabled={busy || !Number.isFinite(id)}
+                onClick={() => void download(id, name)}
+              >
+                Download
+              </Button>
+              <Button
+                variant="danger"
+                disabled={busy || !Number.isFinite(id)}
+                onClick={() => void remove(id)}
+              >
+                Delete
+              </Button>
+            </li>
+          );
+        })}
       </ul>
     </Panel>
   );
+}
+
+function readFileBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Unexpected file reader result"));
+        return;
+      }
+      resolve(result.includes(",") ? (result.split(",")[1] ?? "") : result);
+    };
+    reader.readAsDataURL(file);
+  });
 }

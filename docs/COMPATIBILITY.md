@@ -13,18 +13,19 @@
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
 | Wizards | `wizard.*.create/execute/delete` | Implemented | Sao-shaped data + drawer host |
 | Reports | `report.*.execute` | Implemented | Download + iframe preview; `ir.action.report` resolve |
-| Attachments | `ir.attachment` | Implemented | Scoped to selected `recordId` |
-| O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Nested editors |
+| Attachments | `ir.attachment` | Implemented | List + upload + download + delete |
+| O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Nested editors + M2M search-add |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
 | PYSON states | `invisible`/`readonly`/`required` | Implemented | JSON `__class__` + string Eval/Not/And/Or/If/Get/In/Date |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
 | on_change | `on_change_*` / `on_change_with` | Implemented | Debounced in `ModelWorkspace` |
 | Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
-| act_window | domain/context/views | Implemented | Passed into workspace search_read |
+| act_window | domain/context/views | Implemented | Views by mode; domain/context eval with session prefs |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar | Partial | Core set beyond Sao MVP |
+| Wizard actions | execute `actions` | Implemented | `wizardActionRefs` → openWorkspace |
 | Bus | `/{db}/bus` | Long-poll `BusClient` + shell banner | Capability probed |
 | REST | Bearer application tokens | Not probed (default false) | Prefer gateway |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + deep-link `?model=&id=` |

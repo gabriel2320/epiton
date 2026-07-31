@@ -1,5 +1,11 @@
 import { strictAclCoach } from "@epiton/intelligence";
-import { type JsonObject, applyFieldChange, modelHasAccessRows } from "@epiton/protocol";
+import {
+  type JsonObject,
+  type JsonValue,
+  applyFieldChange,
+  modelHasAccessRows,
+  viewIdForMode,
+} from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
@@ -7,6 +13,7 @@ import {
   type WidgetRegistry,
   buildSearchDomain,
   clinicalWidgetRegistry,
+  evalContext,
   evalDomain,
   formatOrder,
   inferGraphFields,
@@ -51,14 +58,16 @@ export function ModelWorkspace(props: {
   useClinicalWidgets?: boolean;
   initialSelectedId?: number | null;
   /** Domain from ir.action.act_window (may still contain PYSON). */
-  actionDomain?: unknown;
-  actionContext?: JsonObject;
+  actionDomain?: JsonValue;
+  actionContext?: JsonValue;
+  actionViews?: Array<[number | null, string]>;
   onHistory?: (action: string) => void;
   onSelectedIdChange?: (id: number | null) => void;
   onPushRelated?: (model: string, id: number | null) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
+  const sessionContext = useAppStore((s) => s.sessionContext);
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(props.initialSelectedId ?? null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -74,7 +83,19 @@ export function ModelWorkspace(props: {
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const rpcContext: JsonObject = props.actionContext ?? {};
+  const actionCtxOverlay = useMemo(
+    () => evalContext(props.actionContext ?? {}, sessionContext),
+    [props.actionContext, sessionContext],
+  );
+
+  const rpcContext: JsonObject = useMemo(
+    () => ({ ...sessionContext, ...actionCtxOverlay }) as JsonObject,
+    [sessionContext, actionCtxOverlay],
+  );
+
+  const treeViewId = viewIdForMode(props.actionViews, "tree");
+  const formViewId = viewIdForMode(props.actionViews, "form");
+  const calendarViewId = viewIdForMode(props.actionViews, "calendar");
 
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
@@ -86,14 +107,14 @@ export function ModelWorkspace(props: {
   }
 
   const formViewQuery = useQuery({
-    queryKey: ["model", props.model, "form-view"],
+    queryKey: ["model", props.model, "form-view", formViewId],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
       try {
         return parseFieldsViewGet(
-          await client.fieldsViewGet(props.model, null, "form", rpcContext),
+          await client.fieldsViewGet(props.model, formViewId, "form", rpcContext),
         );
       } catch {
         return parseFieldsViewGet({
@@ -108,14 +129,14 @@ export function ModelWorkspace(props: {
   });
 
   const treeViewQuery = useQuery({
-    queryKey: ["model", props.model, "tree-view"],
+    queryKey: ["model", props.model, "tree-view", treeViewId],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
       try {
         return parseFieldsViewGet(
-          await client.fieldsViewGet(props.model, null, "tree", rpcContext),
+          await client.fieldsViewGet(props.model, treeViewId, "tree", rpcContext),
         );
       } catch {
         return parseFieldsViewGet({
@@ -130,14 +151,14 @@ export function ModelWorkspace(props: {
   });
 
   const calendarViewQuery = useQuery({
-    queryKey: ["model", props.model, "calendar-view"],
+    queryKey: ["model", props.model, "calendar-view", calendarViewId],
     enabled: Boolean(client && viewMode === "calendar"),
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
       try {
         return parseFieldsViewGet(
-          await client.fieldsViewGet(props.model, null, "calendar", rpcContext),
+          await client.fieldsViewGet(props.model, calendarViewId, "calendar", rpcContext),
         );
       } catch {
         return null;
@@ -163,8 +184,8 @@ export function ModelWorkspace(props: {
   }, [treeViewQuery.data]);
 
   const resolvedActionDomain = useMemo(
-    () => evalDomain(props.actionDomain ?? [], {}),
-    [props.actionDomain],
+    () => evalDomain(props.actionDomain ?? [], { ...sessionContext, ...actionCtxOverlay }),
+    [props.actionDomain, sessionContext, actionCtxOverlay],
   );
 
   const listDomain = useMemo(() => {
@@ -670,6 +691,8 @@ export function ModelWorkspace(props: {
             field={relationField}
             value={draft[relationField.name]}
             mode={mode}
+            recordValues={draft}
+            domain={relationDomain}
             onCommit={(next) => {
               setDraft((d) => ({ ...d, [relationField.name]: next }));
               setRelationField(null);

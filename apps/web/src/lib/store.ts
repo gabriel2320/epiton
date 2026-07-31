@@ -1,5 +1,5 @@
 import type { Density, WorkspacePreset } from "@epiton/intelligence";
-import type { EpitonClient } from "@epiton/protocol";
+import type { EpitonClient, JsonObject, SessionPreferences } from "@epiton/protocol";
 import { create } from "zustand";
 
 export type UiState = "loading" | "empty" | "error" | "data";
@@ -21,6 +21,8 @@ interface AppStore {
   connection: ConnectionConfig;
   session: SessionState | null;
   client: EpitonClient | null;
+  preferences: SessionPreferences;
+  sessionContext: JsonObject;
   error: string | null;
   commandOpen: boolean;
   setTheme: (theme: "dark" | "light") => void;
@@ -29,6 +31,7 @@ interface AppStore {
   setConnection: (connection: ConnectionConfig) => void;
   setSession: (session: SessionState | null) => void;
   setClient: (client: EpitonClient | null) => void;
+  setPreferences: (preferences: SessionPreferences, sessionContext: JsonObject) => void;
   setError: (error: string | null) => void;
   setCommandOpen: (open: boolean) => void;
 }
@@ -45,6 +48,8 @@ export const useAppStore = create<AppStore>((set) => ({
     : { baseUrl: "http://localhost:8000", database: "epiton_lab" },
   session: null,
   client: null,
+  preferences: {},
+  sessionContext: {},
   error: null,
   commandOpen: false,
   setTheme: (theme) => set({ theme }),
@@ -56,6 +61,7 @@ export const useAppStore = create<AppStore>((set) => ({
   },
   setSession: (session) => set({ session }),
   setClient: (client) => set({ client }),
+  setPreferences: (preferences, sessionContext) => set({ preferences, sessionContext }),
   setError: (error) => set({ error }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
 }));
