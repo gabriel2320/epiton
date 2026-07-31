@@ -1,6 +1,7 @@
 import { Button, Panel } from "@epiton/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useAppStore } from "../lib/store";
+import { guessMime } from "../lib/mime";
 import { PdfPreview } from "./PdfPreview";
 
 /** Sao-parity attachments: list / upload / download / link / rename via ir.attachment. */
@@ -389,19 +390,6 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
       ) : null}
     </Panel>
   );
-}
-
-function guessMime(name: string): string {
-  const lower = name.toLowerCase();
-  if (lower.endsWith(".pdf")) return "application/pdf";
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".gif")) return "image/gif";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".svg")) return "image/svg+xml";
-  if (lower.endsWith(".txt") || lower.endsWith(".csv")) return "text/plain";
-  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html";
-  return "application/octet-stream";
 }
 
 function canPreviewName(name: string): boolean {

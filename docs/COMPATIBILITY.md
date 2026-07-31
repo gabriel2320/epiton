@@ -16,14 +16,14 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back |
 | Attachments | `ir.attachment` | Improved | Multi-upload + rename/description + MIME preview |
 | Graph | graph arch | Improved | y operator sum/average/count + arch title |
-| Editable tree | `editable` arch / inline write | Improved | selection/date/m2o + optional= column toggles |
+| Editable tree | `editable` arch / inline write | Improved | selection/date/m2o + optional= + sum/average footers |
 | O2M / M2M / M2O | field types in view engine | Improved | Queued create rows; tree+form; nested lines; M2M preserve |
 | Revision history | `model.__history__` | Improved | Diff vs draft + resolve write_uid; strip create_* on restore |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |
 | Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + M2O search |
 | Reports | `report.*.execute` | Improved | Formats + pdfjs + `ir.action.report` picker |
-| Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
+| Binary | binary fields | Improved | MIME + filename= sibling; download uses real name |
 | PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
 | on_change | `on_change_*` / `on_change_with` | Implemented | Debounced in `ModelWorkspace` |
@@ -31,12 +31,12 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Workspace tabs | multi-tab actions | Implemented | Independent stacks per tab; Ctrl/Cmd+favorite opens new |
 | CSV export | `export_data` / `export_data_domain` | Improved | Field picker dialog before export |
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
-| Saved searches | `ir.ui.view_search` | Improved | Load/apply/save/delete named domains |
+| Saved searches | `ir.ui.view_search` | Improved | Load/apply + dialog save/delete (no prompt) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
 | Shell hosts | Tauri / Capacitor | Improved | Secure session hydrate/persist + title/safe-area |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
-| Email compose | mailto / form_action keywords | Improved | Prefer mail keywords; mailto fallback |
+| Email compose | mailto / form_action keywords | Improved | CC/BCC + keyword-first mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Catalog + `t()` labels + Shell/workspace chrome |
 | List-form | list-form arch | Improved | Card host renders list-form arch via `renderView` |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |

@@ -16,6 +16,8 @@ export function EmailComposeDialog(props: {
   onCancel: () => void;
 }) {
   const [to, setTo] = useState("");
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
 
@@ -27,6 +29,8 @@ export function EmailComposeDialog(props: {
       fieldText(props.values.address);
     const name = fieldText(props.values.rec_name) || fieldText(props.values.name);
     setTo(email);
+    setCc("");
+    setBcc("");
     setSubject(
       name
         ? `${props.model} · ${name}`
@@ -48,6 +52,8 @@ export function EmailComposeDialog(props: {
 
   function openMailto() {
     const params = new URLSearchParams();
+    if (cc.trim()) params.set("cc", cc.trim());
+    if (bcc.trim()) params.set("bcc", bcc.trim());
     if (subject.trim()) params.set("subject", subject.trim());
     if (body.trim()) params.set("body", body.trim());
     const q = params.toString();
@@ -82,6 +88,14 @@ export function EmailComposeDialog(props: {
         <label className="epiton-email-field">
           To
           <input value={to} onChange={(e) => setTo(e.target.value)} aria-label="Email to" />
+        </label>
+        <label className="epiton-email-field">
+          Cc
+          <input value={cc} onChange={(e) => setCc(e.target.value)} aria-label="Email cc" />
+        </label>
+        <label className="epiton-email-field">
+          Bcc
+          <input value={bcc} onChange={(e) => setBcc(e.target.value)} aria-label="Email bcc" />
         </label>
         <label className="epiton-email-field">
           Subject

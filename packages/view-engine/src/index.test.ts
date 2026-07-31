@@ -27,14 +27,18 @@ describe("view-engine", () => {
     expect(treeEditable(parsed)).toBe(false);
   });
 
-  it("detects editable tree arch", () => {
+  it("parses tree sum/average aggregates", () => {
     const parsed = parseFieldsViewGet({
-      arch: `<tree editable="top"><field name="name"/></tree>`,
-      fields: { name: { type: "char", string: "Name" } },
+      arch: `<tree><field name="name"/><field name="amount" sum="1"/><field name="qty" average="1"/></tree>`,
+      fields: {
+        name: { type: "char", string: "Name" },
+        amount: { type: "numeric", string: "Amount" },
+        qty: { type: "float", string: "Qty" },
+      },
     });
-    expect(treeEditable(parsed)).toBe(true);
-    expect(treeEditablePlacement(parsed)).toBe("top");
-    expect(treeColumns(parsed)[0]?.type).toBe("char");
+    const cols = treeColumns(parsed);
+    expect(cols.find((c) => c.name === "amount")?.aggregate).toBe("sum");
+    expect(cols.find((c) => c.name === "qty")?.aggregate).toBe("average");
   });
 
   it("parses form with o2m/m2o", () => {

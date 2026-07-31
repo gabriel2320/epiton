@@ -16,6 +16,7 @@ type TreeCol = {
   readonly?: boolean;
   relation?: string;
   selection?: Array<[string, string]>;
+  aggregate?: "sum" | "average";
 };
 
 export type TreeRowAction = {
@@ -370,6 +371,34 @@ export function VirtualPartyTable(props: {
       </button>
     ) : null;
 
+  const footerByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const col of props.columns) {
+      if (!col.aggregate) continue;
+      let sum = 0;
+      let count = 0;
+      for (const row of props.rows) {
+        const raw = row[col.name];
+        const n =
+          typeof raw === "number"
+            ? raw
+            : Array.isArray(raw) && typeof raw[0] === "number"
+              ? raw[0]
+              : Number(raw);
+        if (!Number.isFinite(n)) continue;
+        sum += n;
+        count += 1;
+      }
+      if (!count) continue;
+      const value = col.aggregate === "average" ? sum / count : sum;
+      const label = col.aggregate === "average" ? "avg" : "sum";
+      map.set(col.name, `${label} ${formatAgg(value)}`);
+    }
+    return map;
+  }, [props.columns, props.rows]);
+
+  const showFooter = footerByName.size > 0;
+
   return (
     <div
       ref={parentRef}
@@ -455,10 +484,24 @@ export function VirtualPartyTable(props: {
             );
           })}
         </tbody>
+        {showFooter ? (
+          <tfoot className="epiton-tree-footer sticky bottom-0 bg-[var(--epiton-bg-elevated)]">
+            <tr>
+              {table.getVisibleLeafColumns().map((col) => (
+                <td key={col.id}>{footerByName.get(col.id) ?? ""}</td>
+              ))}
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
       {props.addRowPlacement === "bottom" && addButton ? (
         <div className="epiton-toolbar">{addButton}</div>
       ) : null}
     </div>
   );
+}
+
+function formatAgg(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(2);
 }

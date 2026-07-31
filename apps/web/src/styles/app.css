@@ -465,6 +465,14 @@
   border: 1px solid var(--epiton-border);
 }
 
+.epiton-tree-footer td {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--epiton-muted);
+  border-top: 1px solid var(--epiton-border);
+  padding: 0.35rem 0.5rem;
+}
+
 .epiton-analytics-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

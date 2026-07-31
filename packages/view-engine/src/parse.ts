@@ -44,6 +44,8 @@ export interface ViewField {
   help?: string;
   /** Arch widget= override (email, url, password, …). */
   widget?: string;
+  /** Sibling char field holding the file name for binary fields. */
+  filename?: string;
   /** Static or PYSON-encoded domain from fields_view_get. */
   domain?: unknown;
   on_change?: string[];

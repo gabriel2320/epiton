@@ -298,10 +298,18 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
 
   if (field.type === "binary") {
     const hasData = value != null && value !== "";
+    const fileLabel =
+      field.filename && ctx.values[field.filename] != null && ctx.values[field.filename] !== ""
+        ? String(ctx.values[field.filename])
+        : null;
     return createElement(
       "div",
       { className: "epiton-binary" },
-      createElement("span", null, hasData ? "Binary attached" : "No file"),
+      createElement(
+        "span",
+        null,
+        hasData ? (fileLabel ? `File: ${fileLabel}` : "Binary attached") : "No file",
+      ),
       createElement(
         "button",
         {
@@ -327,6 +335,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
                 if (typeof result === "string") {
                   const b64 = result.includes(",") ? result.split(",")[1] : result;
                   ctx.onChange?.(field.name, b64);
+                  if (field.filename) ctx.onChange?.(field.filename, file.name);
                 }
               };
               reader.readAsDataURL(file);
@@ -533,6 +542,8 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       domain,
       readonly: field.readonly || states.readonly,
       required: field.required || states.required,
+      filename: node.attrs.filename ?? field.filename,
+      widget: node.attrs.widget ?? field.widget,
     };
     return createElement(
       "label",
@@ -640,6 +651,8 @@ export interface TreeColumn {
   selection?: Array<[string, string]>;
   /** Sao `optional="1"` — hidden by default, user can toggle. */
   optional?: boolean;
+  /** Sao tree footer aggregate from `sum="1"` / `average="1"`. */
+  aggregate?: "sum" | "average";
 }
 
 /** True when tree arch has Sao `editable="top|bottom|1|true"`. */
@@ -666,6 +679,12 @@ export function treeColumns(view: ParsedView): TreeColumn[] {
         readonly: Boolean(meta?.readonly) || n.attrs.readonly === "1",
         selection: meta?.selection,
         optional: n.attrs.optional === "1" || n.attrs.optional === "true",
+        aggregate:
+          n.attrs.average === "1" || n.attrs.average === "true"
+            ? "average"
+            : n.attrs.sum === "1" || n.attrs.sum === "true"
+              ? "sum"
+              : undefined,
       });
     }
     for (const c of n.children) walk(c);

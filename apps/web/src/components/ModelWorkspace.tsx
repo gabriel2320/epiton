@@ -72,7 +72,9 @@ import { RecordActionsMenu } from "./RecordActionsMenu";
 import { RecordHistoryPanel } from "./RecordHistoryPanel";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
+import { SavedSearchDialog } from "./SavedSearchDialog";
 import { VirtualPartyTable } from "./VirtualPartyTable";
+import { guessMime } from "../lib/mime";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
@@ -154,6 +156,7 @@ export function ModelWorkspace(props: {
   const [emptyTreeParents, setEmptyTreeParents] = useState<Set<number>>(() => new Set());
   const [emailOpen, setEmailOpen] = useState(false);
   const [csvExportOpen, setCsvExportOpen] = useState(false);
+  const [savedSearchDialog, setSavedSearchDialog] = useState<"save" | "delete" | null>(null);
   const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>(() => {
     try {
       const raw = sessionStorage.getItem(`epiton.tree.hidden.${props.model}`);
@@ -1485,58 +1488,60 @@ export function ModelWorkspace(props: {
           </select>
           <Button
             disabled={!client || !session || !searchQuery.trim()}
-            onClick={() => {
-              void (async () => {
-                if (!client || !session) return;
-                const name = globalThis.prompt("Name for saved search");
-                if (!name?.trim()) return;
-                try {
-                  const domain = buildSearchDomain(searchQuery, searchFields);
-                  await createViewSearch(
-                    client,
-                    {
-                      name: name.trim(),
-                      model: props.model,
-                      domain: (domain as JsonValue) ?? [],
-                      user: session.userId,
-                    },
-                    rpcContext,
-                  );
-                  await viewSearchesQuery.refetch();
-                  setNotice(`Saved search “${name.trim()}”`);
-                } catch (err) {
-                  setNotice(err instanceof Error ? err.message : "Could not save search");
-                }
-              })();
-            }}
+            onClick={() => setSavedSearchDialog("save")}
           >
             Save filter
           </Button>
           <Button
             variant="ghost"
             disabled={!viewSearchesQuery.data?.length}
-            onClick={() => {
-              void (async () => {
-                if (!client) return;
-                const pick = globalThis.prompt(
-                  "Delete saved search id",
-                  String(viewSearchesQuery.data?.[0]?.id ?? ""),
-                );
-                const id = Number(pick);
-                if (!Number.isFinite(id)) return;
-                try {
-                  await deleteViewSearch(client, id, rpcContext);
-                  await viewSearchesQuery.refetch();
-                  setNotice(`Deleted saved search #${id}`);
-                } catch (err) {
-                  setNotice(err instanceof Error ? err.message : "Delete search failed");
-                }
-              })();
-            }}
+            onClick={() => setSavedSearchDialog("delete")}
           >
             Delete filter
           </Button>
         </div>
+        <SavedSearchDialog
+          mode={savedSearchDialog === "delete" ? "delete" : "save"}
+          open={savedSearchDialog != null}
+          rows={viewSearchesQuery.data}
+          onCancel={() => setSavedSearchDialog(null)}
+          onSave={(name) => {
+            void (async () => {
+              if (!client || !session) return;
+              try {
+                const domain = buildSearchDomain(searchQuery, searchFields);
+                await createViewSearch(
+                  client,
+                  {
+                    name,
+                    model: props.model,
+                    domain: (domain as JsonValue) ?? [],
+                    user: session.userId,
+                  },
+                  rpcContext,
+                );
+                await viewSearchesQuery.refetch();
+                setNotice(`Saved search “${name}”`);
+                setSavedSearchDialog(null);
+              } catch (err) {
+                setNotice(err instanceof Error ? err.message : "Could not save search");
+              }
+            })();
+          }}
+          onDelete={(id) => {
+            void (async () => {
+              if (!client) return;
+              try {
+                await deleteViewSearch(client, id, rpcContext);
+                await viewSearchesQuery.refetch();
+                setNotice(`Deleted saved search #${id}`);
+                setSavedSearchDialog(null);
+              } catch (err) {
+                setNotice(err instanceof Error ? err.message : "Delete search failed");
+              }
+            })();
+          }}
+        />
         <div className="epiton-toolbar">
           <Button disabled={!canPrev} onClick={() => setOffset((o) => Math.max(0, o - pageSize))}>
             Prev
@@ -1857,11 +1862,16 @@ export function ModelWorkspace(props: {
                 if (typeof value !== "string" || value.startsWith("javascript:")) return;
                 try {
                   const bytes = Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-                  const blob = new Blob([bytes], { type: "application/octet-stream" });
+                  const fileName =
+                    (field.filename && draft[field.filename] != null
+                      ? String(draft[field.filename])
+                      : "") || `${props.model}-${field.name}.bin`;
+                  const mime = guessMime(fileName);
+                  const blob = new Blob([bytes], { type: mime });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `${props.model}-${field.name}.bin`;
+                  a.download = fileName;
                   a.click();
                   URL.revokeObjectURL(url);
                 } catch {
