@@ -47,7 +47,30 @@ export {
   rowsToCalendarEvents,
   type CalendarEventRow,
 } from "./calendar";
-export { GRAPH_ROW_LIMIT, inferGraphFields, rowsToGraphData } from "./graph";
+export {
+  GRAPH_ROW_LIMIT,
+  inferGraphFields,
+  rowsToGraphData,
+  parseGraphArch,
+  aggregateGraphData,
+  rowsToMultiSeries,
+  type GraphChartType,
+  type GraphSpec,
+} from "./graph";
+export {
+  summarizeSeries,
+  numericFieldCandidates,
+  labelFieldCandidate,
+  type SeriesInsight,
+  type SeriesPoint,
+} from "./analytics";
+export {
+  boardActionNames,
+  parseBoardLayout,
+  applyBoardOrder,
+  type BoardLayout,
+  type BoardTile,
+} from "./board";
 export {
   buildSearchDomain,
   formatOrder,
@@ -64,7 +87,6 @@ export {
   type PysonNode,
 } from "./pyson";
 export { formatTrytonDate, parseTrytonDateInput } from "./dates";
-export { boardActionNames } from "./board";
 
 export interface WizardButton {
   state: string;

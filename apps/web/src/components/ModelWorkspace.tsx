@@ -25,6 +25,7 @@ import {
   type RecordValues,
   type ViewField,
   type WidgetRegistry,
+  aggregateGraphData,
   buildSearchDomain,
   clinicalWidgetRegistry,
   evalContext,
@@ -33,9 +34,11 @@ import {
   inferGraphFields,
   mergeDomains,
   parseFieldsViewGet,
+  parseGraphArch,
   renderView,
   rowsToCalendarEvents,
-  rowsToGraphData,
+  rowsToMultiSeries,
+  summarizeSeries,
   toTrytonM2M,
   treeColumns,
 } from "@epiton/view-engine";
@@ -127,6 +130,7 @@ export function ModelWorkspace(props: {
   const formViewId = viewIdForMode(props.actionViews, "form");
   const calendarViewId = viewIdForMode(props.actionViews, "calendar");
   const listFormViewId = viewIdForMode(props.actionViews, "list-form");
+  const graphViewId = viewIdForMode(props.actionViews, "graph");
 
   const widgets: WidgetRegistry | undefined = props.useClinicalWidgets
     ? clinicalWidgetRegistry()
@@ -273,6 +277,22 @@ export function ModelWorkspace(props: {
         );
       } catch {
         return treeViewQuery.data;
+      }
+    },
+  });
+
+  const graphViewQuery = useQuery({
+    queryKey: ["model", props.model, "graph-view", graphViewId],
+    enabled: Boolean(client && viewMode === "graph"),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!client) return null;
+      try {
+        return parseFieldsViewGet(
+          await client.fieldsViewGet(props.model, graphViewId, "graph", rpcContext),
+        );
+      } catch {
+        return null;
       }
     },
   });
@@ -663,20 +683,50 @@ export function ModelWorkspace(props: {
     [listQuery.data],
   );
 
+  const graphSpec = useMemo(() => {
+    if (graphViewQuery.data) return parseGraphArch(graphViewQuery.data.arch);
+    return null;
+  }, [graphViewQuery.data]);
+
   const graphFields = useMemo(() => {
+    if (graphSpec) {
+      return {
+        xField: graphSpec.xFields[0] ?? "rec_name",
+        yField: graphSpec.yFields[0] ?? "id",
+        yFields: graphSpec.yFields,
+        chartType: graphSpec.type,
+      };
+    }
     const names = columns.map((c) => c.name);
-    return inferGraphFields(names);
-  }, [columns]);
+    const inferred = inferGraphFields(names);
+    return {
+      xField: inferred.xField,
+      yField: inferred.yField,
+      yFields: [inferred.yField],
+      chartType: "vbar" as const,
+    };
+  }, [columns, graphSpec]);
 
   const graphData = useMemo(
     () =>
-      rowsToGraphData(
+      aggregateGraphData(
         (listQuery.data ?? []) as Array<Record<string, unknown>>,
         graphFields.xField,
         graphFields.yField,
       ),
     [listQuery.data, graphFields],
   );
+
+  const graphMulti = useMemo(() => {
+    if (graphFields.yFields.length <= 1) return undefined;
+    return rowsToMultiSeries(
+      (listQuery.data ?? []) as Array<Record<string, unknown>>,
+      graphFields.xField,
+      graphFields.yFields,
+    );
+  }, [listQuery.data, graphFields]);
+
+  const graphInsight = useMemo(() => summarizeSeries(graphData), [graphData]);
 
   const aclWarning = strictAclCoach(props.model, aclQuery.data ?? null);
   const listState = listQuery.isLoading
@@ -856,7 +906,14 @@ export function ModelWorkspace(props: {
               }}
             />
           ) : viewMode === "graph" ? (
-            <GraphView data={graphData} yLabel={graphFields.yField} />
+            <GraphView
+              data={graphData}
+              multi={graphMulti}
+              yKeys={graphFields.yFields.length > 1 ? graphFields.yFields : undefined}
+              chartType={graphFields.chartType}
+              yLabel={graphFields.yField}
+              insight={graphInsight}
+            />
           ) : viewMode === "list-form" ? (
             <ListFormView
               rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}

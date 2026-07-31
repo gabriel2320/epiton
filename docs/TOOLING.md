@@ -28,9 +28,10 @@ or a parallel Python stack beside trytond.
 | UI primitives | `@epiton/ui` (+ Radix where interaction needs it) |
 | Styling | Tailwind 4 + CSS variables in `app.css` |
 | Tables / virtualization | TanStack Table + Virtual |
-| Charts | Recharts (≤500 rows client-side) |
+| Charts | Recharts (≤500 rows; vbar/hbar/line/pie + board analytics) |
 | PDF preview | pdfjs-dist over Tryton report binaries |
 | Search | fuse.js + intelligence package |
+| Dashboard layout | Native HTML5 drag-and-drop (no DnD library) |
 
 ## Optional future (non-core) niches
 

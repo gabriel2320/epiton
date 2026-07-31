@@ -244,6 +244,112 @@
   margin: 0;
 }
 
+.epiton-board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.epiton-board-hint {
+  margin: 0;
+  flex: 1;
+  color: var(--epiton-muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.epiton-board-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.epiton-board-cell {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  cursor: grab;
+}
+
+.epiton-board-cell[data-dragging="true"] {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.epiton-board-drag-handle {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.75rem;
+  z-index: 2;
+  color: var(--epiton-muted);
+  font-size: 0.85rem;
+  letter-spacing: -0.12em;
+  pointer-events: none;
+}
+
+.epiton-board-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.epiton-board-pane-empty {
+  margin: 0.5rem 0 0;
+  color: var(--epiton-muted);
+  font-size: 0.9rem;
+}
+
+.epiton-board-pane-dragging {
+  outline: 1px dashed var(--epiton-accent);
+}
+
+.epiton-analytics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--epiton-bg) 70%, transparent);
+  font-size: 0.78rem;
+}
+
+.epiton-analytics-strip div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.epiton-analytics-strip dt {
+  margin: 0;
+  color: var(--epiton-muted);
+  font-weight: 600;
+}
+
+.epiton-analytics-strip dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.epiton-report-analytics {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--epiton-border);
+}
+
+.epiton-report-analytics-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
 .epiton-list-form {
   list-style: none;
   margin: 0;

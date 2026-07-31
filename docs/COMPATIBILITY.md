@@ -9,10 +9,10 @@
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
 | Views | `fields_view_get` arch XML | Implemented | form/tree + list-form/calendar/graph/board hosts |
 | Calendar | calendar arch + date fields | Implemented | FullCalendar over `search_read` |
-| Graph | graph arch | Implemented | Recharts client-side (≤500 rows) |
+| Graph | graph arch | Implemented | `fields_view_get` graph type; vbar/hbar/line/pie + aggregate insights |
 | Buttons | view `button` + confirm | Implemented | Calls `model.<m>.<button>` |
 | Wizards | `wizard.*.create/execute/delete` | Implemented | Sao-shaped data + drawer host |
-| Reports | `report.*.execute` | Implemented | Download + iframe preview; `ir.action.report` resolve |
+| Reports | `report.*.execute` | Implemented | Download/preview + formats; visual analytics companion over same ids |
 | Attachments | `ir.attachment` | Implemented | List + upload + download + delete |
 | O2M / M2M / M2O | field types in view engine | Implemented UI hooks | Embedded line form + Open/create/write/delete |
 | Binary | binary fields | Implemented | File upload/download (no `javascript:` URLs) |
@@ -24,7 +24,7 @@
 | CSV export | `export_data` / `export_data_domain` | Implemented | Selected ids or current domain |
 | CSV import | `import_data` | Implemented | Header row + typed cells |
 | Preferences | `get_preferences` / `set_preferences` | Implemented | Prefs form via `fields_view_get` (preferences ctx) |
-| Board | board arch + actions | Implemented | `BoardWorkspace` tiles → resolveAction |
+| Board | board arch + actions | Implemented | Embedded panes + native DnD layout; analytics via `search_read` |
 | List-form | list-form arch | Implemented | Card list host over `search_read` |
 | act_window | domain/context/views | Implemented | Views by mode; domain/context eval with session prefs |
 | Screen search | user domain / ilike | Implemented | Filter bar + JSON domain + pagination |
