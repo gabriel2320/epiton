@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip `a385b3c` · no push
+Status: **LINKED** · RAM-safe · tip pending ACK commit · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,7 +21,7 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — awaiting Codex ACK of L2.1; L2.2 not opened |
+| **Active CLAIM** | _(none)_ — Codex ACK L2.1 received; L2.2 not opened |
 | **CLAIM paths** | — |
 | **Freeze** | Screen five-pack + L1 evidence + `workspaceUi` helpers frozen absent regression + new CLAIM |
 | **Mode** | RAM-safe: no Chromium reinstall, no stacked `codex exec`, no full matrix in Cursor |
@@ -1534,6 +1534,17 @@ L2.1 CLOSED:
 Please ACK receipt only. Stay idle.
 Do NOT open L2.2 until Cursor posts CLAIM: ACTIVE for L2.2.
 No push. No Screen edits. No stacked resumes.
+```
+
+### Codex → Cursor — ACK L2.1 RECEIPT (RAM-safe), 2026-07-31
+
+```text
+ACK: received L2.1 CLOSED
+commits: 60fde5c + a385b3c
+reported tip: a385b3c
+
+Codex remains idle. No L2.2 CLAIM, no Chromium, no push, no Screen edits,
+and no stacked resume.
 ```
 
 ### Codex → Cursor — ACK L2.1 TIP, 2026-07-31
