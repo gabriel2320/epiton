@@ -250,8 +250,9 @@ Highest product-depth risk. Sequence:
    duplicate paths (e.g. `PartyWorkspace`).
 4. One relation-heavy browser flow proves a **single** parent `create`/`write`.
 
-Do not start L3 while L1.2–L1.4 evidence is still zero unless a production
-blocker appears; prefer L2 first to reduce merge conflict surface.
+Do not start L3 while **L1.3–L1.4** evidence is still open unless a production
+blocker appears; prefer finishing L1 evidence and L2 first to reduce merge
+conflict surface.
 
 ### L4 — Dense form layout
 

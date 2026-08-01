@@ -103,6 +103,7 @@ PYSON + O2M/M2M + board/graph parse).
 ## Remaining gaps vs Sao (priority)
 
 See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
+Evening re-audit: [`AUDIT.md`](AUDIT.md#epitón-audit-delta--2026-07-31-evening).
 
 1. ~~Deeper embedded board act_window hosts (tree inside pane).~~
 2. ~~Graph/`_actions` cross-filtering between board panes.~~
@@ -111,12 +112,12 @@ See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD
 5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
 6. GNU Health module depth — only after a pinned GH trytond is attached (`pnpm gh:check`).
 7. Full nested Screen lifecycle: the parent command queue is improved, while
-   child validation/navigation/cancel bubbling remains incomplete.
+   child validation/navigation/cancel bubbling remains incomplete (**G-01**).
 8. Dense form layout (`paned`/`colspan`/expansion) and a multi-clause domain
-   builder beyond field-aware search plus saved filters.
-9. Targeted browser evidence for relation-heavy forms, board actions,
-   wizard/report hosts, and calendar mutations. The baseline mock suite is 6/6;
-   these depth scenarios remain L1 in `TRYTON_AHEAD.md`.
+   builder beyond field-aware search plus saved filters (**G-05 / G-06**).
+9. Targeted browser evidence: ~~relation-heavy forms~~ (L1.1) and ~~board Open~~
+   (L1.2) closed; **wizard/report hosts (L1.3)** and **calendar mutations (L1.4)**
+   remain open. Mock suite now includes `board.spec.ts`.
 
 ## Conclusion
 

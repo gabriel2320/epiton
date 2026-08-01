@@ -117,3 +117,80 @@ also run browser → gateway → live trytond on both supported series.
 - Gateway: `apps/gateway/README.md`
 - Lab: `docker/README.md`
 - CI: `.github/workflows/ci.yml`
+
+---
+
+# Epitón audit delta — 2026-07-31 (evening)
+
+Re-audit after Screen L0, L1.1 relation/isolation, L1.2 board Open, bridge
+Ops dashboard, and the development program in `TRYTON_AHEAD.md`. Complements
+(does not replace) the morning audit above.
+
+## Verdict update
+
+| Dimension | Score | Delta vs morning |
+|-----------|-------|------------------|
+| Architecture fit | Strong | Unchanged |
+| Sao parity (P0/P1) | Good → **Good+** | Screen queue + board Open evidence |
+| Browser depth evidence | **Improving** | Mock e2e includes workspace + board (`4da1eec`) |
+| Security posture | Hardened baseline | Unchanged; threat model still open |
+| PHI readiness | **Not claimed** | Unchanged (A-01) |
+| Agent operability | **Strong** | Ops dashboard + CLAIM/HANDOFF protocol |
+
+**Overall:** client platform posture holds. Protocol wire remains verified.
+Largest *product* depth gap is still **nested Screen lifecycle**; largest
+*evidence* gap in the active program is **L1.3 wizard/report shell** then
+**L1.4 calendar**. Do not claim PHI/HIS or REST Bearer.
+
+## Closed since morning audit
+
+| ID | Closure |
+|----|---------|
+| Screen hydrate / races / `on_change` flush | `06627c7`, `7a7f0fe` |
+| Parent O2M queue → one write; A→B isolation | `75a6e44` (L1.1) |
+| Board Open → Shell with foreign selection context | `4da1eec` (L1.2) |
+| Agent bridge mailbox | Ops dashboard + templates in `AGENT_BRIDGE.md` |
+| Development program schedule | `TRYTON_AHEAD.md` § Development program (`cc666c7`) |
+
+## Open gaps (prioritized)
+
+| ID | Severity | Gap | Program / mitigation |
+|----|----------|-----|----------------------|
+| G-01 | High (depth) | Nested child Screen: validation, nav/cancel, `on_change` bubble into one parent write | L3 after L1 evidence + prefer L2 first |
+| G-02 | Medium (evidence) | No deterministic Playwright for board/keyword **wizard/report** Open via shared host | **L1.3 NEXT** (AUDIT smoke #4) |
+| G-03 | Medium (evidence) | Calendar create/drag browser proof incomplete | L1.4 |
+| G-04 | Medium (maintainability) | `ModelWorkspace.tsx` ~2k-line hotspot | L2 decompose |
+| G-05 | Medium (UX depth) | Dense form `colspan` / paned / expansion | L4 |
+| G-06 | Medium (UX depth) | Multi-clause domain filter builder | L5 (after L2) |
+| G-07 | Medium (claim) | No pinned GNU Health synthetic lab (`gh:check` exit 2 on stock) | A-09; L7 / GH track |
+| G-08 | High (claim) | No PHI/HIS certification | A-01 — never market as Epione |
+| G-09 | Low | Native session persistence needs audited secret-store | A-05; W8 only if required |
+| G-10 | Low (ops) | Formal threat model / a11y / perf budgets | L7 |
+| G-11 | Informational | REST Bearer Not probed | A-04 — Session + gateway only |
+| G-12 | Process | Local `main` ~29 commits ahead of `origin`; no push | Human decides promotion |
+| G-13 | Process | Overlapping `codex exec resume` caused thrash | Bridge rule: one resume at a time |
+
+## Evidence snapshot (local)
+
+```text
+HEAD tip: 635c39e (bridge dashboard refresh)
+L1.1: 75a6e44 PASS
+L1.2: 4da1eec PASS (board Playwright 1/1; mock suite includes board.spec)
+Wire: compat:live 19/19 Tryton 7/8 (CI / prior receipts)
+Push: not done
+Active CLAIM: none — next L1.3 requires new CLAIM
+```
+
+## Recommended order for Codex / Cursor
+
+1. **CLAIM L1.3** — wizard/report Open through shared Shell host + mock e2e.
+2. **CLAIM L1.4** — calendar create/move mock evidence.
+3. **CLAIM L2** — ModelWorkspace extract (regression net = L1.*).
+4. **CLAIM L3** — nested Screen API freeze then wire (highest depth risk).
+5. L4 / L5 path-isolated; L6 board polish if needed; L7 release gates.
+6. Keep A-01 / A-09 / REST out of product claims until separately governed.
+
+## Explicit non-goals (unchanged)
+
+Sao/GTK GPL import · Proteus in product runtime · Intelligence auto-writes ·
+Client SQL · PHI fixtures · force-push / prod promotion without human order.
