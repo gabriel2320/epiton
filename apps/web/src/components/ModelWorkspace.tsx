@@ -85,6 +85,7 @@ import { RecordHistoryPanel } from "./RecordHistoryPanel";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { SavedSearchDialog } from "./SavedSearchDialog";
+import { domainTabStorageKey, noticeTone } from "./modelWorkspace/workspaceUi";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
@@ -100,13 +101,6 @@ interface OnChangeWork {
   promise: Promise<OnChangeWorkResult>;
   start: () => void;
   cancel: () => void;
-}
-
-function noticeTone(message: string): "default" | "accent" | "danger" | "muted" {
-  if (/fail|error|before running|nothing selected/i.test(message)) return "danger";
-  if (/…|\.\.\.|importing|exporting|copying|running/i.test(message)) return "muted";
-  if (/saved|ok|exported|imported|copied/i.test(message)) return "accent";
-  return "default";
 }
 
 /** Generic Tryton model workspace — opens any model via fields_view_get + CRUD.
@@ -2160,12 +2154,4 @@ export function ModelWorkspace(props: {
       </Panel>
     </div>
   );
-}
-
-function domainTabStorageKey(
-  model: string,
-  domains?: Array<{ name: string }> | null,
-): string | null {
-  if (!domains?.length) return null;
-  return `epiton.domainTab.${model}.${domains.map((d) => d.name).join("|")}`;
 }

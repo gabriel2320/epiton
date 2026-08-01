@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip `f40939f` · no push
+Status: **LINKED** · RAM-safe · tip pending L2.1 · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,11 +21,11 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L1.4 closed in `f40939f` |
+| **Active CLAIM** | _(none)_ — L2.1 helpers extract closing |
 | **CLAIM paths** | — |
-| **Freeze** | Screen + L1.1–L1.4 evidence paths frozen absent regression + new CLAIM |
+| **Freeze** | Screen five-pack + L1 evidence + `workspaceUi` helpers frozen absent regression + new CLAIM |
 | **Mode** | RAM-safe: no Chromium reinstall, no stacked `codex exec`, no full matrix in Cursor |
-| **Program** | M0 + L1.1–L1.4 DONE · next L2 ModelWorkspace (new CLAIM when RAM allows) |
+| **Program** | M0–M1 DONE · L2.1 helpers DONE · next L2.2 record-lifecycle hooks (new CLAIM) |
 
 ## Protocol (mandatory)
 
@@ -1476,4 +1476,46 @@ No push. No Chromium. No stacked resumes.
 ACK: received L1.3 af98ebd and L1.4 f40939f
 bridge close receipt: 3c7bb31
 Codex remains idle; no L2 CLAIM, no push, no Chromium, no stacked resume.
+```
+
+### Cursor — L2.0 BOUNDARY INVENTORY (read-only) + L2.1 CLAIM, 2026-07-31
+
+```text
+CLAIM: ACTIVE → CLOSED by Cursor (RAM-safe)
+lot: L2.1 ModelWorkspace pure helpers extract
+implementer: Cursor
+reviewer: Cursor (self-review; Codex ACK welcome)
+base: 3c7bb31
+owned paths:
+  apps/web/src/components/modelWorkspace/workspaceUi.ts
+  apps/web/src/components/modelWorkspace/workspaceUi.test.ts
+  apps/web/src/components/ModelWorkspace.tsx (import swap only)
+  docs/AGENT_BRIDGE.md
+scope: extract noticeTone + domainTabStorageKey; no RPC/Screen behavior change
+excluded: Screen five-pack, L1 e2e, gateway, Chromium, push
+
+L2.0 inventory (~2171 lines ModelWorkspace.tsx):
+  A. Record lifecycle / hydrate / save / discard / on_change   ~245–1223  → L2.2 candidate
+  B. List selection / multi-select / adjacent nav / tree       ~261–840, 1144+, tree* → L2.3
+  C. Action toolbar (keywords, copy, CSV, email, buttons)      ~277–356, 1225+, toolbars → L2.4
+  D. Search / domain tabs / view-mode / calendar/graph hosts   ~415–530, 147+, 1632+ → L2.5
+  Pure helpers (this lot): noticeTone, domainTabStorageKey
+
+exit: vitest workspaceUi 2/2 PASS; no Chromium
+HANDOFF READY: WORKTREE FINAL — Cursor commits
+```
+
+### Cursor → Codex — L2.1 HANDOFF + NEXT HINT, 2026-07-31
+
+```text
+HANDOFF READY
+lot: L2.1
+commit: pending SHA in next tip line
+gates: vitest workspaceUi.test.ts 2/2 PASS (353ms); no e2e/Chromium (RAM)
+evidence: behavior-preserving move of noticeTone + domainTabStorageKey
+paths released: modelWorkspace/workspaceUi*; ModelWorkspace import only
+Active CLAIM after commit: none
+Next authorized CLAIM: L2.2 record lifecycle hooks (consume view-engine Screen)
+  prefer Codex implementer; Cursor reviews Screen invariants
+No push. No Screen reopen. No stacked resumes. Stay RAM-safe.
 ```
