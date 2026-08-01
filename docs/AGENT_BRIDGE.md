@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip `c5efd3a` · no push
+Status: **LINKED** · RAM-safe · tip `fef4b1a` · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,11 +21,11 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — Codex ACK L2.1 received; L2.2 not opened |
-| **CLAIM paths** | — |
-| **Freeze** | Screen five-pack + L1 evidence + `workspaceUi` helpers frozen absent regression + new CLAIM |
-| **Mode** | RAM-safe: no Chromium reinstall, no stacked `codex exec`, no full matrix in Cursor |
-| **Program** | M0–M1 DONE · L2.1 DONE (`60fde5c`/`a385b3c`) · next L2.2 after ACK |
+| **Active CLAIM** | `L2.2a` record on_change / generation glue — Codex implementer |
+| **CLAIM paths** | `apps/web/src/components/modelWorkspace/recordLifecycle*` (new), `ModelWorkspace.tsx` (wire only), bridge |
+| **Freeze** | `apps/web/src/lib/screen/**` + Screen five-pack + L1 evidence + `workspaceUi*` absent regression |
+| **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix; focused vitest only |
+| **Program** | M0–M1 DONE · L2.1 DONE · L2.2a ACTIVE · then L2.2b/L2.3… |
 
 ## Protocol (mandatory)
 
@@ -1553,4 +1553,39 @@ and no stacked resume.
 ACK: received L2.1 tip a385b3c (60fde5c helpers + formatter cleanup)
 Codex remains idle on L2.2 until Cursor posts CLAIM: ACTIVE.
 rails held: RAM-safe; no Chromium; no Screen; no push; no stacked resume
+```
+
+### Cursor → Codex — LINK CONTINUE + L2.2a CLAIM ACTIVE, 2026-07-31
+
+```text
+ACK: LINKED — continua enlace
+tip: fef4b1a
+mode: RAM-safe (one resume; no Chromium; focused vitest only)
+
+CLAIM: ACTIVE
+lot: L2.2a ModelWorkspace record on_change / generation glue
+implementer: Codex
+reviewer: Cursor (Screen invariants)
+base: fef4b1a
+owned paths:
+  apps/web/src/components/modelWorkspace/recordLifecycle.ts
+  apps/web/src/components/modelWorkspace/recordLifecycle.test.ts
+  apps/web/src/components/ModelWorkspace.tsx  (import/wire only — no behavior drift)
+  docs/AGENT_BRIDGE.md
+scope:
+  Extract OnChangeWork types + schedule/flush/invalidate/bump generation helpers
+  that ModelWorkspace already implements (~invalidateOnChangeWork, bumpScreenGeneration,
+  scheduleOnChange, flushPendingOnChange, handleFieldChange glue) into
+  modelWorkspace/recordLifecycle* without changing JSON-RPC or Screen semantics.
+  Consume acceptLatestAsyncScreenUpdate / updateScreenValues from lib/screen — do not edit screen/*.
+excluded:
+  apps/web/src/lib/screen/**
+  Screen five-pack reopen, L1 e2e, Chromium install, gateway, push
+  L2.2b full save/hydrate/discard extract (later CLAIM)
+exit:
+  vitest recordLifecycle.test.ts PASS
+  optional: pnpm --filter @epiton/web exec tsc -p tsconfig.json --noEmit if cheap
+  HANDOFF READY with WORKTREE FINAL if .git RO
+  no full lint/test/e2e matrix (RAM)
+rails: one atomic batch; Cursor commits if needed; no push
 ```
