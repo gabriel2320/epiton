@@ -66,9 +66,7 @@ import {
   isScreenReadyToSave,
   screenForSelection,
   screenIsDirty,
-  screenValuesForSave,
   setScreenRelationQueue,
-  shouldApplyNewDefaults,
   updateScreenValues,
 } from "../lib/screen";
 import { useAppStore } from "../lib/store";
@@ -93,6 +91,12 @@ import {
   replaceDraft as replaceRecordDraft,
   scheduleOnChange as scheduleRecordOnChange,
 } from "./modelWorkspace/recordLifecycle";
+import {
+  leaveWriteModeTransition,
+  saveRecord,
+  screenAfterDiscard,
+  screenAfterNewDefaults,
+} from "./modelWorkspace/recordSave";
 import { domainTabStorageKey, noticeTone } from "./modelWorkspace/workspaceUi";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
@@ -229,8 +233,9 @@ export function ModelWorkspace(props: {
   }
 
   function leaveWriteMode() {
-    if (mode === "write") bumpScreenGeneration();
-    setMode("read");
+    const transition = leaveWriteModeTransition(mode);
+    if (transition.bumpGeneration) bumpScreenGeneration();
+    setMode(transition.mode);
   }
 
   function confirmDiscard(): boolean {
@@ -926,36 +931,16 @@ export function ModelWorkspace(props: {
         [fieldNames.length ? fieldNames : ["name", "active"]],
         rpcContext,
       );
-      const next =
+      const defaultsForScreen =
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
           ? (defaults as RecordValues)
           : {};
       setScreen((current) =>
-        shouldApplyNewDefaults(
-          expected,
-          {
-            generation: screenGenerationRef.current,
-            model: current.model,
-            recordId: current.recordId,
-          },
-          current,
-        )
-          ? createScreen(props.model, null, next)
-          : current,
+        screenAfterNewDefaults(expected, screenGenerationRef.current, current, defaultsForScreen),
       );
     } catch {
       setScreen((current) =>
-        shouldApplyNewDefaults(
-          expected,
-          {
-            generation: screenGenerationRef.current,
-            model: current.model,
-            recordId: current.recordId,
-          },
-          current,
-        )
-          ? createScreen(props.model, null)
-          : current,
+        screenAfterNewDefaults(expected, screenGenerationRef.current, current),
       );
     }
   }
@@ -963,33 +948,18 @@ export function ModelWorkspace(props: {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
-      const expectedGeneration = screenGenerationRef.current;
-      await flushPendingOnChange();
-      if (screenGenerationRef.current !== expectedGeneration) {
-        throw new Error("Save cancelled because the Screen changed");
-      }
-      const currentScreen = screenRef.current;
-      if (!isScreenReadyToSave(currentScreen, selectedId)) {
-        throw new Error(
-          selectedId == null
-            ? "New record Screen is not ready"
-            : "Selected record is still loading",
-        );
-      }
-      // The save snapshot is complete; retire its generation before the write.
-      bumpScreenGeneration();
-      const fieldMeta = formViewQuery.data?.fields ?? {};
-      const values = screenValuesForSave(currentScreen, fieldMeta) as JsonObject;
-      const savedValues = currentScreen.values;
-      if (selectedId) {
-        await client.model(props.model, "write", [[selectedId], values], rpcContext);
-        props.onHistory?.("write");
-        return { id: selectedId, savedValues };
-      }
-      const created = await client.model(props.model, "create", [[values]], rpcContext);
-      const id = Array.isArray(created) ? Number(created[0]) : Number(created);
-      props.onHistory?.("create");
-      return { id, savedValues };
+      return saveRecord({
+        client,
+        model: props.model,
+        selectedId,
+        fieldMeta: formViewQuery.data?.fields ?? {},
+        context: rpcContext,
+        getGeneration: () => screenGenerationRef.current,
+        getScreen: () => screenRef.current,
+        flushPendingOnChange,
+        bumpScreenGeneration,
+        onHistory: props.onHistory,
+      });
     },
     onSuccess: async ({ id, savedValues }) => {
       selectId(id, true);
@@ -1098,9 +1068,8 @@ export function ModelWorkspace(props: {
       if (e.key === "Escape" && mode === "write" && !typing) {
         if (!keyHandlersRef.current.confirmDiscard()) return;
         bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
-        if (recordQuery.data) {
-          setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
-        }
+        const restored = screenAfterDiscard(props.model, selectedId, recordQuery.data?.values);
+        if (restored) setScreen(restored);
         setMode("read");
       }
     };
@@ -1858,9 +1827,12 @@ export function ModelWorkspace(props: {
             onClick={() => {
               if (mode === "write" && !confirmDiscard()) return;
               if (mode === "write") {
-                if (recordQuery.data) {
-                  setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
-                }
+                const restored = screenAfterDiscard(
+                  props.model,
+                  selectedId,
+                  recordQuery.data?.values,
+                );
+                if (restored) setScreen(restored);
                 leaveWriteMode();
                 return;
               }
