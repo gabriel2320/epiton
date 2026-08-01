@@ -729,6 +729,17 @@
   padding: 0;
 }
 
+.epiton-menu-list .epiton-menu-toggle,
+.epiton-menu-list .epiton-menu-fav {
+  width: 1.25rem;
+}
+
+.epiton-menu-row > button:last-child {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+}
+
 .epiton-tree-drag {
   display: inline-flex;
   cursor: grab;

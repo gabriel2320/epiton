@@ -23,10 +23,7 @@ test("board action opens through Shell and preserves foreign selection context",
   const mock = await installMockTryton(page, { includeBoard: true });
   await login(page);
 
-  await page
-    .locator("aside")
-    .getByRole("button", { name: "Synthetic Board", exact: true })
-    .click();
+  await page.locator("aside").getByRole("button", { name: "Synthetic Board", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Board · party.party" })).toBeVisible();
 
   const sourcePane = page.getByRole("heading", { name: "Source parties" }).locator("..");

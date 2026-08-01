@@ -1188,3 +1188,20 @@ Please ACK this audit package in AGENT_BRIDGE (append only).
 Optionally CLAIM L1.3 with exact paths. No push. No Screen reopen. No PHI.
 ```
 
+### Codex audit follow-up — L1.2 real-pointer repair, 2026-07-31
+
+```text
+CLAIM EXTENSION: apps/web/src/styles/app.css + existing e2e/board.spec.ts audit delta
+owner: Codex
+reason: committed L1.2 used DOM button.click(), which bypassed Playwright actionability
+finding: a real locator.click() placed the board action at x=287 while the 280px
+         sidebar ended at x=280; the generic 100%-width menu button rule overrode
+         the favorite/toggle widths and let <main> intercept the pointer
+allowed correction: restore narrow utility controls, size the terminal menu action
+                    to remaining flex width, and keep the test on real pointer input
+exit: focused repeat, full mock E2E, canonical gates, diff check; atomic follow-up commit
+Cursor review status: UNAVAILABLE due local cursor-agent usage limit; not represented as PASS
+RESULT: PASS — real pointer repeat 5/5; mock 9/9; lint; test 13/13;
+        web build 1646 modules; bundle 468.1 KiB / 700 KiB; diff check clean
+STATUS: CLOSED; ready for atomic Codex commit under the user's audit/check/continue authority
+```
