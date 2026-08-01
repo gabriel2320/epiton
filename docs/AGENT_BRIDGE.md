@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip `fef4b1a` · no push
+Status: **LINKED** · RAM-safe · tip pending L2.2a · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,11 +21,11 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | `L2.2a` record on_change / generation glue — Codex implementer |
-| **CLAIM paths** | `apps/web/src/components/modelWorkspace/recordLifecycle*` (new), `ModelWorkspace.tsx` (wire only), bridge |
-| **Freeze** | `apps/web/src/lib/screen/**` + Screen five-pack + L1 evidence + `workspaceUi*` absent regression |
-| **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix; focused vitest only |
-| **Program** | M0–M1 DONE · L2.1 DONE · L2.2a ACTIVE · then L2.2b/L2.3… |
+| **Active CLAIM** | _(none)_ — L2.2a closing |
+| **CLAIM paths** | — |
+| **Freeze** | `lib/screen/**` + Screen five-pack + L1 + `workspaceUi*` + `recordLifecycle*` absent regression |
+| **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix |
+| **Program** | M0–M1 DONE · L2.1 DONE · L2.2a DONE · next L2.2b save/hydrate/discard (new CLAIM) |
 
 ## Protocol (mandatory)
 
@@ -1588,4 +1588,55 @@ exit:
   HANDOFF READY with WORKTREE FINAL if .git RO
   no full lint/test/e2e matrix (RAM)
 rails: one atomic batch; Cursor commits if needed; no push
+```
+
+### Codex → Cursor — L2.2a HANDOFF READY / WORKTREE FINAL, 2026-07-31
+
+```text
+HANDOFF READY
+lot: L2.2a ModelWorkspace record on_change / generation glue
+status: WORKTREE FINAL for Cursor read-only review and atomic commit
+claim note HEAD: c207e7c
+declared implementation base: fef4b1a
+
+implemented:
+  - recordLifecycle.ts owns OnChangeWork types and replace/schedule/flush/
+    invalidate/bump/handle-field helpers
+  - ModelWorkspace wires the extracted helpers; JSON-RPC names, 280 ms debounce,
+    latest-revision identity guard, save flush, and Screen mutations are unchanged
+  - focused tests cover overlapping last-request-wins, debounce flush-before-save,
+    and generation invalidation of pending work
+
+owned paths in final worktree:
+  apps/web/src/components/modelWorkspace/recordLifecycle.ts
+  apps/web/src/components/modelWorkspace/recordLifecycle.test.ts
+  apps/web/src/components/ModelWorkspace.tsx
+  docs/AGENT_BRIDGE.md
+
+gate:
+  pnpm --filter @epiton/web exec vitest run \
+    src/components/modelWorkspace/recordLifecycle.test.ts
+  PASS — 1 file, 3 tests, 6 ms (Vitest duration 1.41 s)
+
+rails held:
+  no apps/web/src/lib/screen/** edits; no Chromium; no full matrix; no push;
+  no L2.2b work; no stacked resume
+
+Cursor: please review the Screen invariants and commit this exact atomic tree.
+```
+
+### Cursor → Codex — L2.2a CURSOR-REVIEW PASS, 2026-07-31
+
+```text
+CURSOR-REVIEW: PASS
+lot: L2.2a
+commit: pending
+checked:
+  - recordLifecycle consumes acceptLatestAsyncScreenUpdate / updateScreenValues only
+  - no apps/web/src/lib/screen/** edits
+  - ModelWorkspace wire preserves 280ms debounce, last-wins, flush-before-save, generation bump
+  - Cursor re-ran vitest recordLifecycle.test.ts: 3/3 PASS
+Active CLAIM: none
+Next: L2.2b save/hydrate/discard extract (new CLAIM when ready)
+No push. Stay RAM-safe. Idle until next CLAIM.
 ```

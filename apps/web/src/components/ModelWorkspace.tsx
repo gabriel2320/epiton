@@ -3,7 +3,6 @@ import {
   type ActWindowDomainTab,
   type JsonObject,
   type JsonValue,
-  applyFieldChange,
   copyRecords,
   createViewSearch,
   deleteViewSearch,
@@ -61,7 +60,6 @@ import { guessMime } from "../lib/mime";
 import {
   type RelationCommandQueue,
   type ScreenState,
-  acceptLatestAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
@@ -86,22 +84,19 @@ import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { SavedSearchDialog } from "./SavedSearchDialog";
 import { VirtualPartyTable } from "./VirtualPartyTable";
+import {
+  type OnChangeWork,
+  type RecordLifecycleRefs,
+  handleFieldChange as applyRecordFieldChange,
+  bumpScreenGeneration as bumpRecordScreenGeneration,
+  flushPendingOnChange as flushRecordOnChange,
+  replaceDraft as replaceRecordDraft,
+  scheduleOnChange as scheduleRecordOnChange,
+} from "./modelWorkspace/recordLifecycle";
 import { domainTabStorageKey, noticeTone } from "./modelWorkspace/workspaceUi";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
-
-interface OnChangeWorkResult {
-  cancelled: boolean;
-  failed: boolean;
-  error?: unknown;
-}
-
-interface OnChangeWork {
-  promise: Promise<OnChangeWorkResult>;
-  start: () => void;
-  cancel: () => void;
-}
 
 /** Generic Tryton model workspace — opens any model via fields_view_get + CRUD.
  * Remount with `key={model}` from the shell when switching models.
@@ -188,26 +183,19 @@ export function ModelWorkspace(props: {
     selectAdjacent: (_delta: -1 | 1) => {},
   });
   screenRef.current = screen;
+  const recordLifecycleRefs = useMemo<RecordLifecycleRefs>(
+    () => ({
+      timer: onChangeTimer,
+      screen: screenRef,
+      generation: screenGenerationRef,
+      revision: onChangeRevisionRef,
+      work: onChangeWorkRef,
+    }),
+    [],
+  );
 
   function replaceDraft(values: RecordValues) {
-    const next = updateScreenValues(screenRef.current, values);
-    screenRef.current = next;
-    setScreen(next);
-  }
-
-  function setOnChangeActivity(pending: boolean) {
-    setOnChangePending(pending);
-  }
-
-  function invalidateOnChangeWork() {
-    onChangeRevisionRef.current += 1;
-    onChangeWorkRef.current?.cancel();
-    onChangeWorkRef.current = null;
-    if (onChangeTimer.current) {
-      clearTimeout(onChangeTimer.current);
-      onChangeTimer.current = null;
-    }
-    setOnChangeActivity(false);
+    replaceRecordDraft(recordLifecycleRefs, setScreen, values);
   }
 
   const actionCtxOverlay = useMemo(
@@ -237,8 +225,7 @@ export function ModelWorkspace(props: {
   const graphViewId = viewIdForMode(props.actionViews, "graph");
 
   function bumpScreenGeneration() {
-    screenGenerationRef.current += 1;
-    invalidateOnChangeWork();
+    bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
   }
 
   function leaveWriteMode() {
@@ -823,19 +810,11 @@ export function ModelWorkspace(props: {
 
   useEffect(() => {
     const nextId = props.initialSelectedId ?? null;
-    screenGenerationRef.current += 1;
-    onChangeRevisionRef.current += 1;
-    onChangeWorkRef.current?.cancel();
-    onChangeWorkRef.current = null;
-    if (onChangeTimer.current) {
-      clearTimeout(onChangeTimer.current);
-      onChangeTimer.current = null;
-    }
-    setOnChangePending(false);
+    bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
     setScreen((current) => screenForSelection(current, props.model, nextId));
     setSelectedId(nextId);
     setSelectedIds([]);
-  }, [props.model, props.initialSelectedId]);
+  }, [props.model, props.initialSelectedId, recordLifecycleRefs]);
 
   useEffect(() => {
     const payload = recordQuery.data;
@@ -871,16 +850,9 @@ export function ModelWorkspace(props: {
 
   useEffect(() => {
     return () => {
-      screenGenerationRef.current += 1;
-      onChangeRevisionRef.current += 1;
-      onChangeWorkRef.current?.cancel();
-      onChangeWorkRef.current = null;
-      if (onChangeTimer.current) {
-        clearTimeout(onChangeTimer.current);
-        onChangeTimer.current = null;
-      }
+      bumpRecordScreenGeneration(recordLifecycleRefs);
     };
-  }, []);
+  }, [recordLifecycleRefs]);
 
   const aclQuery = useQuery({
     queryKey: ["model", props.model, "acl"],
@@ -893,113 +865,41 @@ export function ModelWorkspace(props: {
   });
 
   function scheduleOnChange(name: string, nextDraft: RecordValues) {
-    if (!client || mode !== "write") return;
-    const fields = formViewQuery.data?.fields;
-    if (!fields) return;
-    const revision = onChangeRevisionRef.current + 1;
-    onChangeRevisionRef.current = revision;
-    onChangeWorkRef.current?.cancel();
-    setOnChangeActivity(true);
-    const expected = {
-      generation: screenGenerationRef.current,
+    scheduleRecordOnChange({
+      client,
+      mode,
       model: props.model,
-      recordId: screenRef.current.recordId,
-      revision,
-    };
-    let started = false;
-    let settled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let resolveWork: (result: OnChangeWorkResult) => void = () => {};
-    const promise = new Promise<OnChangeWorkResult>((resolve) => {
-      resolveWork = resolve;
+      fields: formViewQuery.data?.fields,
+      context: rpcContext,
+      refs: recordLifecycleRefs,
+      name,
+      nextDraft,
+      setScreen,
+      setPending: setOnChangePending,
+      setNotice,
+      onHistory: props.onHistory,
     });
-    const settle = (result: OnChangeWorkResult) => {
-      if (settled) return;
-      settled = true;
-      resolveWork(result);
-    };
-    const isLatest = () => {
-      const current = screenRef.current;
-      return acceptLatestAsyncScreenUpdate(expected, {
-        generation: screenGenerationRef.current,
-        model: current.model,
-        recordId: current.recordId,
-        revision: onChangeRevisionRef.current,
-      });
-    };
-    const start = () => {
-      if (started || settled) return;
-      started = true;
-      if (timer && onChangeTimer.current === timer) {
-        clearTimeout(timer);
-        onChangeTimer.current = null;
-      }
-      timer = null;
-      void (async () => {
-        let error: unknown;
-        let failed = false;
-        try {
-          const patch = await applyFieldChange(
-            client,
-            props.model,
-            fields,
-            nextDraft,
-            name,
-            rpcContext,
-          );
-          if (!isLatest()) return;
-          if (Object.keys(patch).length > 0) {
-            replaceDraft({ ...screenRef.current.values, ...patch });
-            props.onHistory?.(`on_change:${name}`);
-          }
-        } catch (err) {
-          if (!isLatest()) return;
-          failed = true;
-          error = err;
-          setNotice(err instanceof Error ? err.message : "on_change failed");
-        } finally {
-          const latest = isLatest();
-          if (onChangeWorkRef.current === work) {
-            onChangeWorkRef.current = null;
-            if (latest) setOnChangeActivity(false);
-          }
-          settle({
-            cancelled: !latest,
-            failed: latest && failed,
-            error: latest ? error : undefined,
-          });
-        }
-      })();
-    };
-    const cancel = () => {
-      if (timer && onChangeTimer.current === timer) {
-        clearTimeout(timer);
-        onChangeTimer.current = null;
-      }
-      timer = null;
-      settle({ cancelled: true, failed: false });
-    };
-    const work: OnChangeWork = { promise, start, cancel };
-    onChangeWorkRef.current = work;
-    timer = setTimeout(start, 280);
-    onChangeTimer.current = timer;
   }
 
   async function flushPendingOnChange() {
-    while (onChangeWorkRef.current) {
-      const work = onChangeWorkRef.current;
-      work.start();
-      const result = await work.promise;
-      if (result.failed) {
-        throw result.error instanceof Error ? result.error : new Error("on_change failed");
-      }
-    }
+    await flushRecordOnChange(recordLifecycleRefs);
   }
 
   function handleFieldChange(name: string, value: unknown) {
-    const next = { ...screenRef.current.values, [name]: value };
-    replaceDraft(next);
-    scheduleOnChange(name, next);
+    applyRecordFieldChange({
+      client,
+      mode,
+      model: props.model,
+      fields: formViewQuery.data?.fields,
+      context: rpcContext,
+      refs: recordLifecycleRefs,
+      name,
+      value,
+      setScreen,
+      setPending: setOnChangePending,
+      setNotice,
+      onHistory: props.onHistory,
+    });
   }
 
   async function startNew() {
@@ -1197,15 +1097,7 @@ export function ModelWorkspace(props: {
       }
       if (e.key === "Escape" && mode === "write" && !typing) {
         if (!keyHandlersRef.current.confirmDiscard()) return;
-        screenGenerationRef.current += 1;
-        onChangeRevisionRef.current += 1;
-        onChangeWorkRef.current?.cancel();
-        onChangeWorkRef.current = null;
-        if (onChangeTimer.current) {
-          clearTimeout(onChangeTimer.current);
-          onChangeTimer.current = null;
-        }
-        setOnChangePending(false);
+        bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
         if (recordQuery.data) {
           setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
         }
@@ -1214,7 +1106,16 @@ export function ModelWorkspace(props: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, saveMutation, selectedId, selectedIds, listQuery, recordQuery.data, props.model]);
+  }, [
+    mode,
+    saveMutation,
+    selectedId,
+    selectedIds,
+    listQuery,
+    recordQuery.data,
+    props.model,
+    recordLifecycleRefs,
+  ]);
 
   async function runButton(name: string, meta?: { type?: string }) {
     if (!client || !selectedId) {
