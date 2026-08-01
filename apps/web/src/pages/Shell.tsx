@@ -5,7 +5,13 @@ import {
   unifiedSearch,
   workspaceFavorites,
 } from "@epiton/intelligence";
-import { type JsonValue, openActionUrl, resolveAction, wizardActionRefs } from "@epiton/protocol";
+import {
+  type JsonObject,
+  type JsonValue,
+  openActionUrl,
+  resolveAction,
+  wizardActionRefs,
+} from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -367,7 +373,12 @@ export function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  async function openWorkspace(actionOrModel: string, source: string, asNewTab = false) {
+  async function openWorkspace(
+    actionOrModel: string,
+    source: string,
+    asNewTab = false,
+    inheritedContext?: JsonObject,
+  ) {
     if (!client) {
       if (asNewTab) openNewTab({ model: actionOrModel, id: null, label: actionOrModel });
       else replaceRoot(actionOrModel);
@@ -385,7 +396,7 @@ export function Shell() {
         id: null,
         label: resolved.name ?? resolved.model,
         domain: resolved.domain,
-        context: resolved.context,
+        context: inheritedContext ?? resolved.context,
         views: resolved.views,
         domains: resolved.domains,
       };
@@ -657,7 +668,7 @@ export function Shell() {
           <BoardWorkspace
             key={`${active}:${activeTab?.id}:board`}
             model={active}
-            onOpen={(ref) => void openWorkspace(ref, "board")}
+            onOpen={(ref, context) => void openWorkspace(ref, "board", false, context)}
             onOpenRecord={(model, id) => {
               setActiveWizard(null);
               setWizardActionId(null);

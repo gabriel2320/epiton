@@ -32,7 +32,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | CSV export | `export_data` / `export_data_domain` | Improved | Field picker dialog before export |
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply + dialog save/delete (no prompt) |
-| Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter |
+| Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter; `act_window` Open reuses Shell and preserves active selection/context (mock browser proof) |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
 | Shell hosts | Tauri / Capacitor | Beta | Title/safe-area; memory-only sessions; legacy preference slots erased |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |

@@ -1,3 +1,4 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type BoardLayout,
@@ -36,7 +37,7 @@ function saveOrder(model: string, order: string[]) {
 /** Interactive Tryton board: embedded screens + native DnD + selection cross-filter. */
 export function BoardWorkspace(props: {
   model: string;
-  onOpen: (actionOrModel: string) => void;
+  onOpen: (actionOrModel: string, context: JsonObject) => void;
   onOpenRecord?: (model: string, id: number) => void;
 }) {
   const client = useAppStore((s) => s.client);

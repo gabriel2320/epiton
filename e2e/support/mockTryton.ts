@@ -45,6 +45,53 @@ const partyForm = {
   fields: partyFields,
 };
 
+const partyBoard = {
+  arch: '<board col="2"><action name="901" string="Source parties"/><action name="902" string="Target parties"/></board>',
+  fields: {},
+};
+
+const boardActions = new Map<number, Record<string, unknown>>([
+  [
+    900,
+    {
+      id: 900,
+      res_model: "party.party",
+      name: "Synthetic Board",
+      domain: [],
+      context: { board_root: true },
+      views: [[null, "board"]],
+    },
+  ],
+  [
+    901,
+    {
+      id: 901,
+      res_model: "party.party",
+      name: "Source parties",
+      domain: [["id", "=", 1]],
+      context: { board_pane: "source" },
+      views: [
+        [null, "tree"],
+        [null, "form"],
+      ],
+    },
+  ],
+  [
+    902,
+    {
+      id: 902,
+      res_model: "party.party",
+      name: "Target parties",
+      domain: [["id", "=", 2]],
+      context: { board_pane: "target", board_context_marker: "preserved" },
+      views: [
+        [null, "tree"],
+        [null, "form"],
+      ],
+    },
+  ],
+]);
+
 const addressFields = {
   street: { name: "street", string: "Street", type: "char", required: true },
   city: { name: "city", string: "City", type: "char" },
@@ -74,6 +121,8 @@ type PartyReadGate = {
 export type MockTrytonOptions = {
   /** Hold selected party reads until the test releases them explicitly. */
   holdPartyReadIds?: number[];
+  /** Expose a synthetic board menu and act_window graph for board browser evidence. */
+  includeBoard?: boolean;
 };
 
 export type MockTryton = {
@@ -260,7 +309,7 @@ export async function installMockTryton(
     }
     if (method === "model.ir.translation.search_read") return [];
     if (method === "model.ir.ui.menu.search_read") {
-      return [
+      const menus = [
         {
           id: 1,
           name: "Parties",
@@ -269,15 +318,39 @@ export async function installMockTryton(
           favorite: true,
         },
       ];
+      if (options.includeBoard) {
+        menus.push({
+          id: 2,
+          name: "Synthetic Board",
+          parent: null,
+          action: "ir.action.act_window,900",
+          favorite: false,
+        });
+      }
+      return menus;
     }
     if (method === "model.ir.ui.view_search.search_read") return [];
     if (method === "model.ir.model.access.search_read") return [{ id: 1 }];
     if (method === "model.ir.action.keyword.get_keyword") return [];
 
+    if (method === "model.ir.action.act_window.search_read" && options.includeBoard) {
+      const requestedIds = domainIds(params[0]);
+      const rows = [...boardActions.values()].filter(
+        (row) => requestedIds == null || requestedIds.includes(Number(row.id)),
+      );
+      return projectRows(rows, params[4]);
+    }
+
     if (method === "model.party.party.fields_view_get") {
+      if (options.includeBoard && params[1] === "board") return partyBoard;
       return params[1] === "tree" ? partyTree : partyForm;
     }
-    if (method === "model.party.party.search_read") return [...records.values()];
+    if (method === "model.party.party.search_read") {
+      const requestedIds = domainIds(params[0]);
+      return [...records.values()].filter(
+        (row) => requestedIds == null || requestedIds.includes(row.id),
+      );
+    }
     if (method === "model.party.party.search_count") return records.size;
     if (method === "model.party.party.read") {
       const ids = idsFrom(params[0]);

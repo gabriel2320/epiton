@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck",
     "format": "biome format --write .",
     "test:e2e": "playwright test",
-    "test:e2e:mock": "playwright test e2e/login.spec.ts e2e/workspace.spec.ts",
+    "test:e2e:mock": "playwright test e2e/login.spec.ts e2e/workspace.spec.ts e2e/board.spec.ts",
     "test:e2e:live": "playwright test e2e/live-lab.spec.ts",
     "lab:up": "docker compose -f docker/docker-compose.yml up -d --build",
     "lab:up:8": "docker compose -f docker/docker-compose.yml --profile tryton8 up -d --build db8 tryton8 gateway8",

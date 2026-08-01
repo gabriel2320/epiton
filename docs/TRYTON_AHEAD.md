@@ -135,10 +135,10 @@ start with evidence for that behavior instead of reopening its implementation.
 | **L6 — Board/action polish** | Replace the wizard/report placeholder by reusing the normal shell action host, then verify active ids/context. Do not create an embedded duplicate action runtime; deeper list-form/calendar pane work is a separately justified follow-up. | L1 and L2; schedule after L5 unless a failing workflow raises its priority | One board Playwright scenario proves wizard/report open through the shared host and preserves selection/context; existing tree/form/graph and sibling `_actions` tests remain green. | S–M / Medium |
 | **L7 — Release and compatibility gate** | Run accessibility/performance budgets, document a focused threat model and production gateway checklist, and optionally attach a pinned disposable GNU Health lab for metadata/menu/view discovery. GNU Health evidence stays synthetic and read-only until separately governed. | L1–L5 for the core client-depth candidate; L6 gates only a release claiming that board polish; GH track may start earlier in isolation | Minimum gates below pass; strict production ACL/gateway defaults are explicit; `gh:check` and a receipt back only the exact GNU Health claim made; `AUDIT.md` is updated only through a new dated audit. | L / Medium–High |
 
-L1 is delivered as atomic browser slices. The relation/isolation slice is
-covered; the next claim is **board action open** through one shared shell route.
-Wizard/report and calendar follow as separate slices so each commit expands one
-mock fixture surface and has one unambiguous owner/reviewer handoff.
+L1 is delivered as atomic browser slices. The relation/isolation and board
+action-open slices are covered; the next claim is **wizard/report shell paths**.
+Calendar follows as a separate slice so each commit expands one mock fixture
+surface and has one unambiguous owner/reviewer handoff.
 
 Recommended sequence:
 
@@ -168,7 +168,8 @@ product assignments.
 
 This program **schedules** work already justified by
 [`AUDIT.md`](AUDIT.md), [`COMPATIBILITY.md`](COMPATIBILITY.md),
-[`TRYTON_COMPARE.md`](TRYTON_COMPARE.md), and the closed Screen/L1.1 evidence.
+[`TRYTON_COMPARE.md`](TRYTON_COMPARE.md), and the closed Screen/L1.1/L1.2
+evidence.
 It does **not** replace those documents as status authorities. When status
 changes, update `COMPATIBILITY.md` (and a new dated `AUDIT.md` section only for
 intentional re-audits).
@@ -190,6 +191,7 @@ business truth outside trytond.
 | Proteus lab oracle | Isolated docker oracle 4/4 | Never product runtime |
 | Screen host + parent O2M/M2M queue | Hydrate flag; pristine `default_get`; generation + last-request-wins `on_change`; Save flushes pending work | `06627c7`, `7a7f0fe` (PASS) |
 | Browser relation / isolation | One parent `write` for queued create+edit; late A read cannot redirect B | `75a6e44` (PASS); mock e2e 8/8 |
+| Browser board action open | Shared Shell `act_window` retains action domain plus `active_id(s)`/`active_model`/`_actions` | L1.2 deterministic mock browser proof (PASS) |
 | Production-web boundary | Same-origin gateway, memory-only sessions, CSP | Gateway README + AUDIT checklist |
 
 ### Workstreams (parallel only with non-overlapping paths)
@@ -214,8 +216,8 @@ failed client gate.
 | Slice | Status | Outcome | Likely paths | Exit |
 |-------|--------|---------|--------------|------|
 | **L1.1** Relation queue + A→B | **DONE** | O2M create+write queued without Apply → one parent write; late A cannot replace/redirect B | `e2e/workspace.spec.ts`, `e2e/support/mockTryton.ts` | PASS (`75a6e44`) |
-| **L1.2** Board action open | **NEXT** | Board `<action>` opens through the **existing** shell action host; selection/`active_id` preserved | Prefer `e2e/**` + mock board fixture; touch Board/Shell only if evidence requires | Focused Playwright + full `test:e2e:mock` |
-| **L1.3** Wizard / report shell | Pending | Board or keyword path runs wizard/report via shared host (no embedded duplicate runtime) | `e2e/**`, mock wizard/report stubs | Scenario + smoke checklist #4 |
+| **L1.2** Board action open | **DONE** | Board `<action>` opens through the **existing** shell action host; action domain and active selection/context are preserved | `e2e/board.spec.ts`, mock board fixture, narrow Board/Shell context handoff | PASS (focused + full mock browser gate) |
+| **L1.3** Wizard / report shell | **NEXT** | Board or keyword path runs wizard/report via shared host (no embedded duplicate runtime) | `e2e/**`, mock wizard/report stubs | Scenario + smoke checklist #4 |
 | **L1.4** Calendar create / move | Pending | Click-create and drag write-back when model allows; soft-fail recorded when lab forbids write | `e2e/**`, calendar mock | Scenario + smoke checklist #5 |
 
 Rules for every L1 slice:
@@ -304,13 +306,13 @@ raises priority (then CLAIM explicitly).
 | Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
 | Human | Authority for push, PHI, production, license exceptions |
 
-Default next implementer claim after this program sync: **L1.2 board action open**.
+Default next implementer claim after this program sync: **L1.3 wizard/report shell paths**.
 
 ### Milestone map (relative, not calendar)
 
 ```text
-M0  Wire + Screen + L1.1          ████ DONE
-M1  L1.2–L1.4 browser evidence    ░░░ NEXT
+M0  Wire + Screen + L1.1 + L1.2   ████ DONE
+M1  L1.3–L1.4 browser evidence    ░░░ NEXT
 M2  L2 workspace decomposition    ░░░
 M3  L3 nested Screen API+wire     ░░░
 M4  L4 form density ‖ L5 filters  ░░░ (path-isolated)

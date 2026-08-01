@@ -40,7 +40,7 @@ export function BoardPane(props: {
   paneId: string;
   actionName: string;
   title?: string;
-  onOpen: (ref: string) => void;
+  onOpen: (ref: string, context: JsonObject) => void;
   onOpenRecord?: (model: string, id: number) => void;
   dragging?: boolean;
   /** Sao-like active record from another pane (`active_id` / cross-filter). */
@@ -234,14 +234,14 @@ export function BoardPane(props: {
   function openAction() {
     const r = resolved;
     if (!r) {
-      props.onOpen(props.actionName);
+      props.onOpen(props.actionName, rpcContext);
       return;
     }
     if (r.kind === "model") {
-      props.onOpen(r.actionId ? `ir.action.act_window,${r.actionId}` : r.model);
-    } else if (r.kind === "wizard") props.onOpen(r.wizard);
-    else if (r.kind === "report") props.onOpen(r.report);
-    else props.onOpen(props.actionName);
+      props.onOpen(r.actionId ? `ir.action.act_window,${r.actionId}` : r.model, rpcContext);
+    } else if (r.kind === "wizard") props.onOpen(r.wizard, rpcContext);
+    else if (r.kind === "report") props.onOpen(r.report, rpcContext);
+    else props.onOpen(props.actionName, rpcContext);
   }
 
   function openRecord(id: number) {
