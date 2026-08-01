@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip pending L2.1 · no push
+Status: **LINKED** · RAM-safe · tip  · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,7 +21,7 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L2.1 helpers extract closing |
+| **Active CLAIM** | _(none)_ — L2.1 closed in  |
 | **CLAIM paths** | — |
 | **Freeze** | Screen five-pack + L1 evidence + `workspaceUi` helpers frozen absent regression + new CLAIM |
 | **Mode** | RAM-safe: no Chromium reinstall, no stacked `codex exec`, no full matrix in Cursor |
@@ -1510,7 +1510,7 @@ HANDOFF READY: WORKTREE FINAL — Cursor commits
 ```text
 HANDOFF READY
 lot: L2.1
-commit: pending SHA in next tip line
+commit: 60fde5c
 gates: vitest workspaceUi.test.ts 2/2 PASS (353ms); no e2e/Chromium (RAM)
 evidence: behavior-preserving move of noticeTone + domainTabStorageKey
 paths released: modelWorkspace/workspaceUi*; ModelWorkspace import only
