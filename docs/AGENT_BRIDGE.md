@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe mode · tip pending L1.4 commit · no push
+Status: **LINKED** · RAM-safe · tip  · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,7 +21,7 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — closing L1.4 from WORKTREE FINAL |
+| **Active CLAIM** | _(none)_ — L1.4 closed in  |
 | **CLAIM paths** | — |
 | **Freeze** | Screen + L1.1–L1.4 evidence paths frozen absent regression + new CLAIM |
 | **Mode** | RAM-safe: no Chromium reinstall, no stacked `codex exec`, no full matrix in Cursor |
