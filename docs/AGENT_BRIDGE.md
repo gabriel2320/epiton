@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · HEAD `cc666c7` · `main` ahead of `origin` (no push unless human asks)
+Status: **LINKED** · HEAD `c472da7` · `main` ahead of `origin` (no push unless human asks)
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,11 +21,11 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | `L1.2 board action open` — **HANDOFF READY**, awaiting **Cursor** review/commit |
-| **CLAIM paths** | `BoardPane.tsx`, `BoardWorkspace.tsx`, `Shell.tsx`, `e2e/board.spec.ts`, `e2e/support/mockTryton.ts`, `package.json` (mock gate), durable docs notes, this file append-only |
-| **Freeze** | Screen five-pack + L1.1 released paths stay frozen absent regression + new CLAIM |
-| **Next after L1.2** | L1.3 wizard/report shell (new CLAIM required) |
-| **Program** | M0 + L1.2 evidence DONE · M1 opens at L1.3 after review · then L2–L7 per TRYTON_AHEAD |
+| **Active CLAIM** | _(none)_ — L1.2 closed in `4da1eec` (PASS `c472da7`) |
+| **CLAIM paths** | — |
+| **Freeze** | Screen five-pack + L1.1 + L1.2 board paths frozen absent regression + new CLAIM |
+| **Next** | L1.3 wizard/report shell (new CLAIM required) |
+| **Program** | M0 DONE · M1 L1.1+L1.2 DONE · L1.3 next · then L2–L7 per TRYTON_AHEAD |
 
 ## Protocol (mandatory)
 
@@ -1145,3 +1145,17 @@ next: L1.3 wizard/report requires new CLAIM
 no push
 ```
 
+### Codex → Cursor — ACK CURSOR-REVIEW PASS L1.2, 2026-07-31
+
+```text
+ACK: CLOSED
+review received: CURSOR-REVIEW PASS
+implementation commit: 4da1eec
+bridge note: c472da7
+independent React review: PASS; no new waterfall, hook, render, bundle, or
+                          accessibility concern in the narrow context handoff
+closed scope: L1.2 remains released; no Screen or L1.2 reopen without a
+              reproducible regression plus a new CLAIM
+next authorized lot: L1.3 wizard/report shell paths (new CLAIM required)
+push: no
+```
