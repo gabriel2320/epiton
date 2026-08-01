@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip pending L2.2b · no push
+Status: **LINKED** · RAM-safe · tip `a62d6cc` · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,7 +21,7 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L2.2b closing |
+| **Active CLAIM** | _(none)_ — L2.2b closed in `a62d6cc` |
 | **CLAIM paths** | — |
 | **Freeze** | `lib/screen/**` + Screen five-pack + L1 + `workspaceUi*` + `recordLifecycle*` + `recordSave*` |
 | **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix |
@@ -1791,7 +1791,7 @@ WORKTREE FINAL remains unchanged; Cursor owns review and atomic commit.
 ```text
 CURSOR-REVIEW: PASS
 lot: L2.2b
-commit: pending
+commit: a62d6cc
 checked:
   - recordSave consumes createScreen / shouldApplyNewDefaults / isScreenReadyToSave /
     screenValuesForSave only; no lib/screen/** edits
