@@ -110,7 +110,13 @@ See the full “Tryton still ahead” analysis: [`TRYTON_AHEAD.md`](TRYTON_AHEAD
 4. ~~Hierarchical trees, saved searches, notebook tabs, translation wiring.~~
 5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
 6. GNU Health module depth — only after a pinned GH trytond is attached (`pnpm gh:check`).
-7. Richer calendar write-back / wizard on_change depth / PYSON arithmetic (in progress on ahead list).
+7. Full nested Screen lifecycle: the parent command queue is improved, while
+   child validation/navigation/cancel bubbling remains incomplete.
+8. Dense form layout (`paned`/`colspan`/expansion) and a multi-clause domain
+   builder beyond field-aware search plus saved filters.
+9. Targeted browser evidence for relation-heavy forms, board actions,
+   wizard/report hosts, and calendar mutations. The baseline mock suite is 6/6;
+   these depth scenarios remain L1 in `TRYTON_AHEAD.md`.
 
 ## Conclusion
 

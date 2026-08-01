@@ -42,7 +42,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |
 | Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
-| Screen host | act_window lifecycle + relation queue | Improved | `ScreenState`; A→B isolation; stale-read guard; parent save via `screenValuesForSave` |
+| Screen host | act_window lifecycle + relation queue | Improved | Explicit hydrate lifecycle; pristine `default_get`; A→B/generation + last-request-wins guards; Save flushes/awaits pending `on_change`; parent save via `screenValuesForSave` |
 | Screen search | user domain / ilike | Improved | Field-aware ilike over tree char columns |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |
