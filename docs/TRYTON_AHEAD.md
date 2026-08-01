@@ -162,6 +162,162 @@ dependency. Operational handoffs record one owner, one atomic diff, commands,
 results, and unresolved risks in `AGENT_BRIDGE.md` without becoming durable
 product assignments.
 
+---
+
+## Development program (derived from audit + parity work)
+
+This program **schedules** work already justified by
+[`AUDIT.md`](AUDIT.md), [`COMPATIBILITY.md`](COMPATIBILITY.md),
+[`TRYTON_COMPARE.md`](TRYTON_COMPARE.md), and the closed Screen/L1.1 evidence.
+It does **not** replace those documents as status authorities. When status
+changes, update `COMPATIBILITY.md` (and a new dated `AUDIT.md` section only for
+intentional re-audits).
+
+### North star
+
+```text
+Ship a modern Apache-2.0 Tryton client whose Session wire and core CRUD/views
+match Sao on trytond 7/8 labs, then close Sao UX depth with deterministic
+browser evidence — without becoming a HIS, copying GPL Sao/GTK, or owning
+business truth outside trytond.
+```
+
+### Baseline already earned (do not re-litigate)
+
+| Track | Evidence | Commits / gates (local, 2026-07-31) |
+|-------|----------|-------------------------------------|
+| Session wire + CRUD | `compat:live` 19/19 on Tryton 7 and 8 | CI + lab receipts |
+| Proteus lab oracle | Isolated docker oracle 4/4 | Never product runtime |
+| Screen host + parent O2M/M2M queue | Hydrate flag; pristine `default_get`; generation + last-request-wins `on_change`; Save flushes pending work | `06627c7`, `7a7f0fe` (PASS) |
+| Browser relation / isolation | One parent `write` for queued create+edit; late A read cannot redirect B | `75a6e44` (PASS); mock e2e 8/8 |
+| Production-web boundary | Same-origin gateway, memory-only sessions, CSP | Gateway README + AUDIT checklist |
+
+### Workstreams (parallel only with non-overlapping paths)
+
+| Stream | Goal | Primary packages | Audit / gap anchors |
+|--------|------|------------------|---------------------|
+| **W1 Evidence** | Deterministic Playwright for remaining Sao-depth flows | `e2e/**`, mock Tryton | AUDIT next-batches #1; AHEAD L1 |
+| **W2 Workspace structure** | Shrink `ModelWorkspace` hotspot without RPC drift | `apps/web` hooks/components | AHEAD L2 |
+| **W3 Nested Screen** | Child Screen contract + single parent mutation | `view-engine`, relation editors | AHEAD L3; executive shortlist #3 |
+| **W4 Form density** | Sao-shaped colspan / expand / paned | `view-engine` parse/render | AHEAD L4 |
+| **W5 Domain UX** | Typed filter builder ↔ Tryton domains | `view-engine` + workspace search | AHEAD L5 |
+| **W6 Board polish** | Wizard/report via shared shell host | Board + Shell action host | AHEAD L6; AUDIT smoke #4 |
+| **W7 Release / ops** | Threat model, a11y/perf, GH metadata lab | gateway docs, `GNU_HEALTH.md` | AUDIT A-01/A-09; L7 |
+| **W8 Platform shells** | Native secret-store only if persistence is required | Tauri / Capacitor bridges | AUDIT A-05 |
+
+### L1 — Browser depth evidence (atomic slices)
+
+Mock gateway is the hard gate. Live lab extends only where stock Tryton 7/8
+exposes the feature; missing stock board/calendar is a **lab limitation**, not a
+failed client gate.
+
+| Slice | Status | Outcome | Likely paths | Exit |
+|-------|--------|---------|--------------|------|
+| **L1.1** Relation queue + A→B | **DONE** | O2M create+write queued without Apply → one parent write; late A cannot replace/redirect B | `e2e/workspace.spec.ts`, `e2e/support/mockTryton.ts` | PASS (`75a6e44`) |
+| **L1.2** Board action open | **NEXT** | Board `<action>` opens through the **existing** shell action host; selection/`active_id` preserved | Prefer `e2e/**` + mock board fixture; touch Board/Shell only if evidence requires | Focused Playwright + full `test:e2e:mock` |
+| **L1.3** Wizard / report shell | Pending | Board or keyword path runs wizard/report via shared host (no embedded duplicate runtime) | `e2e/**`, mock wizard/report stubs | Scenario + smoke checklist #4 |
+| **L1.4** Calendar create / move | Pending | Click-create and drag write-back when model allows; soft-fail recorded when lab forbids write | `e2e/**`, calendar mock | Scenario + smoke checklist #5 |
+
+Rules for every L1 slice:
+
+1. One CLAIM, one owner, one atomic commit (or Cursor commit if Codex `.git` is RO).
+2. Expand mock fixtures only as needed for that slice.
+3. Do not reopen Screen five-pack without a reproducible regression + new CLAIM.
+4. Update `COMPATIBILITY.md` notes when the evidence changes the claim wording.
+
+### L2 — Decompose `ModelWorkspace`
+
+Extract without changing JSON-RPC shapes or Screen invariants:
+
+1. Record lifecycle / hydrate / save / discard hooks (consume `view-engine` Screen).
+2. List selection, multi-select, adjacent nav, domain tabs.
+3. Action toolbar (keywords, buttons, copy, CSV, attachments entry).
+4. Search / view-mode / board-host switching.
+
+Exit: no new monolith; L1.1–L1.x still green; bundle budget intact; each extract
+has a focused test or an e2e that pins behavior.
+
+### L3 — Nested Screen lifecycle
+
+Highest product-depth risk. Sequence:
+
+1. Freeze a pure `view-engine` child Screen API (validation, `on_change`, cancel,
+   command bubble into parent queue).
+2. Record the API handoff in `AGENT_BRIDGE` / COMPATIBILITY before web wiring.
+3. Wire `RelationLinesEditor` / line forms to that API; align or retire
+   duplicate paths (e.g. `PartyWorkspace`).
+4. One relation-heavy browser flow proves a **single** parent `create`/`write`.
+
+Do not start L3 while L1.2–L1.4 evidence is still zero unless a production
+blocker appears; prefer L2 first to reduce merge conflict surface.
+
+### L4 — Dense form layout
+
+Sao-shaped `colspan`, expansion/alignment, basic paned layout. Preserve
+group/notebook memory and exclusive loading/error/empty/data states. Fixture-
+heavy in `view-engine`; Playwright at desktop/mobile widths for 1–2 dense forms.
+
+May proceed beside L2/L3 **only** with separate path ownership (no shared edit
+of `ModelWorkspace.tsx` / `screen.ts` / relation editors).
+
+### L5 — Domain filter builder
+
+Typed AND/OR clauses, operators, values, validation, round-trip to Tryton
+domains. Interoperate with raw JSON domain and `ir.ui.view_search`. Malformed
+clauses must never issue an RPC. Depends on L2 so search UI is not still
+entangled in the monolith.
+
+### L6 — Board / action polish
+
+Replace wizard/report placeholder by reusing the normal shell action host;
+verify `active_ids` / context. Deeper list-form/calendar pane work is a
+**separately justified** follow-up. Schedule after L5 unless a failing workflow
+raises priority (then CLAIM explicitly).
+
+### L7 — Release and compatibility gate
+
+| Gate | Command / artifact | Claim it unlocks |
+|------|--------------------|------------------|
+| Lint / unit / web build / bundle | `pnpm lint && pnpm test && pnpm --filter @epiton/web build && pnpm check:bundle` | Client depth candidate |
+| Mock browser | `pnpm test:e2e:mock` | UI-depth evidence |
+| Live protocol | `pnpm compat:live` (7 and 8) | Wire parity |
+| Gateway | `cargo test` / `cargo check` in `apps/gateway` | Production-web edge |
+| Threat model + a11y/perf budgets | Documented checklist | Pre-production claim |
+| GNU Health metadata lab | Pinned synthetic GH + `pnpm gh:check` | Module discovery only — **not** PHI |
+| New dated audit | Append section to `AUDIT.md` | Point-in-time posture |
+
+### Out of scope (hard)
+
+- PHI / clinical certification / marketing as Epione HIS (AUDIT A-01).
+- REST Bearer compatibility claims (Not probed).
+- Sao/GTK GPL source import; GTK-only print plugins.
+- Proteus inside `@epiton/protocol` or web runtime.
+- Intelligence auto-`create` / `write` / `delete` / `copy` / `import_data`.
+- Client SQL / second authoritative store.
+- `push --force` to `main`, prod promotion, secret rotation without explicit human order.
+
+### Agent collaboration protocol
+
+| Role | Duty |
+|------|------|
+| Implementer | CLAIM exact paths in `AGENT_BRIDGE.md` before edit; one atomic diff; gates; `HANDOFF READY` |
+| Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
+| Human | Authority for push, PHI, production, license exceptions |
+
+Default next implementer claim after this program sync: **L1.2 board action open**.
+
+### Milestone map (relative, not calendar)
+
+```text
+M0  Wire + Screen + L1.1          ████ DONE
+M1  L1.2–L1.4 browser evidence    ░░░ NEXT
+M2  L2 workspace decomposition    ░░░
+M3  L3 nested Screen API+wire     ░░░
+M4  L4 form density ‖ L5 filters  ░░░ (path-isolated)
+M5  L6 board polish (optional)    ░░░
+M6  L7 release candidate          ░░░
+```
+
 ## How to re-check
 
 ```bash
