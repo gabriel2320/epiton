@@ -11,6 +11,17 @@ async function login(page: Parameters<typeof installMockTryton>[0]) {
   await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
 }
 
+function waitForRpcResponse(page: Parameters<typeof installMockTryton>[0], method: string) {
+  return page.waitForResponse((response) => {
+    try {
+      const body = response.request().postDataJSON() as { method?: unknown };
+      return body.method === method;
+    } catch {
+      return false;
+    }
+  });
+}
+
 test("browser workflow performs generic Tryton CRUD and keeps JSON-RPC boundaries", async ({
   page,
 }) => {
@@ -77,4 +88,103 @@ test("browser workflow maps CSV import and exports through Tryton methods", asyn
 
   expect(mock.calls.some((call) => call.method === "model.party.party.import_data")).toBe(true);
   expect(mock.calls.some((call) => call.method === "model.party.party.export_data")).toBe(true);
+});
+
+test("browser saves queued one2many create and edit through one parent write without Apply", async ({
+  page,
+}) => {
+  const mock = await installMockTryton(page);
+  await login(page);
+
+  await page.getByRole("row").filter({ hasText: "Synthetic Alpha" }).click();
+  await expect(page.getByRole("heading", { name: "party.party #1" })).toBeVisible();
+  await expect(page.getByLabel("Name")).toHaveValue("Synthetic Alpha");
+  await expect(page.getByText("1 record(s)", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Mode: read", exact: true }).click();
+  await page.getByRole("button", { name: "Open lines", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Addresses (one2many)" })).toBeVisible();
+  await expect(
+    page.getByLabel("Board tree").getByRole("button", { name: /Synthetic Road/ }),
+  ).toBeVisible();
+
+  const defaultsResponse = waitForRpcResponse(page, "model.party.address.default_get");
+  await page.getByRole("button", { name: "New line", exact: true }).click();
+  await defaultsResponse;
+  await expect(page.getByRole("heading", { name: "New party.address line" })).toBeVisible();
+  await page.getByLabel("Street").fill("Synthetic Avenue");
+  await page.getByLabel("City").fill("New City");
+  await page.getByRole("button", { name: "Queue create", exact: true }).click();
+  await expect(page.getByText(/queued creates: 1 · pending ops: 1/)).toBeVisible();
+
+  await page
+    .getByLabel("Board tree")
+    .getByRole("button", { name: /Synthetic Road/ })
+    .click();
+  await expect(page.getByRole("heading", { name: "Edit party.address #10" })).toBeVisible();
+  await expect(page.getByLabel("Street")).toHaveValue("Synthetic Road");
+  await expect(page.getByLabel("City")).toHaveValue("Old City");
+  await page.getByLabel("Street").fill("Synthetic Road Updated");
+  await page.getByLabel("City").fill("Updated City");
+  await page.getByRole("button", { name: "Queue write", exact: true }).click();
+  await expect(page.getByText(/queued creates: 1 · pending ops: 2/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
+
+  const parentWrites = mock.calls.filter((call) => call.method === "model.party.party.write");
+  expect(parentWrites).toHaveLength(1);
+  expect(parentWrites[0]?.params[0]).toEqual([1]);
+  expect(parentWrites[0]?.params[1]).toMatchObject({
+    addresses: [
+      ["create", { street: "Synthetic Avenue", city: "New City" }],
+      ["write", [10], { street: "Synthetic Road Updated", city: "Updated City" }],
+    ],
+  });
+  expect(parentWrites[0]?.params[2]).toEqual(expect.any(Object));
+  expect(mock.records.get(1)?.addresses).toEqual([10, 50]);
+  expect(mock.addresses.get(10)).toMatchObject({
+    street: "Synthetic Road Updated",
+    city: "Updated City",
+  });
+  expect(mock.calls.some((call) => call.method === "model.party.address.create")).toBe(false);
+  expect(mock.calls.some((call) => call.method === "model.party.address.write")).toBe(false);
+  expect(mock.addresses.size).toBe(2);
+});
+
+test("a late read of A cannot replace or redirect a subsequent write of B", async ({ page }) => {
+  const mock = await installMockTryton(page, { holdPartyReadIds: [1] });
+  await login(page);
+
+  await page.getByRole("row").filter({ hasText: "Synthetic Alpha" }).click();
+  await mock.waitForPartyRead(1);
+  let released = false;
+  try {
+    await page.getByRole("row").filter({ hasText: "Synthetic Beta" }).click();
+    await expect(page.getByRole("heading", { name: "party.party #2" })).toBeVisible();
+    await expect(page.getByLabel("Name")).toHaveValue("Synthetic Beta");
+
+    await page.getByRole("button", { name: "Mode: read", exact: true }).click();
+    await page.getByLabel("Name").fill("Synthetic Beta Updated");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
+
+    await mock.releasePartyRead(1);
+    released = true;
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+
+    await expect(page.getByRole("heading", { name: "party.party #2" })).toBeVisible();
+    await expect(page.getByLabel("Name")).toHaveValue("Synthetic Beta Updated");
+    const writes = mock.calls.filter((call) => call.method === "model.party.party.write");
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.params[0]).toEqual([2]);
+    expect(mock.records.get(1)?.name).toBe("Synthetic Alpha");
+    expect(mock.records.get(2)?.name).toBe("Synthetic Beta Updated");
+  } finally {
+    if (!released) await mock.releasePartyRead(1);
+  }
 });
