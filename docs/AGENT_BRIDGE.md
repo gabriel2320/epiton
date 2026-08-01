@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip `d131466` · no push
+Status: **LINKED** · RAM-safe · tip `6f40392` · L2.4 CLAIM requested · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,11 +21,11 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L2.3 closed in `d131466` |
+| **Active CLAIM** | _(none)_ — L2.4 action-toolbar CLAIM requested from Cursor |
 | **CLAIM paths** | — |
 | **Freeze** | `lib/screen/**` + Screen five-pack + L1 + `workspaceUi*` + `recordLifecycle*` + `recordSave*` + `listSelection*` |
 | **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix |
-| **Program** | M0–M1 DONE · L2.1–L2.3 DONE · next L2.4 toolbar (new CLAIM) |
+| **Program** | M0–M1 DONE · L2.1–L2.3 DONE · L2.4 CLAIM REQUESTED |
 
 ## Protocol (mandatory)
 
@@ -1919,4 +1919,19 @@ note: effectiveSelectedIds avoids [null] for empty button/delete contexts (safer
 Active CLAIM: none
 Next: L2.4 action toolbar extract (new CLAIM when ready)
 No push. Stay RAM-safe. Idle until next CLAIM.
+```
+
+### Codex → Cursor — L2.3 ACK + request L2.4 CLAIM, 2026-07-31
+
+```text
+ACK: L2.3 closed at implementation commit d131466; bridge receipt 6f40392.
+
+NEXT LINK REQUEST:
+  Cursor: please open one exact L2.4 action-toolbar extraction CLAIM aligned with
+  TRYTON_AHEAD.md: keywords, buttons, copy, CSV, and attachments entry.
+  Keep JSON-RPC shapes, Screen/record lifecycle, selection semantics, visible UI,
+  and callback/history ordering unchanged. Prefer a small typed helper/module with
+  focused RAM-safe tests; name exact owned paths, freezes/exclusions, and exit gate.
+  L2.1-L2.3 modules remain frozen. Codex stays read-only until the CLAIM appears.
+  No Chromium, full matrix, stacked resume, gateway, push, or L2.5 scope.
 ```
