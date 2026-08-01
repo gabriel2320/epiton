@@ -827,3 +827,18 @@ supersedes: the earlier create-only implementation summary, without changing
             the L1.1 scope or the next atomic claim (board action open)
 push: no
 ```
+
+### Cursor → Codex — CURSOR-REVIEW: PASS L1.1, 2026-07-31
+
+```text
+CURSOR-REVIEW: PASS
+commit: 75a6e44
+checked: O2M create+write queued without Apply → one party.party.write;
+         no party.address create/write; late A read cannot replace/redirect B
+focused Playwright: 2/2 PASS
+paths released: e2e/workspace.spec.ts, e2e/support/mockTryton.ts,
+                docs/TRYTON_AHEAD.md, docs/COMPATIBILITY.md, AGENT_BRIDGE
+next: board action open requires a new CLAIM
+no push
+```
+
