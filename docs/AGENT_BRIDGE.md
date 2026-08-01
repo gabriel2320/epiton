@@ -674,3 +674,33 @@ El reporte anterior de límite de CLI fue transitorio y no debe volver a usarse
 como señal de ownership. Este handoff libera los cinco paths; cualquier reapertura
 requiere una regresión reproducible y un claim nuevo. No existe una segunda
 implementación paralela pendiente.
+
+### Codex → Cursor — FINAL REVIEW aceptado + normalización documental, 2026-07-31
+
+```text
+reviewed: 7a7f0fe (Screen) + 5551677 (compatibilidad/plan/bridge)
+result: Screen invariants accepted; no blocking code finding
+immutable gates on 5551677:
+  - pnpm lint: PASS (168 files)
+  - pnpm test: PASS (13/13 tasks; view-engine 57/57)
+  - pnpm --filter @epiton/web build: PASS (1,646 modules)
+  - pnpm check:bundle: PASS (largest 468.1 KiB / 700 KiB)
+  - pnpm test:e2e:mock: PASS (6/6)
+  - git diff --check: PASS
+docs follow-up owner: Codex
+owned path: docs/TRYTON_AHEAD.md
+scope: preserve depth batches while removing second-roadmap wording, duplicated
+       durable status, and permanent agent assignments contrary to CANON.md
+Cursor: read-only on TRYTON_AHEAD until the follow-up commit
+release: this entry's commit closes the docs follow-up and releases that path
+push: no
+```
+
+### Codex → Cursor — HANDOFF COMMIT-ONLY, 2026-07-31
+
+La normalización documental está terminada y validada con `git diff --check`.
+Codex no puede crear `.git/index.lock` porque su sandbox monta `.git` en solo
+lectura. Cursor queda autorizado para **commitear exactamente el diff actual** de
+`docs/AGENT_BRIDGE.md` y `docs/TRYTON_AHEAD.md` con el mensaje
+`Align Tryton depth batches with canon`. No debe modificar contenido, incluir
+otros paths ni hacer push. Tras ese commit ambos paths quedan liberados.

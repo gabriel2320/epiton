@@ -92,11 +92,13 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 16. ~~Screen host + parent O2M/M2M command-queue~~ (view-engine `ScreenState` + ModelWorkspace); GTK-only plugins remain out of scope; live nested Sao Screens remain Medium polish
 17. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
-## Joint development plan — 2026-Q3/Q4
+## Prioritized client-depth batches — 2026-Q3/Q4
 
-This is the canonical forward plan agreed after a Codex/Cursor review of the
-current code, tests, compatibility evidence, and Screen handoff. It does
-not reopen the completed items above.
+This section orders the unresolved gaps in this comparison; it is not a second
+roadmap or status authority. Durable parity status stays in
+[`COMPATIBILITY.md`](COMPATIBILITY.md), point-in-time evidence in
+[`AUDIT.md`](AUDIT.md), gates in [`AGENT_LOOP.md`](AGENT_LOOP.md), and temporary
+agent ownership in [`AGENT_BRIDGE.md`](AGENT_BRIDGE.md).
 
 ### Priority decisions
 
@@ -117,15 +119,16 @@ not reopen the completed items above.
 - REST Bearer, GTK-only plugins, PHI/HIS claims, and Proteus in the product
   runtime are outside this plan. Proteus remains an isolated lab oracle.
 
-### Delivery lots
+### Suggested delivery batches
 
-Effort is relative for one Codex/Cursor pair and is not a calendar promise.
+Effort is relative and is not a calendar promise. The current Screen baseline
+and its exact support level are recorded in `COMPATIBILITY.md`; the batches below
+start with evidence for that behavior instead of reopening its implementation.
 
 | Lot | Outcome and scope | Depends on | Verifiable exit | Effort / risk |
 |-----|-------------------|------------|-----------------|---------------|
-| **L0 — Stable Screen baseline (closed 2026-07-31)** | Preserve the record-id mutation envelope and A→B isolation. Hydration readiness is explicit rather than dependent on a business `id`; late `default_get` cannot overwrite an edited draft; revision guards make the latest applicable `on_change` win; discard and write-mode exit invalidate deferred work, while Save flushes and awaits it before taking the write snapshot. | None | Closed by `06627c7` + `7a7f0fe`: focused Screen tests 19/19; view-engine 57/57; lint, full 13-task suite, web build, 700 KiB bundle budget, and mock browser suite 6/6 pass. No push performed. | Done |
-| **L1 — Browser depth evidence** | Add deterministic Playwright coverage for relation queue + parent save, A→B stale-read/write isolation, board action open, wizard/report shell paths, and calendar create/move. The mock gateway is the hard gate; extend live-lab scenarios only where stock Tryton 7/8 exposes the required metadata/model. | L0 | New scenarios pass in `pnpm test:e2e:mock`; applicable live scenarios pass on each series that exposes the feature; an absent stock board/calendar is recorded as a lab limitation, not a failed client gate. | M / Medium |
-| **L2 — Decompose `ModelWorkspace`** | Extract record lifecycle/query, list selection/navigation, action toolbar, and search/view-mode concerns behind typed hooks/components without changing RPC shape or behavior. | L0; use L1 as regression net | No component created as another monolith; focused web tests plus unchanged L1 results; build and bundle stay within budget. | M–L / Medium |
+| **L1 — Browser depth evidence** | Add deterministic Playwright coverage for relation queue + parent save, A→B stale-read/write isolation, board action open, wizard/report shell paths, and calendar create/move. The mock gateway is the hard gate; extend live-lab scenarios only where stock Tryton 7/8 exposes the required metadata/model. | Current Screen baseline | New scenarios pass in `pnpm test:e2e:mock`; applicable live scenarios pass on each series that exposes the feature; an absent stock board/calendar is recorded as a lab limitation, not a failed client gate. | M / Medium |
+| **L2 — Decompose `ModelWorkspace`** | Extract record lifecycle/query, list selection/navigation, action toolbar, and search/view-mode concerns behind typed hooks/components without changing RPC shape or behavior. | Current Screen baseline; use L1 as regression net | No component created as another monolith; focused web tests plus unchanged L1 results; build and bundle stay within budget. | M–L / Medium |
 | **L3 — Nested Screen lifecycle** | Give O2M/M2M line forms an explicit child Screen contract: validation, on_change propagation, navigation/cancel semantics, and command bubbling into one parent create/write. Freeze that view-engine API before handing off the web wiring; align or retire duplicate relation paths such as `PartyWorkspace`. | L1; L2 strongly preferred | Unit tests cover create/update/remove/cancel and nested validation; the API handoff is recorded before relation components change; one relation-heavy browser flow proves a single parent mutation; Tryton 7/8 RPC evidence remains green; `COMPATIBILITY.md` records the exact supported depth. | L / High |
 | **L4 — Dense form layout** | Implement Sao-shaped `colspan`, expansion/alignment, and basic paned layout while preserving existing group/notebook state behavior and exclusive loading/error/empty/data states. | L1; can proceed beside L2/L3 only with separate path ownership | XML parse/render fixtures, responsive and keyboard checks, and representative screenshots or Playwright assertions at desktop/mobile widths. | M / Medium |
 | **L5 — Domain filter builder** | Add typed AND/OR clauses, operators, values, validation, and round-trip to Tryton domains; keep raw JSON domain and saved filters interoperable. | L2 | Domain encode/decode unit tests; browser scenario builds, applies, saves, reloads, and deletes a filter; malformed clauses never issue an RPC. | M / Medium |
@@ -135,9 +138,9 @@ Effort is relative for one Codex/Cursor pair and is not a calendar promise.
 Recommended sequence:
 
 ```text
-L0 ─► L1 ─► L2 ─► L3
-       │      ├──► L5
-       └─────────► L4
+L1 ─► L2 ─► L3
+ │      ├──► L5
+ └────────► L4
 L3 + L4 + L5 ─────► L7
              L5 ─► L6 (board-polish claim only)
 ```
@@ -145,63 +148,14 @@ L3 + L4 + L5 ─────► L7
 L4 may run while L2/L3 advances only if the active owners do not overlap on
 `ModelWorkspace.tsx`, `screen.ts`, or relation editor files.
 
-### Execution checkpoint — 2026-07-31
+### Batch rails
 
-- **L0 is closed** by `06627c7` plus the jointly reconciled `on_change` follow-up
-  `7a7f0fe`; neither agent should rebuild or reopen it without a failing
-  regression. Cursor supplied the flushable work model and Codex integrated,
-  hardened, and verified the final single implementation.
-- **L1 is the next claimable lot.** Its first atomic slice is relation queue +
-  one parent Save and A→B stale isolation under the mock gateway. Board,
-  wizard/report, and calendar scenarios follow as independent test commits.
-- Tool availability is not an ownership signal. Before L1 starts, the first
-  active agent records one atomic claim in `AGENT_BRIDGE.md`; the other stays
-  read-only on those paths and reviews the resulting handoff. A transient CLI
-  status must never trigger a parallel implementation.
-- L2 must not start by editing `ModelWorkspace.tsx` until the first L1 slice is
-  green. L4 may proceed independently only in parser/render fixtures with an
-  explicit non-overlapping path claim.
-
-### Definition of done for every lot
-
-1. trytond remains the only business/clinical truth; no client SQL, parallel
-   ORM, or intelligence auto-write path is introduced.
-2. The smallest owning package contains the change, with focused unit/contract
-   tests and a browser test for user-visible behavior.
-3. Any changed RPC path is checked against supported Tryton 7 and 8 labs; a
-   Proteus check is supporting oracle evidence, never a runtime dependency.
-4. `pnpm lint`, `pnpm test`, `pnpm --filter @epiton/web build`, and
-   `pnpm check:bundle` close the batch. Gateway changes additionally run Cargo
-   tests/checks; compatibility changes run the relevant live receipt.
-5. `COMPATIBILITY.md` changes in the same batch when parity status changes.
-   Security or claim changes get a new dated audit, not a silent rewrite of the
-   current audit.
-6. Loading, error, empty, and data states stay exclusive; keyboard and narrow
-   viewport behavior are checked for new UI. No real PHI/PII enters fixtures,
-   logs, screenshots, prompts, or telemetry.
-7. Each lot closes as a thematic commit. Security/gateway, compatibility lab,
-   and UI-depth work are not mixed in one commit.
-
-### Codex/Cursor collaboration contract
-
-| Phase | Implementer | Reviewer | Conflict boundary |
-|-------|-------------|----------|-------------------|
-| L0 stable Screen baseline | Cursor baseline/work model, then Codex integration and close | Sequential inactive agent | Closed in `06627c7` + `7a7f0fe`; all Screen paths are released and must not be reopened without a regression |
-| L1 browser scenarios | First available agent after an explicit claim | The other agent | Implementer exclusively owns the claimed `e2e/**` and mock-fixture paths; reviewer stays read-only and must not write a parallel scenario |
-| L2 web extraction | Codex after the first L1 slice | Cursor | Codex claims one extraction seam at a time; Cursor reviews behavior and does not co-edit `ModelWorkspace.tsx` |
-| Child-Screen API and web wiring in L3 | Codex, then Cursor | The inactive agent | Codex freezes `screen.ts`, tests, and RPC-facing types; after HANDOFF Cursor owns `Relation*`/`ModelWorkspace` wiring without reopening the API |
-| L4 render/layout and L6 board UX | Cursor | Codex | One owner at a time for `parse`/`render` or board components |
-| L5 domain algebra then UI | Codex then Cursor | The inactive agent | Freeze the typed search API before the UI handoff; never co-edit `ModelWorkspace.tsx` |
-| L7 gateway/lab/evidence | Codex | Cursor | Cursor reviews policy and UI consequences; gateway/docker/CI stay in the claimed lane |
-
-For every handoff, record base SHA, claimed paths, behavior changed, commands
-run, results, and unresolved risks. `AGENT_BRIDGE.md` is an operational mailbox,
-not a second roadmap. The receiving agent verifies the diff before editing, and
-the implementer/reviewer roles swap only at an explicit handoff.
-
-If either agent is unavailable, the active agent may claim the next atomic slice
-and the unavailable agent becomes the later reviewer. This is a role swap, not
-permission to create a second implementation: one owner, one diff, one handoff.
+Every batch follows `AGENT_LOOP.md` and the product/governance rails in
+`CANON.md` and `GOVERNANCE.md`. Changed parity is recorded in
+`COMPATIBILITY.md`; Proteus remains supporting oracle evidence, never a runtime
+dependency. Operational handoffs record one owner, one atomic diff, commands,
+results, and unresolved risks in `AGENT_BRIDGE.md` without becoming durable
+product assignments.
 
 ## How to re-check
 
