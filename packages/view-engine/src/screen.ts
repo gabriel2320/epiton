@@ -119,6 +119,17 @@ export function acceptAsyncScreenUpdate(
 }
 
 /**
+ * Extends the identity guard with request ordering for async work on the same
+ * Screen. Only the newest revision may publish a patch, error, or busy-state end.
+ */
+export function acceptLatestAsyncScreenUpdate(
+  expected: { generation: number; model: string; recordId: number | null; revision: number },
+  current: { generation: number; model: string; recordId: number | null; revision: number },
+): boolean {
+  return expected.revision === current.revision && acceptAsyncScreenUpdate(expected, current);
+}
+
+/**
  * Late `default_get` may apply only while the new Screen is still pristine.
  * Identity/generation must still match; a user edit wins over delayed defaults.
  */

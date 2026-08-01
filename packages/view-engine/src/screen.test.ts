@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ViewField } from "./parse";
 import {
   acceptAsyncScreenUpdate,
+  acceptLatestAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateScreenFromRecord,
@@ -287,14 +288,25 @@ describe("screen", () => {
     ).toBe(false);
   });
 
-  it("invalidates deferred on_change work when generation bumps (discard/Save)", () => {
+  it("accepts only the latest on_change revision for the same Screen", () => {
+    const first = {
+      generation: 4,
+      model: "sale.sale",
+      recordId: 7 as number | null,
+      revision: 1,
+    };
+    const latest = { ...first, revision: 2 };
+
+    expect(acceptLatestAsyncScreenUpdate(latest, latest)).toBe(true);
+    expect(acceptLatestAsyncScreenUpdate(first, latest)).toBe(false);
+    expect(acceptLatestAsyncScreenUpdate(latest, { ...latest, generation: 5 })).toBe(false);
+  });
+
+  it("invalidates deferred on_change work when generation bumps (discard)", () => {
     const scheduled = { generation: 4, model: "sale.sale", recordId: 7 as number | null };
-    // Host bumps generation on discard / exit write / Save start.
+    // Host bumps generation on discard / exit write; Save waits until pending work settles.
     const afterDiscard = { generation: 5, model: "sale.sale", recordId: 7 as number | null };
     expect(acceptAsyncScreenUpdate(scheduled, afterDiscard)).toBe(false);
-
-    const afterSaveStart = { generation: 5, model: "sale.sale", recordId: 7 as number | null };
-    expect(acceptAsyncScreenUpdate(scheduled, afterSaveStart)).toBe(false);
 
     // Stale catch path must also refuse to publish a notice.
     const afterIdentityChange = {

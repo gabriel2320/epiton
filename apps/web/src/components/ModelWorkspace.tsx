@@ -61,7 +61,7 @@ import { guessMime } from "../lib/mime";
 import {
   type RelationCommandQueue,
   type ScreenState,
-  acceptAsyncScreenUpdate,
+  acceptLatestAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
@@ -89,6 +89,18 @@ import { VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
+
+interface OnChangeWorkResult {
+  cancelled: boolean;
+  failed: boolean;
+  error?: unknown;
+}
+
+interface OnChangeWork {
+  promise: Promise<OnChangeWorkResult>;
+  start: () => void;
+  cancel: () => void;
+}
 
 function noticeTone(message: string): "default" | "accent" | "danger" | "muted" {
   if (/fail|error|before running|nothing selected/i.test(message)) return "danger";
@@ -149,6 +161,7 @@ export function ModelWorkspace(props: {
   const [emailOpen, setEmailOpen] = useState(false);
   const [csvExportOpen, setCsvExportOpen] = useState(false);
   const [savedSearchDialog, setSavedSearchDialog] = useState<"save" | "delete" | null>(null);
+  const [onChangePending, setOnChangePending] = useState(false);
   const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>(() => {
     try {
       const raw = sessionStorage.getItem(`epiton.tree.hidden.${props.model}`);
@@ -166,6 +179,8 @@ export function ModelWorkspace(props: {
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenRef = useRef(screen);
   const screenGenerationRef = useRef(0);
+  const onChangeRevisionRef = useRef(0);
+  const onChangeWorkRef = useRef<OnChangeWork | null>(null);
   const dirtyRef = useRef(false);
   const keyHandlersRef = useRef<{
     startNew: () => Promise<void>;
@@ -180,10 +195,25 @@ export function ModelWorkspace(props: {
   });
   screenRef.current = screen;
 
-  function setDraft(next: RecordValues | ((current: RecordValues) => RecordValues)) {
-    setScreen((current) =>
-      updateScreenValues(current, typeof next === "function" ? next(current.values) : next),
-    );
+  function replaceDraft(values: RecordValues) {
+    const next = updateScreenValues(screenRef.current, values);
+    screenRef.current = next;
+    setScreen(next);
+  }
+
+  function setOnChangeActivity(pending: boolean) {
+    setOnChangePending(pending);
+  }
+
+  function invalidateOnChangeWork() {
+    onChangeRevisionRef.current += 1;
+    onChangeWorkRef.current?.cancel();
+    onChangeWorkRef.current = null;
+    if (onChangeTimer.current) {
+      clearTimeout(onChangeTimer.current);
+      onChangeTimer.current = null;
+    }
+    setOnChangeActivity(false);
   }
 
   const actionCtxOverlay = useMemo(
@@ -214,10 +244,7 @@ export function ModelWorkspace(props: {
 
   function bumpScreenGeneration() {
     screenGenerationRef.current += 1;
-    if (onChangeTimer.current) {
-      clearTimeout(onChangeTimer.current);
-      onChangeTimer.current = null;
-    }
+    invalidateOnChangeWork();
   }
 
   function leaveWriteMode() {
@@ -803,10 +830,14 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     const nextId = props.initialSelectedId ?? null;
     screenGenerationRef.current += 1;
+    onChangeRevisionRef.current += 1;
+    onChangeWorkRef.current?.cancel();
+    onChangeWorkRef.current = null;
     if (onChangeTimer.current) {
       clearTimeout(onChangeTimer.current);
       onChangeTimer.current = null;
     }
+    setOnChangePending(false);
     setScreen((current) => screenForSelection(current, props.model, nextId));
     setSelectedId(nextId);
     setSelectedIds([]);
@@ -846,7 +877,14 @@ export function ModelWorkspace(props: {
 
   useEffect(() => {
     return () => {
-      if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+      screenGenerationRef.current += 1;
+      onChangeRevisionRef.current += 1;
+      onChangeWorkRef.current?.cancel();
+      onChangeWorkRef.current = null;
+      if (onChangeTimer.current) {
+        clearTimeout(onChangeTimer.current);
+        onChangeTimer.current = null;
+      }
     };
   }, []);
 
@@ -864,14 +902,48 @@ export function ModelWorkspace(props: {
     if (!client || mode !== "write") return;
     const fields = formViewQuery.data?.fields;
     if (!fields) return;
-    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
+    const revision = onChangeRevisionRef.current + 1;
+    onChangeRevisionRef.current = revision;
+    onChangeWorkRef.current?.cancel();
+    setOnChangeActivity(true);
     const expected = {
       generation: screenGenerationRef.current,
       model: props.model,
       recordId: screenRef.current.recordId,
+      revision,
     };
-    onChangeTimer.current = setTimeout(() => {
+    let started = false;
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let resolveWork: (result: OnChangeWorkResult) => void = () => {};
+    const promise = new Promise<OnChangeWorkResult>((resolve) => {
+      resolveWork = resolve;
+    });
+    const settle = (result: OnChangeWorkResult) => {
+      if (settled) return;
+      settled = true;
+      resolveWork(result);
+    };
+    const isLatest = () => {
+      const current = screenRef.current;
+      return acceptLatestAsyncScreenUpdate(expected, {
+        generation: screenGenerationRef.current,
+        model: current.model,
+        recordId: current.recordId,
+        revision: onChangeRevisionRef.current,
+      });
+    };
+    const start = () => {
+      if (started || settled) return;
+      started = true;
+      if (timer && onChangeTimer.current === timer) {
+        clearTimeout(timer);
+        onChangeTimer.current = null;
+      }
+      timer = null;
       void (async () => {
+        let error: unknown;
+        let failed = false;
         try {
           const patch = await applyFieldChange(
             client,
@@ -881,42 +953,59 @@ export function ModelWorkspace(props: {
             name,
             rpcContext,
           );
-          if (Object.keys(patch).length === 0) return;
-          const current = screenRef.current;
-          if (
-            !acceptAsyncScreenUpdate(expected, {
-              generation: screenGenerationRef.current,
-              model: current.model,
-              recordId: current.recordId,
-            })
-          ) {
-            return;
+          if (!isLatest()) return;
+          if (Object.keys(patch).length > 0) {
+            replaceDraft({ ...screenRef.current.values, ...patch });
+            props.onHistory?.(`on_change:${name}`);
           }
-          setDraft((d) => ({ ...d, ...patch }));
-          props.onHistory?.(`on_change:${name}`);
         } catch (err) {
-          const current = screenRef.current;
-          if (
-            !acceptAsyncScreenUpdate(expected, {
-              generation: screenGenerationRef.current,
-              model: current.model,
-              recordId: current.recordId,
-            })
-          ) {
-            return;
-          }
+          if (!isLatest()) return;
+          failed = true;
+          error = err;
           setNotice(err instanceof Error ? err.message : "on_change failed");
+        } finally {
+          const latest = isLatest();
+          if (onChangeWorkRef.current === work) {
+            onChangeWorkRef.current = null;
+            if (latest) setOnChangeActivity(false);
+          }
+          settle({
+            cancelled: !latest,
+            failed: latest && failed,
+            error: latest ? error : undefined,
+          });
         }
       })();
-    }, 280);
+    };
+    const cancel = () => {
+      if (timer && onChangeTimer.current === timer) {
+        clearTimeout(timer);
+        onChangeTimer.current = null;
+      }
+      timer = null;
+      settle({ cancelled: true, failed: false });
+    };
+    const work: OnChangeWork = { promise, start, cancel };
+    onChangeWorkRef.current = work;
+    timer = setTimeout(start, 280);
+    onChangeTimer.current = timer;
+  }
+
+  async function flushPendingOnChange() {
+    while (onChangeWorkRef.current) {
+      const work = onChangeWorkRef.current;
+      work.start();
+      const result = await work.promise;
+      if (result.failed) {
+        throw result.error instanceof Error ? result.error : new Error("on_change failed");
+      }
+    }
   }
 
   function handleFieldChange(name: string, value: unknown) {
-    setDraft((d) => {
-      const next = { ...d, [name]: value };
-      scheduleOnChange(name, next);
-      return next;
-    });
+    const next = { ...screenRef.current.values, [name]: value };
+    replaceDraft(next);
+    scheduleOnChange(name, next);
   }
 
   async function startNew() {
@@ -930,7 +1019,9 @@ export function ModelWorkspace(props: {
     setSelectedId(null);
     props.onSelectedIdChange?.(null);
     setMode("write");
-    setScreen(createScreen(props.model, null));
+    const emptyScreen = createScreen(props.model, null);
+    screenRef.current = emptyScreen;
+    setScreen(emptyScreen);
     props.onHistory?.("new");
     if (!client) return;
     const fieldNames = Object.keys(formViewQuery.data?.fields ?? {});
@@ -978,8 +1069,11 @@ export function ModelWorkspace(props: {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
-      // Invalidate in-flight on_change so a late patch cannot dirty post-write baseline.
-      bumpScreenGeneration();
+      const expectedGeneration = screenGenerationRef.current;
+      await flushPendingOnChange();
+      if (screenGenerationRef.current !== expectedGeneration) {
+        throw new Error("Save cancelled because the Screen changed");
+      }
       const currentScreen = screenRef.current;
       if (!isScreenReadyToSave(currentScreen, selectedId)) {
         throw new Error(
@@ -988,23 +1082,28 @@ export function ModelWorkspace(props: {
             : "Selected record is still loading",
         );
       }
+      // The save snapshot is complete; retire its generation before the write.
+      bumpScreenGeneration();
       const fieldMeta = formViewQuery.data?.fields ?? {};
       const values = screenValuesForSave(currentScreen, fieldMeta) as JsonObject;
+      const savedValues = currentScreen.values;
       if (selectedId) {
         await client.model(props.model, "write", [[selectedId], values], rpcContext);
         props.onHistory?.("write");
-        return selectedId;
+        return { id: selectedId, savedValues };
       }
       const created = await client.model(props.model, "create", [[values]], rpcContext);
       const id = Array.isArray(created) ? Number(created[0]) : Number(created);
       props.onHistory?.("create");
-      return id;
+      return { id, savedValues };
     },
-    onSuccess: async (id) => {
+    onSuccess: async ({ id, savedValues }) => {
       selectId(id, true);
       leaveWriteMode();
       dirtyRef.current = false;
-      setScreen((current) => createScreen(props.model, id, current.values));
+      const savedScreen = createScreen(props.model, id, savedValues);
+      screenRef.current = savedScreen;
+      setScreen(savedScreen);
       setNotice("Saved");
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
     },
@@ -1015,6 +1114,8 @@ export function ModelWorkspace(props: {
   const deleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       if (!client || !ids.length) throw new Error("Nothing selected");
+      // Deleting abandons the edited lifecycle; no late field patch may revive it.
+      bumpScreenGeneration();
       await client.model(props.model, "delete", [ids], rpcContext);
       props.onHistory?.("delete");
     },
@@ -1069,7 +1170,11 @@ export function ModelWorkspace(props: {
           target.isContentEditable);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        if (mode === "write" && isScreenReadyToSave(screenRef.current, selectedId)) {
+        if (
+          mode === "write" &&
+          !saveMutation.isPending &&
+          isScreenReadyToSave(screenRef.current, selectedId)
+        ) {
           saveMutation.mutate();
         }
         return;
@@ -1099,10 +1204,14 @@ export function ModelWorkspace(props: {
       if (e.key === "Escape" && mode === "write" && !typing) {
         if (!keyHandlersRef.current.confirmDiscard()) return;
         screenGenerationRef.current += 1;
+        onChangeRevisionRef.current += 1;
+        onChangeWorkRef.current?.cancel();
+        onChangeWorkRef.current = null;
         if (onChangeTimer.current) {
           clearTimeout(onChangeTimer.current);
           onChangeTimer.current = null;
         }
+        setOnChangePending(false);
         if (recordQuery.data) {
           setScreen(createScreen(props.model, selectedId, recordQuery.data.values));
         }
@@ -1867,6 +1976,7 @@ export function ModelWorkspace(props: {
           </Button>
           <Badge tone={mode === "write" ? "accent" : "muted"}>{mode}</Badge>
           {isDirty ? <Badge tone="accent">{t("workspace.unsaved")}</Badge> : null}
+          {onChangePending ? <Badge tone="muted">Updating fields…</Badge> : null}
           <Button
             variant="primary"
             disabled={saveMutation.isPending || !canSave}
@@ -2014,11 +2124,9 @@ export function ModelWorkspace(props: {
             }}
             onPick={(id, recName) => {
               const nextVal: [number, string] = [id, recName];
-              setDraft((d) => {
-                const next = { ...d, [relationField.name]: nextVal };
-                scheduleOnChange(relationField.name, next);
-                return next;
-              });
+              const next = { ...screenRef.current.values, [relationField.name]: nextVal };
+              replaceDraft(next);
+              scheduleOnChange(relationField.name, next);
               setRelationField(null);
               setRelationDomain(undefined);
             }}

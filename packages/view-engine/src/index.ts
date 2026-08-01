@@ -39,6 +39,7 @@ export {
 } from "./relations";
 export {
   acceptAsyncScreenUpdate,
+  acceptLatestAsyncScreenUpdate,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
