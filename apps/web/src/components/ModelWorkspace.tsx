@@ -83,6 +83,13 @@ import { RelationSearch } from "./RelationSearch";
 import { SavedSearchDialog } from "./SavedSearchDialog";
 import { VirtualPartyTable } from "./VirtualPartyTable";
 import {
+  adjacentSelectedId,
+  effectiveSelectedIds,
+  listSelectionTransition,
+  screenAfterListSelection,
+  toggleSelectedId,
+} from "./modelWorkspace/listSelection";
+import {
   type OnChangeWork,
   type RecordLifecycleRefs,
   handleFieldChange as applyRecordFieldChange,
@@ -245,11 +252,11 @@ export function ModelWorkspace(props: {
   }
 
   function selectId(id: number | null, committed = false) {
-    const changed = id !== selectedId;
-    if (!committed && changed && !confirmDiscard()) return;
-    if (!committed && changed) {
+    const transition = listSelectionTransition(selectedId, id, committed);
+    if (transition.confirmDiscard && !confirmDiscard()) return;
+    if (transition.resetScreen) {
       bumpScreenGeneration();
-      setScreen((current) => screenForSelection(current, props.model, id));
+      setScreen((current) => screenAfterListSelection(current, props.model, transition));
     }
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
@@ -293,8 +300,8 @@ export function ModelWorkspace(props: {
     setNotice("Exporting CSV…");
     try {
       const fieldNames = fields?.length ? fields : columns.map((c) => c.name).filter(Boolean);
-      const ids =
-        selectedIds.length > 0 ? selectedIds : selectedId != null ? [selectedId] : undefined;
+      const effectiveIds = effectiveSelectedIds(selectedIds, selectedId);
+      const ids = effectiveIds.length > 0 ? effectiveIds : undefined;
       const csv = await exportModelCsv(client, props.model, {
         ids,
         fields: fieldNames.length ? fieldNames : ["id", "rec_name"],
@@ -341,7 +348,7 @@ export function ModelWorkspace(props: {
 
   async function copySelected() {
     if (!client) return;
-    const ids = selectedIds.length ? selectedIds : selectedId != null ? [selectedId] : [];
+    const ids = effectiveSelectedIds(selectedIds, selectedId);
     if (!ids.length) return;
     setNotice("Copying…");
     try {
@@ -1006,16 +1013,12 @@ export function ModelWorkspace(props: {
   }
 
   function selectAdjacent(delta: -1 | 1) {
-    const ids = ((listQuery.data ?? []) as Array<Record<string, unknown>>)
-      .map((r) => Number(r.id))
-      .filter((n) => Number.isFinite(n));
-    if (!ids.length) return;
-    const idx = selectedId == null ? -1 : ids.indexOf(selectedId);
-    let nextIdx: number;
-    if (idx < 0) nextIdx = delta > 0 ? 0 : ids.length - 1;
-    else nextIdx = Math.min(ids.length - 1, Math.max(0, idx + delta));
-    const next = ids[nextIdx];
-    if (next == null || next === selectedId) return;
+    const next = adjacentSelectedId(
+      (listQuery.data ?? []) as Array<Record<string, unknown>>,
+      selectedId,
+      delta,
+    );
+    if (next == null) return;
     selectId(next);
     leaveWriteMode();
     props.onHistory?.("nav");
@@ -1054,10 +1057,9 @@ export function ModelWorkspace(props: {
         return;
       }
       if (e.key === "Delete" && !typing && (selectedId || selectedIds.length)) {
+        const ids = effectiveSelectedIds(selectedIds, selectedId);
         e.preventDefault();
-        keyHandlersRef.current.requestDelete(
-          selectedIds.length ? selectedIds : selectedId ? [selectedId] : [],
-        );
+        keyHandlersRef.current.requestDelete(ids);
         return;
       }
       if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !typing) {
@@ -1102,7 +1104,7 @@ export function ModelWorkspace(props: {
       props.onHistory?.(`button:action:${name}`);
       return;
     }
-    const ids = selectedIds.length ? selectedIds : [selectedId];
+    const ids = effectiveSelectedIds(selectedIds, selectedId);
     setNotice(`Running ${name}…`);
     try {
       await client.model(props.model, name, [ids], {
@@ -1458,9 +1460,7 @@ export function ModelWorkspace(props: {
           <Button
             variant="danger"
             disabled={!selectedIds.length && !selectedId}
-            onClick={() =>
-              requestDelete(selectedIds.length ? selectedIds : selectedId ? [selectedId] : [])
-            }
+            onClick={() => requestDelete(effectiveSelectedIds(selectedIds, selectedId))}
           >
             {t("workspace.delete")}
             {selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
@@ -1774,11 +1774,7 @@ export function ModelWorkspace(props: {
                 setSorts(next);
               }}
               onToggleSelect={(id) => {
-                setMultiSelect(
-                  selectedIds.includes(id)
-                    ? selectedIds.filter((x) => x !== id)
-                    : [...selectedIds, id],
-                );
+                setMultiSelect(toggleSelectedId(selectedIds, id));
               }}
               onSelect={(id) => {
                 selectId(id);
