@@ -217,8 +217,8 @@ failed client gate.
 |-------|--------|---------|--------------|------|
 | **L1.1** Relation queue + A→B | **DONE** | O2M create+write queued without Apply → one parent write; late A cannot replace/redirect B | `e2e/workspace.spec.ts`, `e2e/support/mockTryton.ts` | PASS (`75a6e44`) |
 | **L1.2** Board action open | **DONE** | Board `<action>` opens through the **existing** shell action host; action domain and active selection/context are preserved | `e2e/board.spec.ts`, mock board fixture, narrow Board/Shell context handoff | PASS (focused + full mock browser gate) |
-| **L1.3** Wizard / report shell | **NEXT** | Board or keyword path runs wizard/report via shared host (no embedded duplicate runtime) | `e2e/**`, mock wizard/report stubs | Scenario + smoke checklist #4 |
-| **L1.4** Calendar create / move | Pending | Click-create and drag write-back when model allows; soft-fail recorded when lab forbids write | `e2e/**`, calendar mock | Scenario + smoke checklist #5 |
+| **L1.3** Wizard / report shell | **DONE** | Board path runs wizard/report via shared host (no embedded duplicate runtime) and preserves foreign selection/context | `e2e/wizard-report.spec.ts`, mock wizard/report stubs | PASS (`af98ebd`; full mock browser gate) |
+| **L1.4** Calendar create / move | **DONE** | Real day click creates through parsed `dtstart`; real pointer drag writes the event; rejected writes surface without a false “Moved” | `e2e/calendar.spec.ts`, synthetic calendar mock | PASS (focused repeat 10/10; full mock 12/12) |
 
 Rules for every L1 slice:
 
@@ -307,14 +307,16 @@ raises priority (then CLAIM explicitly).
 | Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
 | Human | Authority for push, PHI, production, license exceptions |
 
-Default next implementer claim after this program sync: **L1.3 wizard/report shell paths**.
+Default next implementer claim after the completed L1 evidence program: **L2
+`ModelWorkspace` decomposition**, beginning with a read-only boundary inventory and
+one behavior-preserving extraction.
 
 ### Milestone map (relative, not calendar)
 
 ```text
 M0  Wire + Screen + L1.1 + L1.2   ████ DONE
-M1  L1.3–L1.4 browser evidence    ░░░ NEXT
-M2  L2 workspace decomposition    ░░░
+M1  L1.3–L1.4 browser evidence    ████ DONE
+M2  L2 workspace decomposition    ░░░ NEXT
 M3  L3 nested Screen API+wire     ░░░
 M4  L4 form density ‖ L5 filters  ░░░ (path-isolated)
 M5  L6 board polish (optional)    ░░░

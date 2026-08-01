@@ -22,6 +22,14 @@ type SyntheticAddress = {
   city: string;
 };
 
+type SyntheticCalendarRecord = {
+  id: number;
+  rec_name: string;
+  name: string;
+  starts_at: string;
+  ends_at: string;
+};
+
 const partyFields = {
   name: { name: "name", string: "Name", type: "char", required: true },
   code: { name: "code", string: "Code", type: "char" },
@@ -134,6 +142,27 @@ const addressForm = {
   fields: addressFields,
 };
 
+const calendarFields = {
+  name: { name: "name", string: "Name", type: "char", required: true },
+  starts_at: { name: "starts_at", string: "Starts at", type: "datetime", required: true },
+  ends_at: { name: "ends_at", string: "Ends at", type: "datetime" },
+};
+
+const calendarTree = {
+  arch: '<tree string="Synthetic Calendar"><field name="name"/><field name="starts_at"/><field name="ends_at"/></tree>',
+  fields: calendarFields,
+};
+
+const calendarForm = {
+  arch: '<form string="Synthetic Calendar"><group><field name="name"/><field name="starts_at"/><field name="ends_at"/></group></form>',
+  fields: calendarFields,
+};
+
+const calendarView = {
+  arch: '<calendar string="Synthetic Calendar" dtstart="starts_at" dtend="ends_at"><field name="name"/></calendar>',
+  fields: calendarFields,
+};
+
 type Deferred = {
   promise: Promise<void>;
   resolve: () => void;
@@ -152,12 +181,22 @@ export type MockTrytonOptions = {
   includeBoard?: boolean;
   /** Expose a board that opens the shared Shell wizard and report hosts. */
   includeWizardReportBoard?: boolean;
+  /** Expose a writable synthetic calendar model. */
+  includeCalendar?: boolean;
+  /** Return a JSON-RPC error for synthetic calendar writes. */
+  rejectCalendarWrite?: boolean;
 };
 
 export type MockTryton = {
   calls: RpcRequest[];
   records: Map<number, SyntheticRecord>;
   addresses: Map<number, SyntheticAddress>;
+  calendarRecords: Map<number, SyntheticCalendarRecord>;
+  calendarDates: {
+    initial: string;
+    create: string;
+    move: string;
+  };
   waitForPartyRead: (id: number) => Promise<void>;
   releasePartyRead: (id: number) => Promise<void>;
 };
@@ -226,6 +265,13 @@ function text(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
+function currentMonthDate(day: number): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-${String(day).padStart(2, "0")}`;
+}
+
 async function rpcRequest(route: Route): Promise<RpcRequest | null> {
   try {
     const value = route.request().postDataJSON() as Partial<RpcRequest>;
@@ -277,6 +323,23 @@ export async function installMockTryton(
         rec_name: "Synthetic Road",
         street: "Synthetic Road",
         city: "Old City",
+      },
+    ],
+  ]);
+  const calendarDates = {
+    initial: currentMonthDate(8),
+    create: currentMonthDate(12),
+    move: currentMonthDate(18),
+  };
+  const calendarRecords = new Map<number, SyntheticCalendarRecord>([
+    [
+      201,
+      {
+        id: 201,
+        rec_name: "Synthetic Calendar Alpha",
+        name: "Synthetic Calendar Alpha",
+        starts_at: `${calendarDates.initial} 09:00:00`,
+        ends_at: `${calendarDates.initial} 10:00:00`,
       },
     ],
   ]);
@@ -373,6 +436,15 @@ export async function installMockTryton(
           name: "Synthetic Wizard/Report Board",
           parent: null,
           action: "ir.action.act_window,910",
+          favorite: false,
+        });
+      }
+      if (options.includeCalendar) {
+        menus.push({
+          id: 3,
+          name: "Synthetic Calendar",
+          parent: null,
+          action: "synthetic.calendar",
           favorite: false,
         });
       }
@@ -571,6 +643,64 @@ export async function installMockTryton(
       return {};
     }
 
+    if (method === "model.synthetic.calendar.fields_view_get") {
+      if (params[1] === "calendar") return calendarView;
+      return params[1] === "tree" ? calendarTree : calendarForm;
+    }
+    if (method === "model.synthetic.calendar.search_read") {
+      const requestedIds = domainIds(params[0]);
+      const rows = [...calendarRecords.values()].filter(
+        (row) => requestedIds == null || requestedIds.includes(row.id),
+      );
+      return projectRows(rows, params[4]);
+    }
+    if (method === "model.synthetic.calendar.search_count") return calendarRecords.size;
+    if (method === "model.synthetic.calendar.read") {
+      return idsFrom(params[0]).flatMap((id) => {
+        const record = calendarRecords.get(id);
+        return record ? [record] : [];
+      });
+    }
+    if (method === "model.synthetic.calendar.default_get") {
+      return { name: "Synthetic created" };
+    }
+    if (method === "model.synthetic.calendar.create") {
+      const values = valuesFrom(Array.isArray(params[0]) ? params[0][0] : null);
+      const id = 202;
+      const name = text(values.name, "Synthetic created");
+      calendarRecords.set(id, {
+        id,
+        rec_name: name,
+        name,
+        starts_at: text(values.starts_at),
+        ends_at: text(values.ends_at),
+      });
+      return [id];
+    }
+    if (method === "model.synthetic.calendar.write") {
+      const values = valuesFrom(params[1]);
+      for (const id of idsFrom(params[0])) {
+        const current = calendarRecords.get(id);
+        if (!current) continue;
+        const name = text(values.name, current.name);
+        calendarRecords.set(id, {
+          ...current,
+          ...values,
+          name,
+          rec_name: name,
+          starts_at: text(values.starts_at, current.starts_at),
+          ends_at: text(values.ends_at, current.ends_at),
+        });
+      }
+      return true;
+    }
+    if (
+      method === "model.synthetic.calendar.on_change" ||
+      method === "model.synthetic.calendar.on_change_with"
+    ) {
+      return {};
+    }
+
     if (method === "model.ir.attachment.search_read") return attachments;
     if (method === "model.ir.attachment.create") {
       const values = valuesFrom(Array.isArray(params[0]) ? params[0][0] : null);
@@ -604,6 +734,17 @@ export async function installMockTryton(
       return;
     }
     calls.push(request);
+    if (options.rejectCalendarWrite && request.method === "model.synthetic.calendar.write") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: request.id,
+          error: { code: 403, message: "Synthetic calendar write forbidden" },
+        }),
+      });
+      return;
+    }
     const result = await dispatch(request);
     await route.fulfill({
       status: 200,
@@ -619,6 +760,8 @@ export async function installMockTryton(
     calls,
     records,
     addresses,
+    calendarRecords,
+    calendarDates,
     waitForPartyRead: async (id: number) => {
       const gate = partyReadGates.get(id);
       if (!gate) throw new Error(`Party read #${id} is not configured to be held`);

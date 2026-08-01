@@ -13,7 +13,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Logout | `common.db.logout` | Implemented | |
 | Model CRUD | `model.*.create/read/write/delete/search_read` | Implemented | Generic `ModelWorkspace` |
 | Views | `fields_view_get` arch XML | Implemented | form/tree + list-form/calendar/graph/board hosts |
-| Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back |
+| Calendar | calendar arch + date fields | Improved | Arch dtstart/dtend/color + create/drag write-back; deterministic pointer proof covers success and rejected-write soft failure |
 | Attachments | `ir.attachment` | Improved | Multi-upload + rename/description + MIME preview |
 | Graph | graph arch | Improved | y operator sum/average/count + arch title |
 | Editable tree | `editable` arch / inline write | Improved | selection/date/m2o + optional= + sum/average footers |
