@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip  · no push
+Status: **LINKED** · RAM-safe · tip `824419f` · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,7 +21,7 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L2.2a closed in  |
+| **Active CLAIM** | _(none)_ — L2.2a closed in `824419f` |
 | **CLAIM paths** | — |
 | **Freeze** | `lib/screen/**` + Screen five-pack + L1 + `workspaceUi*` + `recordLifecycle*` absent regression |
 | **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix |
