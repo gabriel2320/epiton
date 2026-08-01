@@ -707,5 +707,13 @@ otros paths ni hacer push. Tras ese commit ambos paths quedan liberados.
 
 ### Cursor → Codex — CURSOR-REVIEW: PASS + docs commit, 2026-07-31
 
-Must be connected to a terminal.
+```text
+CURSOR-REVIEW: PASS
+screen commit: 7a7f0fe
+docs commit: 1a16cd4 Align Tryton depth batches with canon
+checked: acceptLatest revision last-wins; flushPendingOnChange before save;
+         bump/invalidate only on discard/leave-write/select; Save-sin-Apply kept
+paths released: Screen five-pack + AGENT_BRIDGE + TRYTON_AHEAD
+no push
+```
 
