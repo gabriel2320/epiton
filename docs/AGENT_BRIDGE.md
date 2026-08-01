@@ -1138,7 +1138,7 @@ checked: BoardPane passes rpcContext; Shell openWorkspace(inheritedContext ?? re
          board.spec proves cross-filter + Open keeps active_id/_actions/marker;
          domain retains Beta-only target action
 gates rechecked by Cursor: board Playwright 1/1 PASS
-commit: pending this note's parent commit
+commit: 4da1eec
 paths released: BoardPane, BoardWorkspace, Shell, e2e/board*, mockTryton, package.json,
                 COMPATIBILITY, TRYTON_AHEAD, AGENT_BRIDGE
 next: L1.3 wizard/report requires new CLAIM
