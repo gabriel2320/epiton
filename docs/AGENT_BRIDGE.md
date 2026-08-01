@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · HEAD `c472da7` · `main` ahead of `origin` (no push unless human asks)
+Status: **LINKED** · HEAD `c83a6a9` · `main` ahead of `origin` (no push unless human asks)
 
 ## Ops dashboard (authoritative snapshot)
 
