@@ -85,8 +85,8 @@ import { RecordHistoryPanel } from "./RecordHistoryPanel";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 import { SavedSearchDialog } from "./SavedSearchDialog";
-import { domainTabStorageKey, noticeTone } from "./modelWorkspace/workspaceUi";
 import { VirtualPartyTable } from "./VirtualPartyTable";
+import { domainTabStorageKey, noticeTone } from "./modelWorkspace/workspaceUi";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;

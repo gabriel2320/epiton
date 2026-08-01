@@ -12,8 +12,8 @@ describe("workspaceUi", () => {
   it("builds stable domain-tab storage keys", () => {
     expect(domainTabStorageKey("party.party", null)).toBeNull();
     expect(domainTabStorageKey("party.party", [])).toBeNull();
-    expect(
-      domainTabStorageKey("party.party", [{ name: "Active" }, { name: "All" }]),
-    ).toBe("epiton.domainTab.party.party.Active|All");
+    expect(domainTabStorageKey("party.party", [{ name: "Active" }, { name: "All" }])).toBe(
+      "epiton.domainTab.party.party.Active|All",
+    );
   });
 });
