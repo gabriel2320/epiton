@@ -1,3 +1,4 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Alert, Button, Panel } from "@epiton/ui";
 import {
   aggregateGraphData,
@@ -22,6 +23,8 @@ type ReportRow = {
 /** Download / preview Tryton report payloads + optional visual analytics over the same ids. */
 export function ReportDownload(props: {
   initialReport?: string | null;
+  /** Invocation context from an action host such as a board pane. */
+  initialContext?: JsonObject | null;
   initialIds?: string;
   /** Optional model for analytics companion (same records as report ids). */
   initialModel?: string | null;
@@ -37,6 +40,10 @@ export function ReportDownload(props: {
   const [previewMime, setPreviewMime] = useState("application/pdf");
   const [analyticsRows, setAnalyticsRows] = useState<Array<Record<string, unknown>> | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const executionContext = useMemo(
+    () => ({ ...sessionContext, ...(props.initialContext ?? {}) }),
+    [sessionContext, props.initialContext],
+  );
 
   useEffect(() => {
     if (props.initialReport) setReportName(props.initialReport);
@@ -113,7 +120,9 @@ export function ReportDownload(props: {
       return;
     }
     try {
-      const result = await client.call(`report.${reportName}.execute`, [[ids, null, format, {}]]);
+      const result = await client.call(`report.${reportName}.execute`, [
+        [ids, null, format, executionContext],
+      ]);
       if (Array.isArray(result) && result.length >= 2) {
         const mime = String(result[0] ?? "application/pdf");
         const payload = result[1];

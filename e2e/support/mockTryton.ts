@@ -50,6 +50,11 @@ const partyBoard = {
   fields: {},
 };
 
+const partyWizardReportBoard = {
+  arch: '<board col="3"><action name="901" string="Source parties"/><action name="ir.action.wizard,911" string="Synthetic Wizard"/><action name="ir.action.report,912" string="Synthetic Report"/></board>',
+  fields: {},
+};
+
 const boardActions = new Map<number, Record<string, unknown>>([
   [
     900,
@@ -92,6 +97,28 @@ const boardActions = new Map<number, Record<string, unknown>>([
   ],
 ]);
 
+const wizardReportBoardAction = {
+  id: 910,
+  res_model: "party.party",
+  name: "Synthetic Wizard/Report Board",
+  domain: [],
+  context: { board_root: true },
+  views: [[null, "board"]],
+};
+
+const syntheticWizardAction = {
+  id: 911,
+  name: "Synthetic Wizard",
+  wiz_name: "synthetic.board_wizard",
+};
+
+const syntheticReportAction = {
+  id: 912,
+  name: "Synthetic Report",
+  report_name: "synthetic.board_report",
+  model: "party.party",
+};
+
 const addressFields = {
   street: { name: "street", string: "Street", type: "char", required: true },
   city: { name: "city", string: "City", type: "char" },
@@ -123,6 +150,8 @@ export type MockTrytonOptions = {
   holdPartyReadIds?: number[];
   /** Expose a synthetic board menu and act_window graph for board browser evidence. */
   includeBoard?: boolean;
+  /** Expose a board that opens the shared Shell wizard and report hosts. */
+  includeWizardReportBoard?: boolean;
 };
 
 export type MockTryton = {
@@ -161,6 +190,17 @@ function domainIds(value: unknown): number[] | null {
       return Number.isFinite(id) ? [id] : [];
     }
     const nested = domainIds(clause);
+    if (nested != null) return nested;
+  }
+  return null;
+}
+
+function domainEquals(value: unknown, field: string, expected: unknown): boolean | null {
+  if (!Array.isArray(value)) return null;
+  for (const clause of value) {
+    if (!Array.isArray(clause)) continue;
+    if (clause[0] === field && clause[1] === "=") return clause[2] === expected;
+    const nested = domainEquals(clause, field, expected);
     if (nested != null) return nested;
   }
   return null;
@@ -327,21 +367,65 @@ export async function installMockTryton(
           favorite: false,
         });
       }
+      if (options.includeWizardReportBoard) {
+        menus.push({
+          id: 2,
+          name: "Synthetic Wizard/Report Board",
+          parent: null,
+          action: "ir.action.act_window,910",
+          favorite: false,
+        });
+      }
       return menus;
     }
     if (method === "model.ir.ui.view_search.search_read") return [];
     if (method === "model.ir.model.access.search_read") return [{ id: 1 }];
     if (method === "model.ir.action.keyword.get_keyword") return [];
 
-    if (method === "model.ir.action.act_window.search_read" && options.includeBoard) {
+    if (
+      method === "model.ir.action.act_window.search_read" &&
+      (options.includeBoard || options.includeWizardReportBoard)
+    ) {
       const requestedIds = domainIds(params[0]);
-      const rows = [...boardActions.values()].filter(
+      const actions = options.includeWizardReportBoard
+        ? [...boardActions.values(), wizardReportBoardAction]
+        : [...boardActions.values()];
+      const rows = actions.filter(
         (row) => requestedIds == null || requestedIds.includes(Number(row.id)),
       );
       return projectRows(rows, params[4]);
     }
 
+    if (method === "model.ir.action.wizard.search_read" && options.includeWizardReportBoard) {
+      const requestedIds = domainIds(params[0]);
+      const requestedName = domainEquals(params[0], "wiz_name", syntheticWizardAction.wiz_name);
+      const rows =
+        (requestedIds == null || requestedIds.includes(syntheticWizardAction.id)) &&
+        requestedName !== false
+          ? [syntheticWizardAction]
+          : [];
+      return projectRows(rows, params[4]);
+    }
+
+    if (method === "model.ir.action.report.search_read" && options.includeWizardReportBoard) {
+      const requestedIds = domainIds(params[0]);
+      const requestedName = domainEquals(
+        params[0],
+        "report_name",
+        syntheticReportAction.report_name,
+      );
+      const rows =
+        (requestedIds == null || requestedIds.includes(syntheticReportAction.id)) &&
+        requestedName !== false
+          ? [syntheticReportAction]
+          : [];
+      return projectRows(rows, params[4]);
+    }
+
     if (method === "model.party.party.fields_view_get") {
+      if (options.includeWizardReportBoard && params[1] === "board") {
+        return partyWizardReportBoard;
+      }
       if (options.includeBoard && params[1] === "board") return partyBoard;
       return params[1] === "tree" ? partyTree : partyForm;
     }
@@ -500,6 +584,13 @@ export async function installMockTryton(
       }
       return true;
     }
+
+    if (method === "wizard.synthetic.board_wizard.create") {
+      return ["synthetic-wizard-session", "start", "end"];
+    }
+    if (method === "wizard.synthetic.board_wizard.execute") return { state: "end" };
+    if (method === "wizard.synthetic.board_wizard.delete") return true;
+    if (method === "report.synthetic.board_report.execute") return [];
 
     if (method.endsWith(".search_read")) return [];
     if (method.endsWith(".search_count")) return 0;

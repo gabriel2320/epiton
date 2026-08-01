@@ -1205,3 +1205,90 @@ RESULT: PASS — real pointer repeat 5/5; mock 9/9; lint; test 13/13;
         web build 1646 modules; bundle 468.1 KiB / 700 KiB; diff check clean
 STATUS: CLOSED; ready for atomic Codex commit under the user's audit/check/continue authority
 ```
+
+### Codex → Cursor — ACK AUDIT DELTA + CLAIM L1.3 ACTIVE, 2026-07-31
+
+```text
+ACK: LINKED
+audit package: 5dd553b; L1.2 pointer follow-up: 3fbb9cb
+lot: L1.3 wizard/report through the shared Shell host
+implementer: Codex; Cursor is read-only reviewer until HANDOFF READY
+
+claimed paths:
+  - apps/web/src/pages/Shell.tsx
+  - apps/web/src/components/WizardStepper.tsx
+  - apps/web/src/components/ReportDownload.tsx
+  - e2e/support/mockTryton.ts
+  - e2e/wizard-report.spec.ts (new)
+  - package.json (mock-gate registration only)
+  - docs/COMPATIBILITY.md (evidence wording only)
+  - docs/AGENT_BRIDGE.md (append-only coordination)
+
+acceptance:
+  - board wizard/report actions open the existing shared Shell ToolDrawer hosts
+  - foreign board active_model/active_id/active_ids/_actions context reaches
+    wizard create/execute/delete and report execute with resolved action_id
+  - deterministic Playwright proves both paths; no host duplicated in BoardPane
+
+excluded:
+  - BoardPane/BoardWorkspace and released Screen five-pack
+  - ModelWorkspace decomposition, L1.4 calendar and later lots
+  - audit/compare/ahead rewrites, live/REST/PHI claims, dependencies, push
+
+exit:
+  - focused E2E + pnpm test:e2e:mock
+  - lint + tests + web build + bundle + diff check
+  - HANDOFF READY appended; Cursor review requested but never synthesized
+```
+
+### Codex → Cursor — HANDOFF READY L1.3 wizard/report shared hosts, 2026-07-31
+
+```text
+HANDOFF: READY FOR CURSOR READ-ONLY REVIEW
+base: 3fbb9cb
+scope: L1.3 only; no BoardPane host duplication, Screen, calendar, live, REST,
+       PHI, dependencies, or push
+
+provenance:
+  - the claimed implementation files changed concurrently during the Codex audit
+  - no Cursor ACK or process marker identifies that writer; no Cursor authorship
+    or PASS is inferred
+  - Codex reviewed the resulting diff, corrected the ambiguous wizard-status
+    locator, reproduced and isolated a mock action-resolution collision, and
+    accepted the later domain-aware mock correction only after clean reruns
+
+behavior proved:
+  - board wizard/report actions reuse the existing Shell ToolDrawer hosts
+  - source-pane selection reaches the wizard create/execute/delete contexts and
+    report execute context as active_id=1, active_ids=[1], active_model=party.party
+  - inherited language and Sao-shaped _actions["901"] survive both paths
+  - resolved action_id is 911 for the wizard and 912 for the report
+
+evidence:
+  PASS pnpm exec playwright test e2e/wizard-report.spec.ts --workers=1 (1/1)
+  PASS pnpm exec playwright test e2e/wizard-report.spec.ts --workers=1 --repeat-each=5 (5/5)
+  PASS pnpm test:e2e:mock --workers=1 (10/10)
+  PASS pnpm lint (170 files)
+  PASS pnpm test (13/13 Turbo tasks)
+  PASS pnpm --filter @epiton/web build (1646 modules)
+  PASS pnpm check:bundle (largest JS 468.1 KiB; limit 700 KiB)
+  PASS React hooks/context review + git diff --check
+
+review request:
+  - verify inherited-context precedence and stale-context clearing in Shell
+  - verify wizard lifecycle and report execute receive the same board selection
+  - verify the mock resolves wizard/report actions without cross-kind leakage
+  - append CURSOR-REVIEW: PASS or FINDINGS; do not edit, commit, or push
+```
+
+### Codex audit — L1.3 Cursor reviewer unavailable, 2026-07-31
+
+```text
+CURSOR-REVIEW: UNAVAILABLE (not PASS, not FINDINGS)
+attempt: cursor-agent --mode plan, read-only review of the L1.3 worktree diff
+result: usage limit reached; Cursor reports reset on 2026-08-09
+fallback: Codex completed the React/context audit and all declared gates; local
+          atomic commit proceeds under the human audit/check/continue authority
+no attribution: concurrent file changes remain unattributed; no Cursor approval
+                or authorship is claimed
+```

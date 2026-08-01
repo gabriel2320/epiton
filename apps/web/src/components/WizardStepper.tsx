@@ -15,7 +15,7 @@ import {
   parseWizardPayload,
   renderView,
 } from "@epiton/view-engine";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { RelationSearch } from "./RelationSearch";
 
@@ -34,9 +34,27 @@ interface WizardRuntime {
 
 const DEFAULT_WIZARDS = ["ir.module.activate_upgrade", "ir.translation.export", "res.user.config"];
 
+function wizardContext(
+  initialContext: JsonObject | null | undefined,
+  activeId: number | null | undefined,
+  activeIds: number[] | undefined,
+  activeModel: string | null | undefined,
+  actionId: number | null | undefined,
+): JsonObject {
+  const context: JsonObject = { ...(initialContext ?? {}) };
+  if (activeId != null) context.active_id = activeId;
+  if (activeIds?.length) context.active_ids = activeIds;
+  else if (activeId != null) context.active_ids = [activeId];
+  if (activeModel) context.active_model = activeModel;
+  if (actionId != null) context.action_id = actionId;
+  return context;
+}
+
 /** Sao-compatible wizard stepper: create → execute(state) → button transitions → delete. */
 export function WizardStepper(props: {
   initialWizard?: string | null;
+  /** Invocation context from an action host such as a board pane. */
+  initialContext?: JsonObject | null;
   activeId?: number | null;
   activeIds?: number[];
   activeModel?: string | null;
@@ -58,15 +76,20 @@ export function WizardStepper(props: {
   const runtimeRef = useRef<WizardRuntime | null>(null);
   runtimeRef.current = runtime;
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const invocationContext = useMemo(
+    () =>
+      wizardContext(
+        props.initialContext,
+        props.activeId,
+        props.activeIds,
+        props.activeModel,
+        props.actionId,
+      ),
+    [props.initialContext, props.activeId, props.activeIds, props.activeModel, props.actionId],
+  );
 
   function buildContext(): JsonObject {
-    const ctx: JsonObject = {};
-    if (props.activeId != null) ctx.active_id = props.activeId;
-    if (props.activeIds?.length) ctx.active_ids = props.activeIds;
-    else if (props.activeId != null) ctx.active_ids = [props.activeId];
-    if (props.activeModel) ctx.active_model = props.activeModel;
-    if (props.actionId != null) ctx.action_id = props.actionId;
-    return ctx;
+    return { ...invocationContext };
   }
 
   function handleFieldChange(name: string, value: unknown) {
@@ -236,12 +259,7 @@ export function WizardStepper(props: {
       setWizardName(wizard);
       setStatus("loading");
       try {
-        const context: JsonObject = {};
-        if (props.activeId != null) context.active_id = props.activeId;
-        if (props.activeIds?.length) context.active_ids = props.activeIds;
-        else if (props.activeId != null) context.active_ids = [props.activeId];
-        if (props.activeModel) context.active_model = props.activeModel;
-        if (props.actionId != null) context.action_id = props.actionId;
+        const context = { ...invocationContext };
         const session = await wizardCreate(client, wizard, context);
         if (cancelled) return;
         const executed = await wizardExecute(client, session, {}, session.startState, context);
@@ -287,15 +305,7 @@ export function WizardStepper(props: {
     return () => {
       cancelled = true;
     };
-  }, [
-    props.autoStart,
-    props.initialWizard,
-    props.activeId,
-    props.activeIds,
-    props.activeModel,
-    props.actionId,
-    client,
-  ]);
+  }, [props.autoStart, props.initialWizard, invocationContext, client]);
 
   useEffect(() => {
     return () => {

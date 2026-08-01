@@ -71,6 +71,33 @@ function makeTab(frame: ActionFrame): WorkspaceTab {
   return { id: tabId(), title: frame.label || frame.model, stack: [frame] };
 }
 
+function contextNumber(context: JsonObject | null, key: string): number | null {
+  const value = context?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function contextNumbers(context: JsonObject | null, key: string): number[] {
+  const value = context?.[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is number => typeof item === "number" && Number.isFinite(item));
+}
+
+function contextString(context: JsonObject | null, key: string): string | null {
+  const value = context?.[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function actionInvocationContext(
+  inheritedContext: JsonObject | undefined,
+  actionId: number | null,
+): JsonObject | null {
+  if (!inheritedContext && actionId == null) return null;
+  return {
+    ...(inheritedContext ?? {}),
+    ...(actionId != null ? { action_id: actionId } : {}),
+  };
+}
+
 export function Shell() {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
@@ -130,7 +157,9 @@ export function Shell() {
 
   const [activeWizard, setActiveWizard] = useState<string | null>(null);
   const [wizardActionId, setWizardActionId] = useState<number | null>(null);
+  const [wizardInvocationContext, setWizardInvocationContext] = useState<JsonObject | null>(null);
   const [activeReport, setActiveReport] = useState<string | null>(null);
+  const [reportInvocationContext, setReportInvocationContext] = useState<JsonObject | null>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ model: string; action: string }>>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -138,6 +167,48 @@ export function Shell() {
   const [attachOpen, setAttachOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const wizardUsesInvocationSelection = wizardInvocationContext !== null;
+  const wizardInheritedId = contextNumber(wizardInvocationContext, "active_id");
+  const wizardActiveId = wizardUsesInvocationSelection ? wizardInheritedId : selectedId;
+  const wizardActiveIds = useMemo(() => {
+    const inheritedIds = contextNumbers(wizardInvocationContext, "active_ids");
+    if (inheritedIds.length) return inheritedIds;
+    if (wizardInheritedId != null) return [wizardInheritedId];
+    if (wizardUsesInvocationSelection) return undefined;
+    if (selectedIds.length) return selectedIds;
+    return selectedId != null ? [selectedId] : undefined;
+  }, [
+    wizardInvocationContext,
+    wizardInheritedId,
+    wizardUsesInvocationSelection,
+    selectedId,
+    selectedIds,
+  ]);
+  const wizardActiveModel = wizardUsesInvocationSelection
+    ? contextString(wizardInvocationContext, "active_model")
+    : active;
+
+  const reportUsesInvocationSelection = reportInvocationContext !== null;
+  const reportInheritedId = contextNumber(reportInvocationContext, "active_id");
+  const reportActiveIds = useMemo(() => {
+    const inheritedIds = contextNumbers(reportInvocationContext, "active_ids");
+    if (inheritedIds.length) return inheritedIds;
+    if (reportInheritedId != null) return [reportInheritedId];
+    if (reportUsesInvocationSelection) return [];
+    if (selectedIds.length) return selectedIds;
+    return selectedId != null ? [selectedId] : [];
+  }, [
+    reportInvocationContext,
+    reportInheritedId,
+    reportUsesInvocationSelection,
+    selectedId,
+    selectedIds,
+  ]);
+  const reportActiveModel = reportUsesInvocationSelection
+    ? contextString(reportInvocationContext, "active_model")
+    : active;
+  const reportInitialIds = useMemo(() => reportActiveIds.join(","), [reportActiveIds]);
 
   function updateActiveTab(mutator: (tab: WorkspaceTab) => WorkspaceTab) {
     setTabState((prev) => ({
@@ -383,6 +454,10 @@ export function Shell() {
       if (asNewTab) openNewTab({ model: actionOrModel, id: null, label: actionOrModel });
       else replaceRoot(actionOrModel);
       setActiveWizard(null);
+      setWizardActionId(null);
+      setWizardInvocationContext(null);
+      setActiveReport(null);
+      setReportInvocationContext(null);
       return;
     }
     setWorkspaceNotice(null);
@@ -390,7 +465,9 @@ export function Shell() {
     if (resolved.kind === "model") {
       setActiveWizard(null);
       setWizardActionId(null);
+      setWizardInvocationContext(null);
       setActiveReport(null);
+      setReportInvocationContext(null);
       const frame: ActionFrame = {
         model: resolved.model,
         id: null,
@@ -408,12 +485,24 @@ export function Shell() {
     if (resolved.kind === "wizard") {
       setActiveWizard(resolved.wizard);
       setWizardActionId(resolved.actionId);
+      setWizardInvocationContext(inheritedContext ?? null);
       setWizardOpen(true);
       setHistory((h) => [...h, { model: resolved.wizard, action: `wizard:${source}` }]);
       return;
     }
     if (resolved.kind === "report") {
-      if (selectedId == null && selectedIds.length === 0) {
+      const invocationContext =
+        inheritedContext === undefined
+          ? null
+          : actionInvocationContext(inheritedContext, resolved.actionId);
+      const inheritedId = contextNumber(invocationContext, "active_id");
+      const inheritedIds = contextNumbers(invocationContext, "active_ids");
+      setReportInvocationContext(invocationContext);
+      if (
+        invocationContext !== null
+          ? inheritedId == null && inheritedIds.length === 0
+          : selectedId == null && selectedIds.length === 0
+      ) {
         setWorkspaceNotice("Select a record before running a report");
         setActiveReport(resolved.report);
         setReportOpen(true);
@@ -526,7 +615,9 @@ export function Shell() {
               onOpenRecord={(model, id) => {
                 setActiveWizard(null);
                 setWizardActionId(null);
+                setWizardInvocationContext(null);
                 setActiveReport(null);
+                setReportInvocationContext(null);
                 replaceRoot(model, id, { label: `${model}#${id}` });
                 setHistory((h) => [...h, { model, action: "bus:open" }]);
               }}
@@ -550,15 +641,21 @@ export function Shell() {
                   key={activeWizard ?? "manual-wizard"}
                   initialWizard={activeWizard}
                   actionId={wizardActionId}
-                  activeModel={active}
-                  activeId={selectedId}
-                  activeIds={
-                    selectedIds.length ? selectedIds : selectedId != null ? [selectedId] : undefined
-                  }
+                  initialContext={wizardInvocationContext}
+                  activeModel={wizardActiveModel}
+                  activeId={wizardActiveId}
+                  activeIds={wizardActiveIds}
                   autoStart={Boolean(activeWizard)}
                   onActions={(actions) => {
                     const refs = wizardActionRefs(actions);
-                    for (const ref of refs) void openWorkspace(ref, "wizard-action");
+                    for (const ref of refs) {
+                      void openWorkspace(
+                        ref,
+                        "wizard-action",
+                        false,
+                        wizardInvocationContext ?? undefined,
+                      );
+                    }
                     if (refs.length) setWizardOpen(false);
                   }}
                 />{" "}
@@ -573,8 +670,9 @@ export function Shell() {
               <Suspense fallback={<p role="status">Loading reports…</p>}>
                 <ReportDownload
                   initialReport={activeReport}
-                  initialIds={selectedId != null ? String(selectedId) : ""}
-                  initialModel={active}
+                  initialContext={reportInvocationContext}
+                  initialIds={reportInitialIds}
+                  initialModel={reportActiveModel}
                 />{" "}
               </Suspense>
             </ToolDrawer>
@@ -672,7 +770,9 @@ export function Shell() {
             onOpenRecord={(model, id) => {
               setActiveWizard(null);
               setWizardActionId(null);
+              setWizardInvocationContext(null);
               setActiveReport(null);
+              setReportInvocationContext(null);
               replaceRoot(model, id, { label: `${model}#${id}` });
               setHistory((h) => [...h, { model, action: "board:open-record" }]);
             }}

@@ -21,8 +21,8 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Revision history | `model.__history__` | Improved | Diff vs draft + resolve write_uid; strip create_* on restore |
 | Notebook | form notebook pages | Improved | Exclusive tabs + remembered page |
 | Buttons | view `button` + confirm | Improved | Method RPC with `active_ids`; `type=action` → resolveAction |
-| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + M2O search |
-| Reports | `report.*.execute` | Improved | Formats + pdfjs + `ir.action.report` picker |
+| Wizards | `wizard.*.create/execute/delete` | Improved | End-state execute + validate + on_change + M2O search; board→shared Shell mock proof preserves action context |
+| Reports | `report.*.execute` | Improved | Formats + pdfjs + `ir.action.report` picker; board→shared Shell mock proof preserves action context |
 | Binary | binary fields | Improved | MIME + filename= sibling; download uses real name |
 | PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
 | Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
@@ -32,7 +32,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | CSV export | `export_data` / `export_data_domain` | Improved | Field picker dialog before export |
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
 | Saved searches | `ir.ui.view_search` | Improved | Load/apply + dialog save/delete (no prompt) |
-| Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter; `act_window` Open reuses Shell and preserves active selection/context (mock browser proof) |
+| Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter; act_window/wizard/report Open reuse Shell and preserve active selection/context (mock browser proof) |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
 | Shell hosts | Tauri / Capacitor | Beta | Title/safe-area; memory-only sessions; legacy preference slots erased |
 | Server favorites | `ir.ui.menu.favorite` | Improved | Sidebar + star toggle; preset fallback |
