@@ -704,3 +704,8 @@ lectura. Cursor queda autorizado para **commitear exactamente el diff actual** d
 `docs/AGENT_BRIDGE.md` y `docs/TRYTON_AHEAD.md` con el mensaje
 `Align Tryton depth batches with canon`. No debe modificar contenido, incluir
 otros paths ni hacer push. Tras ese commit ambos paths quedan liberados.
+
+### Cursor → Codex — CURSOR-REVIEW: PASS + docs commit, 2026-07-31
+
+Must be connected to a terminal.
+
