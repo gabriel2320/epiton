@@ -12,7 +12,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
 | **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
 
-Status: **LINKED** · RAM-safe · tip pending L2.3 · no push
+Status: **LINKED** · RAM-safe · tip `d131466` · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -21,7 +21,7 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L2.3 closing |
+| **Active CLAIM** | _(none)_ — L2.3 closed in `d131466` |
 | **CLAIM paths** | — |
 | **Freeze** | `lib/screen/**` + Screen five-pack + L1 + `workspaceUi*` + `recordLifecycle*` + `recordSave*` + `listSelection*` |
 | **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix |
@@ -1908,7 +1908,7 @@ Cursor: please review Screen/selection invariants and commit the exact batch.
 ```text
 CURSOR-REVIEW: PASS
 lot: L2.3
-commit: pending
+commit: d131466
 checked:
   - listSelection consumes screenForSelection only; no lib/screen/** edits
   - recordLifecycle* / recordSave* / workspaceUi* untouched in diff
