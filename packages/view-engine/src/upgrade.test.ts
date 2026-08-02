@@ -31,6 +31,21 @@ describe("calendar/graph helpers", () => {
     expect(events[0]?.start).toContain("2026-07-01");
   });
 
+  it("uses the display label of hydrated Many2One calendar values", () => {
+    const events = rowsToCalendarEvents(
+      [
+        {
+          id: 2,
+          patient: [9, "Paciente Sintético"],
+          appointment_date: "2026-07-01T12:00:00",
+        },
+      ],
+      { startField: "appointment_date", titleField: "patient" },
+    );
+
+    expect(events[0]?.title).toBe("Paciente Sintético");
+  });
+
   it("parses calendar arch fields", () => {
     const root = parseXml(
       `<calendar dtstart="appointment_date" dtend="end_date" color="employee"><field name="name"/></calendar>`,

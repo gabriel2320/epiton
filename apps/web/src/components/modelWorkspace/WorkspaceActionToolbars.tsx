@@ -94,12 +94,14 @@ export function WorkspaceRecordActionToolbar(props: {
 
   return (
     <div className="epiton-toolbar">
-      <Button onClick={props.onToggleMode}>
-        {t("workspace.mode")}: {props.mode}
+      <Button disabled={availability.modeDisabled} onClick={props.onToggleMode}>
+        {t("workspace.mode")}: {t(`workspace.${props.mode}`)}
       </Button>
-      <Badge tone={props.mode === "write" ? "accent" : "muted"}>{props.mode}</Badge>
+      <Badge tone={props.mode === "write" ? "accent" : "muted"}>
+        {t(`workspace.${props.mode}`)}
+      </Badge>
       {props.isDirty ? <Badge tone="accent">{t("workspace.unsaved")}</Badge> : null}
-      {props.onChangePending ? <Badge tone="muted">Updating fields…</Badge> : null}
+      {props.onChangePending ? <Badge tone="muted">{t("workspace.updatingFields")}</Badge> : null}
       <Button variant="primary" disabled={availability.saveDisabled} onClick={props.onSave}>
         {t("workspace.save")}
       </Button>

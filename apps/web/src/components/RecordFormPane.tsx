@@ -4,6 +4,7 @@ import { Button, StateBlock } from "@epiton/ui";
 import { type RecordValues, parseFieldsViewGet, renderView } from "@epiton/view-engine";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { invalidateModelProjections } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 
 /** Compact in-pane form for board embedding (subset of ModelWorkspace form). */
@@ -77,6 +78,7 @@ export function RecordFormPane(props: {
     onSuccess: async () => {
       setNotice("Saved");
       setMode("read");
+      await invalidateModelProjections(queryClient);
       await queryClient.invalidateQueries({ queryKey: ["board-pane", "screen", props.model] });
       await queryClient.invalidateQueries({
         queryKey: ["board-form-record", props.model, props.recordId],

@@ -54,12 +54,14 @@ describe("actionToolbar", () => {
   it("keeps selected-record actions and save readiness independent", () => {
     expect(
       recordActionAvailability({
+        mode: "read",
         clientAvailable: true,
         hasFocusedRecord: false,
         canSave: true,
         savePending: false,
       }),
     ).toEqual({
+      modeDisabled: false,
       saveDisabled: false,
       deleteDisabled: true,
       copyDisabled: true,
@@ -69,18 +71,42 @@ describe("actionToolbar", () => {
 
     expect(
       recordActionAvailability({
+        mode: "write",
         clientAvailable: true,
         hasFocusedRecord: true,
         canSave: true,
         savePending: true,
       }),
     ).toEqual({
+      modeDisabled: true,
       saveDisabled: true,
       deleteDisabled: false,
       copyDisabled: false,
       historyDisabled: false,
       emailDisabled: false,
     });
+  });
+
+  it("waits for an existing record to hydrate before entering edit mode", () => {
+    expect(
+      recordActionAvailability({
+        mode: "read",
+        clientAvailable: true,
+        hasFocusedRecord: true,
+        canSave: false,
+        savePending: false,
+      }).modeDisabled,
+    ).toBe(true);
+
+    expect(
+      recordActionAvailability({
+        mode: "write",
+        clientAvailable: true,
+        hasFocusedRecord: true,
+        canSave: false,
+        savePending: false,
+      }).modeDisabled,
+    ).toBe(false);
   });
 
   it("recognizes Tryton action references without treating ordinary methods as actions", () => {

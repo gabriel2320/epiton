@@ -108,6 +108,30 @@ describe("recordLifecycle", () => {
     expect(options.pending).toEqual([true, false]);
   });
 
+  it("hydrates Tryton Many2One projections returned by on_change", async () => {
+    const client: NonNullable<ScheduleOnChangeOptions["client"]> = {
+      model: vi.fn(async () => ({
+        party: 9,
+        "party.": { id: 9, rec_name: "Paciente Sintético" },
+      })),
+    };
+    const refs = lifecycleRefs();
+    const options = fieldChangeOptions(refs, client);
+    options.fields = {
+      name: { name: "name", on_change: ["name"] },
+      party: { name: "party", type: "many2one" },
+    };
+
+    const work = handleFieldChange({ ...options, name: "name", value: "Pending" });
+    work?.start();
+    await work?.promise;
+
+    expect(refs.screen.current.values).toEqual({
+      name: "Pending",
+      party: [9, "Paciente Sintético"],
+    });
+  });
+
   it("bumps the Screen generation and cancels pending on_change work", async () => {
     const client: NonNullable<ScheduleOnChangeOptions["client"]> = {
       model: vi.fn(async () => ({ rec_name: "Must not apply" })),

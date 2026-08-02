@@ -6,6 +6,10 @@ describe("workspaceUi", () => {
     expect(noticeTone("Save failed")).toBe("danger");
     expect(noticeTone("Exporting…")).toBe("muted");
     expect(noticeTone("Saved ok")).toBe("accent");
+    expect(noticeTone("Guardado")).toBe("accent");
+    expect(noticeTone("No se pudo eliminar")).toBe("danger");
+    expect(noticeTone("No se pudieron cargar los valores iniciales")).toBe("danger");
+    expect(noticeTone("Actualizando campos…")).toBe("muted");
     expect(noticeTone("Ready")).toBe("default");
   });
 });

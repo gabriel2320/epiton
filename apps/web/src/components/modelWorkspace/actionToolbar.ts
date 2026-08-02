@@ -9,6 +9,7 @@ export interface ListActionAvailabilityInput {
 }
 
 export interface RecordActionAvailabilityInput {
+  mode: "read" | "write";
   clientAvailable: boolean;
   hasFocusedRecord: boolean;
   canSave: boolean;
@@ -29,6 +30,8 @@ export function listActionAvailability(input: ListActionAvailabilityInput) {
 /** Pure availability contract shared by the selected-record action toolbar. */
 export function recordActionAvailability(input: RecordActionAvailabilityInput) {
   return {
+    modeDisabled:
+      input.savePending || (input.mode === "read" && (!input.clientAvailable || !input.canSave)),
     saveDisabled: input.savePending || !input.canSave,
     deleteDisabled: !input.hasFocusedRecord,
     copyDisabled: !input.clientAvailable || !input.hasFocusedRecord,

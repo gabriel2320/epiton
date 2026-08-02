@@ -34,12 +34,16 @@ export {
   type TranslationDict,
 } from "./i18n";
 export {
+  hydrateMany2OneRecNames,
+  hydrateMany2OneRows,
   isTrytonRelationCommands,
   relationRecordCount,
   toTrytonM2M,
   toTrytonM2MDelta,
   toTrytonO2M,
+  withMany2OneRecNames,
   type O2MCommand,
+  type RelationProjectionField,
 } from "./relations";
 export {
   acceptAsyncScreenUpdate,

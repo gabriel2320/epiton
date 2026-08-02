@@ -1,5 +1,5 @@
 import { type FieldOnChangeMeta, type JsonObject, applyFieldChange } from "@epiton/protocol";
-import type { RecordValues } from "@epiton/view-engine";
+import { type RecordValues, hydrateMany2OneRecNames } from "@epiton/view-engine";
 import {
   type ScreenState,
   acceptLatestAsyncScreenUpdate,
@@ -154,7 +154,11 @@ export function scheduleOnChange(options: ScheduleOnChangeOptions): OnChangeWork
         const patch = await applyFieldChange(client, model, fields, nextDraft, name, context);
         if (!isLatest()) return;
         if (Object.keys(patch).length > 0) {
-          replaceDraft(refs, setScreen, { ...refs.screen.current.values, ...patch });
+          const projectedPatch = hydrateMany2OneRecNames(patch, Object.values(fields));
+          replaceDraft(refs, setScreen, {
+            ...refs.screen.current.values,
+            ...projectedPatch,
+          });
           onHistory?.(`on_change:${name}`);
         }
       } catch (err) {

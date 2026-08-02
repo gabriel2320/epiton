@@ -18,6 +18,11 @@ export interface CalendarSpec {
   mode?: string;
 }
 
+function displayValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[1] ?? value[0] ?? "");
+  return String(value);
+}
+
 /**
  * Parse Tryton `<calendar dtstart=… dtend=… color=…>` arch.
  * Falls back to null when the arch is not a calendar.
@@ -65,14 +70,9 @@ export function rowsToCalendarEvents(
       row[startField] ?? row.appointment_date ?? row.date ?? row.dtstart ?? row.create_date;
     if (start == null) continue;
     const end = row[endField] ?? row.dtend ?? null;
-    const title = String(row[titleField] ?? row.name ?? `#${id}`);
+    const title = displayValue(row[titleField] ?? row.name ?? `#${id}`);
     const colorRaw = colorField ? row[colorField] : null;
-    const color =
-      colorRaw == null
-        ? null
-        : Array.isArray(colorRaw)
-          ? String(colorRaw[1] ?? colorRaw[0] ?? "")
-          : String(colorRaw);
+    const color = colorRaw == null ? null : displayValue(colorRaw);
     out.push({
       id,
       title,

@@ -59,7 +59,7 @@ export function ListFormView(props: {
 
 function formatCell(value: unknown): string {
   if (value == null) return "—";
-  if (Array.isArray(value)) return value.map((v) => String(v)).join(" · ");
+  if (Array.isArray(value)) return String(value[1] ?? value[0] ?? "—");
   if (typeof value === "boolean") return value ? "yes" : "no";
   return String(value);
 }

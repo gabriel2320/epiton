@@ -6,6 +6,75 @@ export type O2MCommand =
   | { op: "add"; id: number }
   | { op: "remove"; id: number };
 
+export interface RelationProjectionField {
+  name: string;
+  type?: string;
+}
+
+function many2OneFieldNames(fields: readonly RelationProjectionField[]): string[] {
+  return [
+    ...new Set(fields.filter((field) => field.type === "many2one").map((field) => field.name)),
+  ];
+}
+
+/**
+ * Ask Tryton for the display name of every requested Many2One field.
+ *
+ * Tryton's native dotted-field protocol returns the scalar relation id in
+ * `party` and its projected values in `party.`. The client keeps both pieces
+ * only long enough to build its local `[id, rec_name]` widget value.
+ */
+export function withMany2OneRecNames(
+  fieldNames: readonly string[],
+  fields: readonly RelationProjectionField[],
+): string[] {
+  const requested = new Set(fieldNames);
+  const projected = many2OneFieldNames(fields)
+    .filter((name) => requested.has(name))
+    .map((name) => `${name}.rec_name`);
+  return [...new Set([...fieldNames, ...projected])];
+}
+
+/** Convert Tryton dotted Many2One projections to the tuple used by widgets. */
+export function hydrateMany2OneRecNames<T extends Record<string, unknown>>(
+  values: T,
+  fields: readonly RelationProjectionField[],
+): T {
+  let hydrated: Record<string, unknown> | null = null;
+  for (const name of many2OneFieldNames(fields)) {
+    const projectionKey = `${name}.`;
+    if (!Object.hasOwn(values, projectionKey)) continue;
+
+    hydrated ??= { ...values };
+    const related = values[projectionKey];
+    delete hydrated[projectionKey];
+
+    const raw = values[name];
+    const id =
+      typeof raw === "number" && Number.isFinite(raw)
+        ? raw
+        : Array.isArray(raw) && typeof raw[0] === "number" && Number.isFinite(raw[0])
+          ? raw[0]
+          : null;
+    const recName =
+      related && typeof related === "object" && !Array.isArray(related)
+        ? (related as Record<string, unknown>).rec_name
+        : undefined;
+    if (id != null && typeof recName === "string" && recName.length > 0) {
+      hydrated[name] = [id, recName];
+    }
+  }
+  return (hydrated ?? values) as T;
+}
+
+/** Hydrate a list without changing rows that contain no dotted projections. */
+export function hydrateMany2OneRows<T extends Record<string, unknown>>(
+  rows: readonly T[],
+  fields: readonly RelationProjectionField[],
+): T[] {
+  return rows.map((row) => hydrateMany2OneRecNames(row, fields));
+}
+
 export function toTrytonO2M(commands: O2MCommand[]): unknown[][] {
   return commands.map((c) => {
     switch (c.op) {

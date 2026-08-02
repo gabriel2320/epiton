@@ -25,6 +25,8 @@ import {
   evalDomain,
   flattenTreeRows,
   formatOrder,
+  hydrateMany2OneRecNames,
+  hydrateMany2OneRows,
   inferGraphFields,
   mergeDomains,
   mergeTreeRows,
@@ -43,10 +45,12 @@ import {
   treeEditable,
   treeEditablePlacement,
   treeMeta,
+  withMany2OneRecNames,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { invalidateModelProjections } from "../lib/backendTruth";
 import { guessMime } from "../lib/mime";
 import {
   type RelationCommandQueue,
@@ -172,6 +176,7 @@ export function ModelWorkspace(props: {
   const [csvExportOpen, setCsvExportOpen] = useState(false);
   const [savedSearchDialog, setSavedSearchDialog] = useState<"save" | "delete" | null>(null);
   const [onChangePending, setOnChangePending] = useState(false);
+  const [newDefaultsGeneration, setNewDefaultsGeneration] = useState<number | null>(null);
   const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>({});
   const [treeM2O, setTreeM2O] = useState<{
     id: number;
@@ -196,6 +201,7 @@ export function ModelWorkspace(props: {
     selectAdjacent: (_delta: -1 | 1) => {},
   });
   screenRef.current = screen;
+  const newDefaultsPending = newDefaultsGeneration === screenGenerationRef.current;
   const recordLifecycleRefs = useMemo<RecordLifecycleRefs>(
     () => ({
       timer: onChangeTimer,
@@ -346,7 +352,7 @@ export function ModelWorkspace(props: {
       setCsvImportText(null);
       setNotice(`Imported ${count} record(s)`);
       props.onHistory?.("import_csv");
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Import failed");
     }
@@ -361,7 +367,7 @@ export function ModelWorkspace(props: {
       const created = await copyRecords(client, props.model, ids, {}, rpcContext);
       setNotice(`Copied → ${created.join(", ") || "ok"}`);
       props.onHistory?.("copy");
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
       if (created[0] != null) {
         selectId(created[0]);
         setMode("write");
@@ -417,6 +423,18 @@ export function ModelWorkspace(props: {
     return parseCalendarArch(view.arch);
   }, [calendarViewQuery.data]);
 
+  const relationProjectionFields = useMemo<ViewField[]>(() => {
+    const unique = new Map<string, ViewField>();
+    for (const field of [
+      ...Object.values(treeViewQuery.data?.fields ?? {}),
+      ...Object.values(formViewQuery.data?.fields ?? {}),
+      ...Object.values(calendarViewQuery.data?.fields ?? {}),
+    ]) {
+      if (!unique.has(field.name)) unique.set(field.name, field);
+    }
+    return [...unique.values()];
+  }, [treeViewQuery.data, formViewQuery.data, calendarViewQuery.data]);
+
   const listFields = useMemo(() => {
     const cols = treeViewQuery.data ? treeColumns(treeViewQuery.data).map((c) => c.name) : [];
     const hierarchy = treeViewQuery.data ? treeMeta(treeViewQuery.data, props.model) : null;
@@ -448,8 +466,16 @@ export function ModelWorkspace(props: {
         ...(hierarchy?.childField ? [hierarchy.childField] : []),
       ]),
     ];
-    return merged.filter((field) => knownFields.has(field)).slice(0, 28);
-  }, [treeViewQuery.data, formViewQuery.data, calendarViewQuery.data, props.model, calendarSpec]);
+    const baseFields = merged.filter((field) => knownFields.has(field)).slice(0, 28);
+    return withMany2OneRecNames(baseFields, relationProjectionFields);
+  }, [
+    treeViewQuery.data,
+    formViewQuery.data,
+    calendarViewQuery.data,
+    props.model,
+    calendarSpec,
+    relationProjectionFields,
+  ]);
   const listFormViewQuery = useQuery({
     queryKey: ["model", props.model, "list-form-view", listFormViewId],
     enabled: Boolean(client && viewMode === "list-form"),
@@ -598,10 +624,19 @@ export function ModelWorkspace(props: {
     },
   });
 
+  const projectedListRows = useMemo(
+    () =>
+      hydrateMany2OneRows(
+        (listQuery.data ?? []) as Array<Record<string, unknown>>,
+        relationProjectionFields,
+      ),
+    [listQuery.data, relationProjectionFields],
+  );
+
   const flatTree = useMemo(() => {
-    const rows = mergeTreeRows(
-      (listQuery.data ?? []) as Array<Record<string, unknown>>,
-      lazyTreeRows,
+    const rows = hydrateMany2OneRows(
+      mergeTreeRows(projectedListRows, lazyTreeRows),
+      relationProjectionFields,
     );
     if (!hierarchyMeta?.hierarchical) {
       return rows.map((row) => ({
@@ -617,7 +652,14 @@ export function ModelWorkspace(props: {
       ...item,
       expanded: expandedTreeIds.has(Number(item.row.id)),
     }));
-  }, [listQuery.data, lazyTreeRows, hierarchyMeta, expandedTreeIds, emptyTreeParents]);
+  }, [
+    projectedListRows,
+    lazyTreeRows,
+    relationProjectionFields,
+    hierarchyMeta,
+    expandedTreeIds,
+    emptyTreeParents,
+  ]);
 
   useEffect(() => {
     if (!client || !session || !hierarchyMeta?.hierarchical || !listDomainResult.ok) return;
@@ -712,7 +754,7 @@ export function ModelWorkspace(props: {
       setNotice(`Reordered ${ordered.length} sibling(s)`);
       props.onHistory?.("tree:reorder");
       setLazyTreeRows([]);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Reorder failed");
     }
@@ -812,31 +854,38 @@ export function ModelWorkspace(props: {
     },
   });
 
+  const recordReadFields = useMemo(() => {
+    const baseFields = [
+      ...new Set([
+        ...Object.keys(formViewQuery.data?.fields ?? { name: true }),
+        "create_date",
+        "write_date",
+        "create_uid",
+        "write_uid",
+        "rec_name",
+      ]),
+    ];
+    return withMany2OneRecNames(baseFields, Object.values(formViewQuery.data?.fields ?? {}));
+  }, [formViewQuery.data]);
+
   const recordQuery = useQuery({
-    queryKey: ["model", props.model, selectedId],
-    enabled: Boolean(client && selectedId),
+    queryKey: ["model", props.model, selectedId, "fields", recordReadFields.join(",")],
+    enabled: Boolean(client && selectedId && formViewQuery.isSuccess),
     queryFn: async (): Promise<{ recordId: number; values: RecordValues } | null> => {
       const requestedId = selectedId;
       if (!client || requestedId == null) return null;
-      const fieldNames = [
-        ...new Set([
-          ...Object.keys(formViewQuery.data?.fields ?? { name: true }),
-          "create_date",
-          "write_date",
-          "create_uid",
-          "write_uid",
-          "rec_name",
-        ]),
-      ];
       const result = await client.model(
         props.model,
         "read",
-        [[requestedId], fieldNames],
+        [[requestedId], recordReadFields],
         rpcContext,
       );
       const values = Array.isArray(result) ? (result[0] as RecordValues) : null;
       if (!values) return null;
-      return { recordId: requestedId, values };
+      return {
+        recordId: requestedId,
+        values: hydrateMany2OneRecNames(values, Object.values(formViewQuery.data?.fields ?? {})),
+      };
     },
   });
 
@@ -939,25 +988,30 @@ export function ModelWorkspace(props: {
     setScreen(emptyScreen);
     props.onHistory?.("new");
     if (!client) return;
-    const fieldNames = Object.keys(formViewQuery.data?.fields ?? {});
+    setNewDefaultsGeneration(expected.generation);
     try {
-      const defaults = await client.model(
-        props.model,
-        "default_get",
-        [fieldNames.length ? fieldNames : ["name", "active"]],
-        rpcContext,
-      );
+      const formView = formViewQuery.data ?? (await formViewQuery.refetch()).data;
+      if (!formView) throw new Error(t("workspace.defaultsFailed"));
+      const fieldNames = Object.keys(formView.fields);
+      const defaults = await client.model(props.model, "default_get", [fieldNames], rpcContext);
       const defaultsForScreen =
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
-          ? (defaults as RecordValues)
+          ? hydrateMany2OneRecNames(defaults as RecordValues, Object.values(formView.fields))
           : {};
       setScreen((current) =>
         screenAfterNewDefaults(expected, screenGenerationRef.current, current, defaultsForScreen),
       );
-    } catch {
+    } catch (error) {
       setScreen((current) =>
         screenAfterNewDefaults(expected, screenGenerationRef.current, current),
       );
+      setNotice(
+        error instanceof Error
+          ? `${t("workspace.defaultsFailed")}: ${error.message}`
+          : t("workspace.defaultsFailed"),
+      );
+    } finally {
+      setNewDefaultsGeneration((current) => (current === expected.generation ? null : current));
     }
   }
 
@@ -984,16 +1038,16 @@ export function ModelWorkspace(props: {
       const savedScreen = createScreen(props.model, id, savedValues);
       screenRef.current = savedScreen;
       setScreen(savedScreen);
-      setNotice("Saved");
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      setNotice(t("workspace.saved"));
+      await invalidateModelProjections(queryClient);
     },
   });
 
-  const canSave = isScreenReadyToSave(screen, selectedId);
+  const canSave = !newDefaultsPending && isScreenReadyToSave(screen, selectedId);
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
-      if (!client || !ids.length) throw new Error("Nothing selected");
+      if (!client || !ids.length) throw new Error(t("workspace.nothingSelected"));
       // Deleting abandons the edited lifecycle; no late field patch may revive it.
       bumpScreenGeneration();
       await client.model(props.model, "delete", [ids], rpcContext);
@@ -1004,29 +1058,25 @@ export function ModelWorkspace(props: {
       setMultiSelect([]);
       setScreen(createScreen(props.model, null));
       setPendingDeleteIds(null);
-      setNotice("Deleted");
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      setNotice(t("workspace.deleted"));
+      await invalidateModelProjections(queryClient);
     },
     onError: (err) => {
       setPendingDeleteIds(null);
-      setNotice(err instanceof Error ? err.message : "Delete failed");
+      setNotice(err instanceof Error ? err.message : t("workspace.deleteFailed"));
     },
   });
 
   function requestDelete(ids: number[]) {
     if (!ids.length) {
-      setNotice("Nothing selected");
+      setNotice(t("workspace.nothingSelected"));
       return;
     }
     setPendingDeleteIds(ids);
   }
 
   function selectAdjacent(delta: -1 | 1) {
-    const next = adjacentSelectedId(
-      (listQuery.data ?? []) as Array<Record<string, unknown>>,
-      selectedId,
-      delta,
-    );
+    const next = adjacentSelectedId(projectedListRows, selectedId, delta);
     if (next == null) return;
     selectId(next);
     leaveWriteMode();
@@ -1048,6 +1098,7 @@ export function ModelWorkspace(props: {
         e.preventDefault();
         if (
           mode === "write" &&
+          !newDefaultsPending &&
           !saveMutation.isPending &&
           isScreenReadyToSave(screenRef.current, selectedId)
         ) {
@@ -1100,6 +1151,7 @@ export function ModelWorkspace(props: {
     recordQuery.data,
     props.model,
     recordLifecycleRefs,
+    newDefaultsPending,
   ]);
 
   async function runButton(name: string, meta?: { type?: string }) {
@@ -1125,7 +1177,7 @@ export function ModelWorkspace(props: {
       );
       props.onHistory?.(`button:${name}`);
       setNotice(`Button ${name} OK (${ids.length})`);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Button failed");
     }
@@ -1188,7 +1240,7 @@ export function ModelWorkspace(props: {
       );
       setNotice(`Updated #${id}.${field}`);
       props.onHistory?.(`tree:write:${field}`);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Tree write failed");
     }
@@ -1216,7 +1268,7 @@ export function ModelWorkspace(props: {
       );
       props.onHistory?.(`tree-button:${action.name}`);
       setNotice(`Button ${action.name} OK`);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Tree button failed");
     }
@@ -1238,7 +1290,7 @@ export function ModelWorkspace(props: {
       setNotice(Number.isFinite(id) ? `Created #${id}` : "Created");
       props.onHistory?.("tree:create");
       if (Number.isFinite(id)) selectId(id);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Create row failed");
     }
@@ -1246,13 +1298,13 @@ export function ModelWorkspace(props: {
 
   const calendarEvents = useMemo(
     () =>
-      rowsToCalendarEvents((listQuery.data ?? []) as Array<Record<string, unknown>>, {
+      rowsToCalendarEvents(projectedListRows, {
         startField: calendarSpec?.dtstart,
         endField: calendarSpec?.dtend,
         titleField: calendarSpec?.titleField,
         colorField: calendarSpec?.color,
       }),
-    [listQuery.data, calendarSpec],
+    [projectedListRows, calendarSpec],
   );
 
   async function createCalendarAt(startIso: string, endIso: string | null) {
@@ -1279,7 +1331,7 @@ export function ModelWorkspace(props: {
       setNotice(Number.isFinite(id) ? `Created #${id}` : "Created");
       props.onHistory?.("calendar:create");
       if (Number.isFinite(id)) selectId(id);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Calendar create failed");
     }
@@ -1299,7 +1351,7 @@ export function ModelWorkspace(props: {
       await client.model(props.model, "write", [[id], values], rpcContext);
       props.onHistory?.("calendar:drop");
       setNotice(`Moved #${id}`);
-      await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
+      await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Calendar move failed");
     }
@@ -1336,22 +1388,18 @@ export function ModelWorkspace(props: {
   const graphData = useMemo(
     () =>
       aggregateGraphData(
-        (listQuery.data ?? []) as Array<Record<string, unknown>>,
+        projectedListRows,
         graphFields.xField,
         graphFields.yField,
         graphFields.yOperator,
       ),
-    [listQuery.data, graphFields],
+    [projectedListRows, graphFields],
   );
 
   const graphMulti = useMemo(() => {
     if (graphFields.yFields.length <= 1) return undefined;
-    return rowsToMultiSeries(
-      (listQuery.data ?? []) as Array<Record<string, unknown>>,
-      graphFields.xField,
-      graphFields.yFields,
-    );
-  }, [listQuery.data, graphFields]);
+    return rowsToMultiSeries(projectedListRows, graphFields.xField, graphFields.yFields);
+  }, [projectedListRows, graphFields]);
 
   const graphInsight = useMemo(() => summarizeSeries(graphData), [graphData]);
 
@@ -1443,9 +1491,13 @@ export function ModelWorkspace(props: {
     <div className="epiton-model-workspace">
       <ConfirmDialog
         open={pendingDeleteIds != null}
-        title={`Delete ${pendingDeleteIds?.length ?? 0} ${props.model} record(s)?`}
-        description="This permanently removes the selected records on the Tryton server."
-        confirmLabel="Delete"
+        title={t("workspace.deleteTitle", {
+          count: pendingDeleteIds?.length ?? 0,
+          model: props.model,
+        })}
+        description={t("workspace.deleteDescription")}
+        confirmLabel={t("workspace.delete")}
+        cancelLabel={t("workspace.cancel")}
         danger
         onCancel={() => setPendingDeleteIds(null)}
         onConfirm={() => {
@@ -1590,7 +1642,7 @@ export function ModelWorkspace(props: {
               ? listDomainResult.error
               : listQuery.isError
                 ? listQuery.error.message
-                : "No records"
+                : t("workspace.noRecords")
           }
         >
           {viewMode === "calendar" ? (
@@ -1615,12 +1667,10 @@ export function ModelWorkspace(props: {
               title={graphFields.title}
               insight={graphInsight}
               onSelectPoint={(label) => {
-                const hit = ((listQuery.data ?? []) as Array<Record<string, unknown>>).find(
-                  (row) => {
-                    const name = String(row.rec_name ?? row.name ?? row.code ?? row.id ?? "");
-                    return name === label || String(row.id) === label;
-                  },
-                );
+                const hit = projectedListRows.find((row) => {
+                  const name = String(row.rec_name ?? row.name ?? row.code ?? row.id ?? "");
+                  return name === label || String(row.id) === label;
+                });
                 if (!hit) return;
                 const id = Number(hit.id);
                 if (!Number.isFinite(id)) return;
@@ -1632,7 +1682,7 @@ export function ModelWorkspace(props: {
             />
           ) : viewMode === "list-form" ? (
             <ListFormView
-              rows={(listQuery.data ?? []) as Array<Record<string, unknown>>}
+              rows={projectedListRows}
               view={listFormViewQuery.data}
               columns={displayColumns}
               density={density}
@@ -1751,7 +1801,7 @@ export function ModelWorkspace(props: {
         <WorkspaceRecordActionToolbar
           mode={mode}
           isDirty={isDirty}
-          onChangePending={onChangePending}
+          onChangePending={onChangePending || newDefaultsPending}
           clientAvailable={Boolean(client)}
           hasFocusedRecord={Boolean(selectedId)}
           canSave={canSave}
@@ -1820,7 +1870,7 @@ export function ModelWorkspace(props: {
         {formViewQuery.data
           ? renderView(formViewQuery.data, {
               values: draft,
-              mode,
+              mode: newDefaultsPending ? "read" : mode,
               density,
               model: props.model,
               onChange: handleFieldChange,

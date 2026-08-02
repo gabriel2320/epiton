@@ -18,6 +18,16 @@ export function createBackendProjectionClient(): QueryClient {
   });
 }
 
+/**
+ * A Tryton mutation may update records in models other than the one invoked
+ * (for example, creating a GNU Health person can create its patient record).
+ * Mark every model projection stale so the next workspace observes the
+ * backend transaction instead of reusing a still-fresh cross-model cache.
+ */
+export function invalidateModelProjections(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ queryKey: ["model"] });
+}
+
 /** Purge every server projection at an authentication boundary. */
 export function discardBackendProjection(client: QueryClient): void {
   client.clear();

@@ -2,6 +2,7 @@ import { BusClient, type BusMessage } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { invalidateModelProjections } from "../lib/backendTruth";
 import { clearClientAuthentication } from "../lib/sessionBoundary";
 import { useAppStore } from "../lib/store";
 
@@ -126,10 +127,7 @@ export function BusBanner(props: {
       setNotes((prev) => [note, ...prev].slice(0, 20));
       setOpen(true);
       setStatus("listening");
-      void queryClient.invalidateQueries({ queryKey: ["model"] });
-      if (target.model) {
-        void queryClient.invalidateQueries({ queryKey: ["model", target.model] });
-      }
+      void invalidateModelProjections(queryClient);
       if (auto && target.model && target.recordId != null) {
         props.onOpenRecord?.(target.model, target.recordId);
       }

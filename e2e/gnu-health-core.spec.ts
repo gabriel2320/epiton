@@ -10,10 +10,18 @@ const clinicalWorkspaces = [
   ["Prescripciones", "gnuhealth.prescription.order"],
 ] as const;
 
+const syntheticGivenName =
+  process.env.EPITON_GH_SYNTHETIC_GIVEN_NAME ?? "Paciente Sintético Epiton";
+const syntheticFamilyName = process.env.EPITON_GH_SYNTHETIC_FAMILY_NAME ?? "Laboratorio";
+const syntheticClinicalNote =
+  process.env.EPITON_GH_SYNTHETIC_CLINICAL_NOTE ??
+  "Registro clínico sintético de validación Epiton";
+
 test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async ({
   page,
 }, testInfo) => {
   test.skip(!syntheticCoreLab, "requires the disposable synthetic GNU Health core laboratory");
+  test.setTimeout(120_000);
 
   const baseUrl = process.env.EPITON_BASE ?? "http://127.0.0.1:58001";
   const database = process.env.EPITON_DB ?? "epiton_health_core";
@@ -53,7 +61,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   for (const [menu, model] of clinicalWorkspaces) {
     await sidebar.getByRole("button", { name: menu, exact: true }).last().click();
     await expect(page.getByRole("heading", { name: model, exact: true })).toBeVisible();
-    await expect(page.getByText("No records", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
   }
 
   await sidebar.getByRole("button", { name: "Reportes", exact: true }).last().click();
@@ -64,7 +72,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(
     page.getByRole("heading", { name: "gnuhealth.patient.evaluation", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("No records", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
 
   await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
   await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
@@ -222,6 +230,162 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
     body: Buffer.from(JSON.stringify(accessibleNodes, null, 2)),
     contentType: "application/json",
   });
+
+  const waitForOnChange = async () => {
+    const pending = page.getByText("Actualizando campos…", { exact: true });
+    await expect(pending).toBeVisible();
+    await expect(pending).toBeHidden({ timeout: 30_000 });
+  };
+  const deleteSelectedRecord = async (model: string) => {
+    await page.getByRole("button", { name: "Eliminar", exact: true }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(`¿Eliminar 1 registro(s) de ${model}?`);
+    await dialog.getByRole("button", { name: "Eliminar", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: /^Eliminado$/ })).toBeVisible();
+  };
+
+  const peopleMenu = sidebar.getByRole("button", { name: "Personas", exact: true }).last();
+  if (!(await peopleMenu.isVisible())) {
+    const partiesMenu = sidebar.getByRole("button", { name: "Terceros", exact: true }).last();
+    await partiesMenu.locator("..").getByRole("button", { name: "▸", exact: true }).click();
+  }
+  await expect(peopleMenu).toBeVisible();
+  await peopleMenu.click();
+  await expect(page.getByRole("heading", { name: "party.party", exact: true })).toBeVisible();
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+  const partyDefaultsResponse = page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as { method?: unknown };
+      return request.method === "model.party.party.default_get";
+    } catch {
+      return false;
+    }
+  });
+  await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
+  const defaultsResponse = await partyDefaultsResponse;
+  const defaultsRequest = defaultsResponse.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const defaultsPayload = (await defaultsResponse.json()) as {
+    error?: unknown;
+    result?: Record<string, unknown>;
+  };
+  expect(defaultsRequest.params?.[0]).toContain("fed_country");
+  expect(defaultsPayload.error).toBeUndefined();
+  expect(defaultsPayload.result?.fed_country).toBe("CHL");
+  await expect(page.getByRole("heading", { name: /^party\.party form/ })).toBeVisible();
+  await expect(page.locator('input[name="fed_country"]:visible')).toHaveValue("CHL");
+
+  await page.locator('input[name="is_person"]:visible').check();
+  await waitForOnChange();
+  const patientCheckbox = page.locator('input[name="is_patient"]:visible');
+  if (!(await patientCheckbox.isChecked())) {
+    await patientCheckbox.check();
+    await waitForOnChange();
+  }
+  await expect(patientCheckbox).toBeChecked();
+  await page.locator('select[name="gender"]:visible').selectOption("u");
+  await waitForOnChange();
+  await page.locator('input[name="name"]:visible').fill(syntheticGivenName);
+  await page.locator('input[name="lastname"]:visible').fill(syntheticFamilyName);
+  await expect(page.locator('input[name="create_target"]:visible')).toBeChecked();
+  const partyCreateResponse = page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as { method?: unknown };
+      return request.method === "model.party.party.create";
+    } catch {
+      return false;
+    }
+  });
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const createResponse = await partyCreateResponse;
+  const createRequest = createResponse.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const createValues = Array.isArray(createRequest.params?.[0])
+    ? createRequest.params[0][0]
+    : undefined;
+  const createPayload = (await createResponse.json()) as {
+    error?: unknown;
+    result?: unknown;
+  };
+  expect(createValues).toMatchObject({
+    create_target: true,
+    fed_country: "CHL",
+    gender: "u",
+    is_patient: true,
+    is_person: true,
+    lastname: syntheticFamilyName,
+    name: syntheticGivenName,
+  });
+  expect(createPayload.error).toBeUndefined();
+  expect(createPayload.result).toEqual([expect.any(Number)]);
+  await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /party\.party #\d+/ })).toBeVisible();
+
+  const patientListResponse = page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as { method?: unknown };
+      return request.method === "model.gnuhealth.patient.search_read";
+    } catch {
+      return false;
+    }
+  });
+  await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
+  const patientResponse = await patientListResponse;
+  const patientRequest = patientResponse.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const patientPayload = (await patientResponse.json()) as {
+    error?: unknown;
+    result?: Array<Record<string, unknown>>;
+  };
+  await testInfo.attach("gnu-health-patient-search-read", {
+    body: Buffer.from(
+      JSON.stringify({ request: patientRequest, response: patientPayload }, null, 2),
+    ),
+    contentType: "application/json",
+  });
+  expect(patientPayload.error).toBeUndefined();
+  expect(patientRequest.params?.[4]).toContain("party.rec_name");
+  expect(patientPayload.result).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: expect.any(Number),
+        "party.": expect.objectContaining({
+          rec_name: expect.stringContaining(syntheticGivenName),
+        }),
+      }),
+    ]),
+  );
+  const patientRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
+  await expect(patientRow).toBeVisible();
+  await patientRow.click();
+  await expect(page.getByRole("heading", { name: /gnuhealth\.patient #\d+/ })).toBeVisible();
+  await page.getByRole("button", { name: "Modo: lectura", exact: true }).click();
+  await page.locator('textarea[name="general_info"]:visible').fill(syntheticClinicalNote);
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+
+  await sidebar.getByRole("button", { name: "Citas", exact: true }).last().click();
+  await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  const persistedPatientRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
+  await expect(persistedPatientRow).toBeVisible();
+  await persistedPatientRow.click();
+  await expect(page.locator('textarea[name="general_info"]:visible')).toHaveValue(
+    syntheticClinicalNote,
+  );
+  await deleteSelectedRecord("gnuhealth.patient");
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+
+  await peopleMenu.click();
+  const partyRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
+  await expect(partyRow).toBeVisible();
+  await partyRow.click();
+  await deleteSelectedRecord("party.party");
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+
   const evidence = {
     environmentKind: "synthetic-gnu-health",
     language: "es",
@@ -231,7 +395,17 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
     ],
     emptyClinicalLists: true,
     openedUnsavedPatientForm: true,
-    writesPerformed: false,
+    patientLifecycle: {
+      created: true,
+      read: true,
+      updated: true,
+      deleted: true,
+      partyDeleted: true,
+      persistedClinicalNote: true,
+    },
+    writesPerformed: true,
+    syntheticOnly: true,
+    cleanupVerifiedInBrowser: true,
     containsPhi: false,
     accessibilityNodeCount: accessibleNodes.length,
     formLayout,
