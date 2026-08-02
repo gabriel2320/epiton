@@ -10,7 +10,12 @@ describe("runtime connection policy", () => {
         origin: "https://erp.example.test",
         configuredGateway: "/tryton/",
       }),
-    ).toEqual({ baseUrl: "https://erp.example.test/tryton", serverLocked: true });
+    ).toEqual({
+      baseUrl: "https://erp.example.test/tryton",
+      serverLocked: true,
+      rpcSuffix: "auto",
+      supportsBus: false,
+    });
   });
 
   it("rejects a cross-origin production web gateway", () => {
@@ -32,7 +37,43 @@ describe("runtime connection policy", () => {
         origin: "http://localhost",
         configuredGateway: "https://tryton.example.test/",
       }),
-    ).toEqual({ baseUrl: "https://tryton.example.test", serverLocked: false });
+    ).toEqual({
+      baseUrl: "https://tryton.example.test",
+      serverLocked: false,
+      rpcSuffix: "auto",
+      supportsBus: false,
+    });
+  });
+
+  it("applies explicit Tryton RPC and bus deployment capabilities", () => {
+    expect(
+      resolveRuntimeConnectionPolicy({
+        production: false,
+        shell: "web",
+        origin: "http://localhost:5173",
+        configuredRpcSuffix: "rpc",
+        configuredBusEnabled: "true",
+      }),
+    ).toMatchObject({ rpcSuffix: "rpc", supportsBus: true });
+  });
+
+  it("rejects invalid deployment capabilities", () => {
+    expect(() =>
+      resolveRuntimeConnectionPolicy({
+        production: false,
+        shell: "web",
+        origin: "http://localhost:5173",
+        configuredRpcSuffix: "guess",
+      }),
+    ).toThrow("RPC suffix");
+    expect(() =>
+      resolveRuntimeConnectionPolicy({
+        production: false,
+        shell: "web",
+        origin: "http://localhost:5173",
+        configuredBusEnabled: "yes",
+      }),
+    ).toThrow("Bus enabled");
   });
 
   it("rejects credentials embedded in URLs", () => {

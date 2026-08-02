@@ -115,13 +115,14 @@ function layoutGridStyle(node: ViewNode): CSSProperties {
   return { "--epiton-layout-template": template } as CSSProperties;
 }
 
-function layoutCellStyle(node: ViewNode): CSSProperties {
+function layoutCellStyle(node: ViewNode, parent: ViewNode): CSSProperties {
   const layout = parseViewLayoutAttributes(node.attrs);
   const fullWidth =
     node.tag === "newline" ||
     node.tag === "separator" ||
     (node.attrs.colspan === undefined &&
-      ["group", "notebook", "hpaned", "vpaned", "sheet"].includes(node.tag));
+      (["notebook", "hpaned", "vpaned", "sheet"].includes(node.tag) ||
+        (node.tag === "group" && parent.tag === "form")));
   return {
     ...(fullWidth ? { gridColumn: "1 / -1" } : { gridColumnEnd: `span ${layout.colspan}` }),
     gridRowEnd: `span ${layout.rowspan}`,
@@ -132,7 +133,22 @@ function layoutCellStyle(node: ViewNode): CSSProperties {
 
 function renderLayoutChildren(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode[] {
   return node.children.map((child, index) => {
-    const rendered = renderNode(child, view, ctx);
+    const previous = node.children[index - 1];
+    const next = node.children[index + 1];
+    const hasExplicitLabel =
+      child.tag === "field" &&
+      Boolean(child.attrs.name) &&
+      previous?.tag === "label" &&
+      previous.attrs.name === child.attrs.name &&
+      !resolveStatesAttr(previous.attrs.states, ctx.values).invisible;
+    const labelsFollowingField =
+      child.tag === "label" &&
+      Boolean(child.attrs.name) &&
+      next?.tag === "field" &&
+      next.attrs.name === child.attrs.name &&
+      !resolveStatesAttr(child.attrs.states, ctx.values).invisible &&
+      !resolveStatesAttr(next.attrs.states, ctx.values).invisible;
+    const rendered = renderNode(child, view, ctx, { hideFieldLabel: hasExplicitLabel });
     if (rendered === null || rendered === undefined || rendered === false) return null;
     const layout = parseViewLayoutAttributes(child.attrs);
     const flowClass =
@@ -146,11 +162,12 @@ function renderLayoutChildren(node: ViewNode, view: ParsedView, ctx: RenderConte
       {
         key: `${child.tag}-${child.attrs.name ?? child.attrs.string ?? index}-${index}`,
         className: `epiton-layout-cell${flowClass}`,
-        style: layoutCellStyle(child),
+        style: layoutCellStyle(child, node),
         "data-colspan": child.attrs.colspan ?? "default",
         "data-rowspan": layout.rowspan,
         "data-xexpand": layout.xexpand,
         "data-yexpand": layout.yexpand,
+        "data-layout-role": labelsFollowingField ? "label" : hasExplicitLabel ? "control" : "wide",
       },
       rendered,
     );
@@ -666,7 +683,12 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   });
 }
 
-function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode {
+function renderNode(
+  node: ViewNode,
+  view: ParsedView,
+  ctx: RenderContext,
+  options: { hideFieldLabel?: boolean } = {},
+): ReactNode {
   if (node.tag === "tree") {
     return createElement(
       "div",
@@ -742,19 +764,37 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       widget: node.attrs.widget ?? field.widget,
     };
     return createElement(
-      "label",
-      { className: "epiton-field", htmlFor: `epiton-field-${name}` },
-      createElement("span", { className: "epiton-field-label" }, fieldLabel(fieldWithFlags, name)),
+      "div",
+      {
+        className: "epiton-field",
+        "data-field-name": name,
+        "data-has-explicit-label": options.hideFieldLabel || undefined,
+      },
+      options.hideFieldLabel
+        ? null
+        : createElement(
+            "label",
+            { className: "epiton-field-label", htmlFor: `epiton-field-${name}` },
+            fieldLabel(fieldWithFlags, name),
+          ),
       renderInput(fieldWithFlags, value, ctx),
       field.help ? createElement("small", { className: "epiton-field-help" }, field.help) : null,
     );
   }
 
   if (node.tag === "label") {
+    const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    if (states.invisible) return null;
+    const name = node.attrs.name ?? "";
+    const label = node.attrs.string ?? fieldLabel(view.fields[name], name || node.text || "");
     return createElement(
-      "div",
-      { className: "epiton-label" },
-      node.attrs.string ?? node.attrs.name ?? node.text ?? "",
+      "label",
+      {
+        className: "epiton-label",
+        htmlFor: name ? `epiton-field-${name}` : undefined,
+        "data-field-name": name || undefined,
+      },
+      label,
     );
   }
 

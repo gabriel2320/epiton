@@ -91,14 +91,9 @@ describe("EpitonClient", () => {
   });
 
   it("detects series from common.server.version", async () => {
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      if (String(url).includes("/bus")) {
-        expect(init?.cache).toBe("no-store");
-        expect(init?.credentials).toBe("omit");
-        return new Response("unauthorized", { status: 401 });
-      }
-      return rpcResponse(init, { result: "8.0.1" });
-    });
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) =>
+      rpcResponse(init, { result: "8.0.1" }),
+    );
     const client = new EpitonClient({
       baseUrl: "http://localhost:8000",
       database: "epiton_lab",
@@ -107,17 +102,32 @@ describe("EpitonClient", () => {
     const caps = await client.detectCapabilities();
     expect(caps.series).toBe("8.0");
     expect(caps.serverVersion).toBe("8.0.1");
-    expect(caps.supportsBus).toBe(true);
+    expect(caps.supportsBus).toBe(false);
     expect(caps.supportsRest).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports bus support only when the deployment enables it", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) =>
+      rpcResponse(init, { result: "8.0.1" }),
+    );
+    const client = new EpitonClient({
+      baseUrl: "http://localhost:8000",
+      database: "epiton_lab",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      supportsBus: true,
+    });
+
+    const caps = await client.detectCapabilities();
+
+    expect(caps.supportsBus).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("discovers a future series and negotiates the documented RPC suffix", async () => {
     const urls: string[] = [];
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
       urls.push(String(url));
-      if (String(url).endsWith("/bus")) {
-        return new Response("unauthorized", { status: 401 });
-      }
       if (!String(url).endsWith("/rpc/")) {
         return new Response("method not allowed", { status: 405 });
       }

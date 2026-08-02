@@ -18,6 +18,7 @@
     "test:e2e:release": "playwright test e2e/release-gates.spec.ts",
     "test:e2e:next": "pnpm check:next && playwright test --config=playwright.next.config.ts",
     "test:e2e:live": "playwright test e2e/live-lab.spec.ts",
+    "test:e2e:gnu-health": "playwright test e2e/gnu-health-core.spec.ts",
     "lab:up": "docker compose -f docker/docker-compose.yml up -d --build",
     "lab:up:8": "docker compose -f docker/docker-compose.yml --profile tryton8 up -d --build db8 tryton8 gateway8",
     "lab:down": "docker compose -f docker/docker-compose.yml --profile tryton8 down",

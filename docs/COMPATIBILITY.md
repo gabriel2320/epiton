@@ -39,7 +39,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Email compose | mailto / form_action keywords | Improved | CC/BCC + keyword-first mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Catalog + `t()` labels + Shell/workspace chrome |
 | List-form | list-form arch | Improved | Card host renders list-form arch via `renderView` |
-| Dense form layout | form/group/notebook/paned arch | Improved | Neutral layout parsing covers col/colspan/rowspan, expand/fill/alignment, newline, expandable groups, and positioned horizontal/vertical panes; mounted notebook panels preserve nested state; desktop/mobile Chromium assertions prove responsive containment and keyboard tabs |
+| Dense form layout | form/group/notebook/paned arch | Improved | Neutral layout parsing covers col/colspan/rowspan, expand/fill/alignment, newline, expandable groups, and positioned horizontal/vertical panes; mounted notebook panels preserve nested state; backend label/control pairs collapse into usable responsive rows; desktop/mobile Chromium assertions prove containment and keyboard tabs |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |
 | Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
@@ -56,7 +56,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Shortcuts | Ctrl/Cmd+S Esc T W | Implemented | Save / read / new tab / close tab |
 | UI kit | `@epiton/ui` | Expanded | Input, Badge, Tabs, Separator, MetaStrip, Alert, ConfirmDialog |
 | Notices | status banners | Implemented | `Alert` tones; delete uses `ConfirmDialog` |
-| Bus | `/{db}/bus` | Improved | user+client channels; title/message; auto-open record payloads; authenticated 401 invalidates the session boundary |
+| Bus | `/{db}/bus` | Improved | user+client channels; title/message; auto-open record payloads; authenticated 401 invalidates the session boundary; polling is an explicit `VITE_EPITON_BUS_ENABLED=true` / `NEXT_PUBLIC_EPITON_BUS_ENABLED=true` deployment capability |
 | REST | Bearer application tokens | Not probed (default false) | Do not claim compatibility |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + in-app navigation; backend identifiers stay out of URL/history |
 | CSP | Web security headers | Prod hardened | Production web is pinned to a same-origin gateway with `connect-src 'self'`; Next adds a per-request script nonce plus `strict-dynamic`, proved in a production browser |
@@ -67,7 +67,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Series 9.x | Future official artifacts + capability probes | Future canary, not claimed | Scheduled official-source canary is `waiting` as of 2026-08-01; do not infer support from 7/8 receipts |
 | Sao coexistence | Same trytond | Supported | Shared backend authority; Epitón does not share or persist client state |
 | Proteus / XML-RPC | Server-side reference client | Lab oracle only | Exact 7/8 pins; synthetic CRUD; redacted receipt; never runtime/UI |
-| GNU Health | `gnuhealth.*` models | Core metadata profile verified | Read-only Epitón protocol receipt on the pinned Tryton 8/PostgreSQL Chilean `health` core proves Spanish session context, the exact eight-module activation set, translated root menus, namespace discovery and five critical view contracts. Browser clinical workflows, PHI readiness and production compliance remain separate gates |
+| GNU Health | `gnuhealth.*` models | Core render profile verified | The pinned Tryton 8/PostgreSQL Chilean `health` core proves Spanish context, the exact eight-module activation set, translated menus and five critical view contracts. A live gateway/browser gate additionally renders four empty clinical workspaces and an unsaved patient form against an empty synthetic database, performing no writes. CRUD, workflows, PHI readiness and production compliance remain separate gates |
 
 ## Tryton 8 lab profile
 
@@ -123,6 +123,10 @@ The client release regression fixtures are `pnpm test:e2e:mock`,
 `pnpm test:e2e:release`, `pnpm test:e2e:next`, and the disposable-lab live
 browser check. Production acceptance remains governed by
 [`THREAT_MODEL.md`](THREAT_MODEL.md) and the gateway production checklist.
+
+The dedicated GNU Health core rendering boundary is run from the GPL backend
+tree with `EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh`; its
+scope and non-claims are documented in [`GNU_HEALTH.md`](GNU_HEALTH.md).
 
 ## Fixtures
 

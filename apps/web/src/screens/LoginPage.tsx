@@ -42,11 +42,16 @@ export function LoginPage() {
 
   const baseUrl = form.watch("baseUrl");
   const database = form.watch("database");
+  const connectionWasEdited = Boolean(
+    form.formState.dirtyFields.baseUrl || form.formState.dirtyFields.database,
+  );
 
   useEffect(() => {
     let cancelled = false;
     const url = (baseUrl || "").trim();
-    if (!url) {
+    // Avoid an unsolicited request to the development default before the user
+    // chooses a server. Discover only while the database field is empty.
+    if (!url || database.trim() || (!runtimePolicy.serverLocked && !connectionWasEdited)) {
       setDatabases([]);
       return;
     }
@@ -57,6 +62,8 @@ export function LoginPage() {
             baseUrl: url,
             database: database || "tryton",
             correlationId: () => crypto.randomUUID(),
+            rpcSuffix: runtimePolicy.rpcSuffix,
+            supportsBus: runtimePolicy.supportsBus,
           });
           const list = await listDatabases(probe);
           if (!cancelled) setDatabases(list);
@@ -69,7 +76,14 @@ export function LoginPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [baseUrl, database]);
+  }, [
+    baseUrl,
+    database,
+    connectionWasEdited,
+    runtimePolicy.rpcSuffix,
+    runtimePolicy.serverLocked,
+    runtimePolicy.supportsBus,
+  ]);
 
   async function onSubmit(values: LoginValues) {
     setError(null);
@@ -83,9 +97,11 @@ export function LoginPage() {
         ...next,
         correlationId: () => crypto.randomUUID(),
         onSessionInvalidated: () => clearClientAuthentication(queryClient),
+        rpcSuffix: runtimePolicy.rpcSuffix,
+        supportsBus: runtimePolicy.supportsBus,
       });
-      await client.detectCapabilities();
       const session = await client.login(values.username, values.password, i18n.language);
+      await client.detectCapabilities();
       const preferences = await loadUserPreferences(client);
       setPreferences(preferences, buildSessionContext(preferences, { user: session.userId }));
       const lang =

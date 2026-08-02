@@ -165,6 +165,25 @@
   display: grid;
   gap: 0.35rem;
   margin-bottom: 0.85rem;
+  min-width: 0;
+}
+
+.epiton-field-label,
+.epiton-label,
+.epiton-field-help {
+  color: var(--epiton-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.epiton-label {
+  align-self: center;
+  cursor: default;
+}
+
+.epiton-field-help {
+  display: block;
 }
 
 .epiton-form,
@@ -175,6 +194,14 @@
 .epiton-paned,
 .epiton-paned-pane {
   min-width: 0;
+}
+
+.epiton-form,
+.epiton-sheet,
+.epiton-group,
+.epiton-page {
+  container-name: epiton-layout;
+  container-type: inline-size;
 }
 
 .epiton-group-title {
@@ -191,7 +218,7 @@
 
 .epiton-model-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 44rem), 1fr));
   gap: 1rem;
 }
 
@@ -210,6 +237,41 @@
 
 .epiton-layout-cell[data-yexpand="true"] > * {
   min-height: 100%;
+}
+
+@container epiton-layout (min-width: 45rem) and (max-width: 72rem) {
+  .epiton-layout-grid {
+    grid-template-columns: minmax(10rem, 0.35fr) minmax(0, 1fr) !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell {
+    grid-row: auto !important;
+    justify-self: stretch !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell[data-layout-role="label"] {
+    grid-column: 1 !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell[data-layout-role="control"] {
+    grid-column: 2 !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell[data-layout-role="wide"] {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@container epiton-layout (max-width: 44.999rem) {
+  .epiton-layout-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: stretch !important;
+  }
 }
 
 .epiton-layout-newline,
@@ -289,6 +351,7 @@
 .epiton-field input,
 .epiton-field textarea,
 .epiton-field select {
+  min-width: 0;
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--epiton-border);
@@ -296,6 +359,55 @@
   color: var(--epiton-fg);
   padding: 0.55rem 0.7rem;
   font: inherit;
+}
+
+.epiton-field input[type="checkbox"],
+.epiton-field input[type="radio"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.25rem 0;
+  padding: 0;
+  justify-self: start;
+  accent-color: var(--epiton-accent);
+}
+
+.epiton-m2o,
+.epiton-reference {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.epiton-m2o > input,
+.epiton-reference > input,
+.epiton-reference > select {
+  width: auto;
+}
+
+.epiton-o2m,
+.epiton-binary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.epiton-field button {
+  min-width: 0;
+  border: 1px solid var(--epiton-border);
+  border-radius: 8px;
+  background: var(--epiton-bg-elevated);
+  color: var(--epiton-fg);
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.epiton-field button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .epiton-toolbar {

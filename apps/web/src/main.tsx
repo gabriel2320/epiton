@@ -6,6 +6,8 @@ configureWebHostEnvironment({
   production: import.meta.env.PROD,
   development: import.meta.env.DEV,
   configuredGateway: import.meta.env.VITE_EPITON_GATEWAY_URL,
+  configuredRpcSuffix: import.meta.env.VITE_EPITON_RPC_SUFFIX,
+  configuredBusEnabled: import.meta.env.VITE_EPITON_BUS_ENABLED,
 });
 
 async function bootstrap(): Promise<void> {

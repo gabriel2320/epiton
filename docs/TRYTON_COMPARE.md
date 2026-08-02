@@ -1,6 +1,6 @@
 # Epitón vs Tryton — comparison & compatibility evidence
 
-Date: **2026-08-01**. Supported lab tiers: Tryton **7.0** and **8.0**, each
+Date: **2026-08-02**. Supported lab tiers: Tryton **7.0** and **8.0**, each
 behind its own Epitón gateway.
 Authority: [`CANON.md`](CANON.md) · Matrix: [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
@@ -32,7 +32,7 @@ Epitón aims for **wire + UX parity**, not a GPL reimplementation.
 | Menus + user favorites | Yes | Yes | PASS (`ir.ui.menu` + `ir.ui.menu.favorite.get`) |
 | Keywords `get_keyword` | Yes | Yes | PASS (relate) |
 | Attachments model | Yes | Yes | PASS (search) |
-| Bus endpoint | Yes | Client + panel | `supportsBus: true` |
+| Bus endpoint | Yes | Client + panel | Explicit `VITE_EPITON_BUS_ENABLED=true` / `NEXT_PUBLIC_EPITON_BUS_ENABLED=true` deployment capability |
 | Graph arch on party | Often module-specific | Host ready | Lab: no party graph view |
 | Board views | Dashboard modules | Host ready | Lab: no board views installed |
 | Unauth `common.server.version` | Varies | Soft probe | Lab returns empty/401 pre-login |
@@ -62,6 +62,9 @@ pnpm lab:oracle:8
 # Browser boundary
 pnpm test:e2e:mock
 EPITON_E2E_LAB=disposable pnpm test:e2e:live
+
+# GNU Health core metadata + browser render boundary (from GPL backend tree)
+EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
 ```
 
 Receipts (gitignored): `tests/compat/receipts/compat-live-<series>-latest.json`
@@ -120,7 +123,8 @@ Evening re-audit: [`AUDIT.md`](AUDIT.md#epitón-audit-delta--2026-07-31-evening)
 3. ~~Editable tree (`editable` arch).~~
 4. ~~Hierarchical trees, saved searches, notebook tabs, translation wiring.~~
 5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
-6. GNU Health module depth — only after a pinned GH trytond is attached (`pnpm gh:check`).
+6. GNU Health module depth — pinned `health` metadata and live browser rendering
+   are attached; synthetic CRUD and clinical workflow evidence remain open.
 7. Full nested Screen lifecycle: the parent command queue is improved, while
    child validation/navigation/cancel bubbling remains incomplete (**G-01**).
 8. Dense form layout (`paned`/`colspan`/expansion) and a multi-clause domain

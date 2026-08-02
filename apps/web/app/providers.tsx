@@ -7,6 +7,8 @@ configureWebHostEnvironment({
   production: process.env.NODE_ENV === "production",
   development: process.env.NODE_ENV !== "production",
   configuredGateway: process.env.NEXT_PUBLIC_EPITON_GATEWAY_URL,
+  configuredRpcSuffix: process.env.NEXT_PUBLIC_EPITON_RPC_SUFFIX,
+  configuredBusEnabled: process.env.NEXT_PUBLIC_EPITON_BUS_ENABLED,
 });
 
 const EpitonClient = dynamic(

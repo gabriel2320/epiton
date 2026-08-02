@@ -76,12 +76,16 @@ export function BusBanner(props: {
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState<BusNote[]>([]);
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<"idle" | "listening" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "unavailable" | "listening" | "error">("idle");
 
   useEffect(() => {
     const session = client?.getSession();
     if (!client || !session) {
       setStatus("idle");
+      return;
+    }
+    if (client.getCapabilities()?.supportsBus !== true) {
+      setStatus("unavailable");
       return;
     }
     const bus = new BusClient(client.busUrl(), session, {

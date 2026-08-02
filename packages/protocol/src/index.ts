@@ -119,6 +119,12 @@ export interface EpitonClientOptions {
    * Default: auto (`""` then `"rpc"` on first 405).
    */
   rpcSuffix?: "" | "rpc" | "auto";
+  /**
+   * Whether the deployment has enabled Tryton's authenticated bus subscription.
+   * The route may exist while subscriptions are disabled, so this is explicit and
+   * defaults to false instead of being inferred from an error response.
+   */
+  supportsBus?: boolean;
 }
 
 export class TrytonRpcError extends Error {
@@ -176,6 +182,7 @@ export class EpitonClient {
   private readonly fetchImpl: typeof fetch;
   private readonly correlationId?: () => string;
   private readonly onSessionInvalidated?: () => void;
+  private readonly configuredBusSupport: boolean;
   private session: TrytonSession | null = null;
   private capabilities: ServerCapabilities | null = null;
   private rpcSuffix: "" | "rpc";
@@ -187,6 +194,7 @@ export class EpitonClient {
     this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.correlationId = options.correlationId;
     this.onSessionInvalidated = options.onSessionInvalidated;
+    this.configuredBusSupport = options.supportsBus === true;
     const suffix = options.rpcSuffix ?? "auto";
     this.rpcSuffix = suffix === "rpc" ? "rpc" : "";
     if (suffix === "auto") {
@@ -215,7 +223,9 @@ export class EpitonClient {
   async detectCapabilities(): Promise<ServerCapabilities> {
     let serverVersion: string | null = null;
     try {
-      const result = await this.callUnauthenticated("common.server.version", []);
+      const result = this.session
+        ? await this.call("common.server.version", [])
+        : await this.callUnauthenticated("common.server.version", []);
       if (typeof result === "string") serverVersion = result;
       else if (Array.isArray(result) && typeof result[0] === "string") {
         serverVersion = result[0];
@@ -224,38 +234,16 @@ export class EpitonClient {
       serverVersion = null;
     }
 
-    const [supportsBus, supportsRest] = await Promise.all([
-      this.probeEndpoint(this.busUrl(), "POST"),
-      // Stock trytond does not expose a dedicated REST root; keep false unless a probe is added.
-      Promise.resolve(false),
-    ]);
-
     const caps: ServerCapabilities = {
       serverVersion,
       series: trytonSeriesFromVersion(serverVersion),
-      supportsBus,
-      supportsRest,
+      supportsBus: this.configuredBusSupport,
+      // Stock trytond does not expose a dedicated REST root.
+      supportsRest: false,
       supportsSessionCookie: false,
     };
     this.capabilities = caps;
     return caps;
-  }
-
-  /** Probe whether an HTTP endpoint exists (not 404 / network failure). */
-  private async probeEndpoint(url: string, method: string): Promise<boolean> {
-    try {
-      const response = await this.fetchImpl(url, {
-        method,
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: method === "POST" ? "{}" : undefined,
-        cache: "no-store",
-        credentials: "omit",
-        referrerPolicy: "no-referrer",
-      });
-      return response.status !== 404;
-    } catch {
-      return false;
-    }
   }
 
   async login(username: string, password: string, lang = "en"): Promise<TrytonSession> {

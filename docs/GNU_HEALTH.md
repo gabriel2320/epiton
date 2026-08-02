@@ -17,7 +17,8 @@ names as proof that a clinical workflow is correct.
 | Generic browser CRUD | Verified | Browser → gateway → trytond → browser on both tiers |
 | GNU Health namespace discovery | Implemented | Reads `ir.model` metadata for `gnuhealth.*` only |
 | Chilean `health` core RPC profile | Verified | Pinned Tryton 8/PostgreSQL synthetic lab; Spanish session, exact activated modules and five critical view contracts |
-| Dedicated GNU Health browser workflows | Not yet verified | No clinical workflow or PHI-readiness claim |
+| GNU Health core browser rendering | Verified | Spanish menus, four empty clinical workspaces, and an unsaved patient form through gateway → trytond |
+| Clinical CRUD and workflows | Not yet verified | Navigation/render evidence performs no writes and is not a workflow certification |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
 The stock Docker lab contains party/company modules only. Therefore
@@ -59,6 +60,38 @@ schema `epiton.gnu-health-discovery.v1`. It contains only:
 Upstream error details are redacted. The probe never searches, reads, creates,
 writes, deletes, or exports GNU Health business records.
 
+## Browser gate
+
+The GPL backend source tree can opt into the Epitón browser boundary after its
+clean PostgreSQL validation:
+
+```bash
+EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
+```
+
+The gate starts a temporary trytond HTTP listener and the Epitón gateway, then
+runs `e2e/gnu-health-core.spec.ts` against an isolated web port. It proves that
+the authenticated Spanish menu can open patient, appointment, prescription,
+and evaluation workspaces and render a new-patient form from live Tryton view
+metadata. It also rejects page/console errors, duplicate IDs, inaccessible form
+controls, layout overlaps, and narrow relation inputs, and records a synthetic
+screenshot.
+
+This scenario deliberately leaves the form unsaved. It is a client rendering
+gate, not evidence for patient CRUD, clinical workflows, ACL correctness,
+auditing, PHI handling, or production readiness.
+
+## Deployment transport controls
+
+The production web host pins traffic to its own origin or to a same-origin path
+configured with `VITE_EPITON_GATEWAY_URL` (Vite) or
+`NEXT_PUBLIC_EPITON_GATEWAY_URL` (Next). Deployments can select `auto`, `rpc`, or
+`bare` through `VITE_EPITON_RPC_SUFFIX` or `NEXT_PUBLIC_EPITON_RPC_SUFFIX`. Bus polling is
+disabled unless the deployment sets `VITE_EPITON_BUS_ENABLED=true` or
+`NEXT_PUBLIC_EPITON_BUS_ENABLED=true` and its proxy exposes the Tryton bus
+route. These are transport capabilities only; none changes server-side GNU
+Health authority or persists session state.
+
 ## Dedicated lab requirements
 
 `docker/Dockerfile.gnuhealth` remains an intentionally non-functional scaffold.
@@ -71,8 +104,9 @@ lab must still:
 2. use a disposable database and synthetic fixtures only;
 3. route the browser through the Epitón gateway;
 4. run the verified core profile before model-specific browser scenarios;
-5. clean up all synthetic writes and publish only redacted receipts;
-6. add evidence to `COMPATIBILITY.md` before changing any support claim.
+5. pass the browser rendering gate;
+6. clean up all synthetic writes and publish only redacted receipts;
+7. add evidence to `COMPATIBILITY.md` before changing any support claim.
 
 Prefer composing against a maintained GNU Health trytond image over adding
 GNU Health or Proteus to the Epitón runtime. Proteus remains an isolated lab

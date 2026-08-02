@@ -2,6 +2,8 @@ export interface WebHostEnvironment {
   production: boolean;
   development: boolean;
   configuredGateway?: string;
+  configuredRpcSuffix?: string;
+  configuredBusEnabled?: string;
 }
 
 let configuredEnvironment: WebHostEnvironment | undefined;
