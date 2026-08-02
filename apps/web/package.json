@@ -5,12 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:next": "next dev",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:next": "next build",
     "preview": "vite preview",
+    "start:next": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0",
     "@epiton/intelligence": "workspace:*",
     "@epiton/protocol": "workspace:*",
     "@epiton/ui": "workspace:*",
@@ -28,6 +33,7 @@
     "@tanstack/react-query-devtools": "^5.101.4",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.14.9",
+    "@tauri-apps/api": "^2.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -35,6 +41,7 @@
     "fuse.js": "^7.5.0",
     "i18next": "^26.3.6",
     "motion": "^12.43.0",
+    "next": "16.2.12",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -47,7 +54,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@tailwindcss/postcss": "4.3.3",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.1.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",

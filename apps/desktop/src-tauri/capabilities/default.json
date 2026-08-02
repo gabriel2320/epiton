@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default Epiton desktop capabilities",
   "windows": ["main"],
-  "permissions": ["core:default", "store:default"]
+  "permissions": ["core:default"]
 }

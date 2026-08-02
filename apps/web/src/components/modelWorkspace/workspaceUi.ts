@@ -6,11 +6,3 @@ export function noticeTone(message: string): "default" | "accent" | "danger" | "
   if (/saved|ok|exported|imported|copied/i.test(message)) return "accent";
   return "default";
 }
-
-export function domainTabStorageKey(
-  model: string,
-  domains?: Array<{ name: string }> | null,
-): string | null {
-  if (!domains?.length) return null;
-  return `epiton.domainTab.${model}.${domains.map((d) => d.name).join("|")}`;
-}

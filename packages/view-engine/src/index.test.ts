@@ -71,6 +71,21 @@ describe("view-engine", () => {
     expect(parsed.fields.party?.domain).toEqual([["active", "=", true]]);
   });
 
+  it("parses embedded relation create, delete and pre_validate policy", () => {
+    const parsed = parseFieldsViewGet({
+      arch: '<form><field name="lines" create="0" delete="1" pre_validate="1"/></form>',
+      fields: {
+        lines: { type: "one2many", relation: "sale.line", string: "Lines" },
+      },
+    });
+
+    expect(parsed.fields.lines).toMatchObject({
+      create: false,
+      delete: true,
+      pre_validate: true,
+    });
+  });
+
   it("applies arch widget= overrides to field type", () => {
     const parsed = parseFieldsViewGet({
       arch: `<form><field name="website" widget="url"/><note string="Hint"/></form>`,

@@ -35,37 +35,20 @@ interface AppStore {
   setPreferences: (preferences: SessionPreferences, sessionContext: JsonObject) => void;
   setError: (error: string | null) => void;
   setCommandOpen: (open: boolean) => void;
+  clearAuthentication: () => void;
 }
 
 const runtimePolicy = runtimeConnectionPolicy();
-
-function loadConnection(): ConnectionConfig {
-  const fallback = { baseUrl: runtimePolicy.baseUrl, database: "epiton_lab" };
-  if (typeof localStorage === "undefined") return fallback;
-  try {
-    const saved = localStorage.getItem("epiton.connection");
-    if (!saved) return fallback;
-    const parsed = JSON.parse(saved) as Partial<ConnectionConfig>;
-    return {
-      baseUrl:
-        runtimePolicy.serverLocked || typeof parsed.baseUrl !== "string"
-          ? runtimePolicy.baseUrl
-          : normalizeConnectionBaseUrl(parsed.baseUrl),
-      database:
-        typeof parsed.database === "string" && parsed.database.trim()
-          ? parsed.database
-          : fallback.database,
-    };
-  } catch {
-    return fallback;
-  }
-}
+const initialConnection: ConnectionConfig = {
+  baseUrl: runtimePolicy.baseUrl,
+  database: "epiton_lab",
+};
 
 export const useAppStore = create<AppStore>((set) => ({
   theme: "dark",
   density: "comfortable",
   preset: "general",
-  connection: loadConnection(),
+  connection: initialConnection,
   session: null,
   client: null,
   preferences: {},
@@ -77,12 +60,11 @@ export const useAppStore = create<AppStore>((set) => ({
   setPreset: (preset) => set({ preset }),
   setConnection: (connection) => {
     const safeConnection = {
-      ...connection,
-      baseUrl: runtimePolicy.serverLocked ? runtimePolicy.baseUrl : connection.baseUrl,
+      baseUrl: runtimePolicy.serverLocked
+        ? runtimePolicy.baseUrl
+        : normalizeConnectionBaseUrl(connection.baseUrl),
+      database: connection.database.trim() || initialConnection.database,
     };
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("epiton.connection", JSON.stringify(safeConnection));
-    }
     set({ connection: safeConnection });
   },
   setSession: (session) => set({ session }),
@@ -90,4 +72,16 @@ export const useAppStore = create<AppStore>((set) => ({
   setPreferences: (preferences, sessionContext) => set({ preferences, sessionContext }),
   setError: (error) => set({ error }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
+  clearAuthentication: () =>
+    set({
+      theme: "dark",
+      density: "comfortable",
+      preset: "general",
+      session: null,
+      client: null,
+      preferences: {},
+      sessionContext: {},
+      error: null,
+      commandOpen: false,
+    }),
 }));

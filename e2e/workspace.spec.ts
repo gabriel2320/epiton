@@ -1,15 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { installMockTryton } from "./support/mockTryton";
-
-async function login(page: Parameters<typeof installMockTryton>[0]) {
-  await page.goto("/");
-  await page.getByLabel("Database").fill("epiton_lab");
-  await page.getByLabel("User").fill("admin");
-  await page.getByLabel("Password").fill("admin");
-  await page.getByRole("button", { name: "Enter Epiton" }).click();
-  await expect(page.getByRole("tab", { name: "party.party" })).toBeVisible();
-  await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
-}
+import { installMockTryton, loginThroughBackendMenu } from "./support/mockTryton";
 
 function waitForRpcResponse(page: Parameters<typeof installMockTryton>[0], method: string) {
   return page.waitForResponse((response) => {
@@ -26,7 +16,8 @@ test("browser workflow performs generic Tryton CRUD and keeps JSON-RPC boundarie
   page,
 }) => {
   const mock = await installMockTryton(page);
-  await login(page);
+  await loginThroughBackendMenu(page);
+  await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
 
   await page.getByRole("button", { name: "New", exact: true }).first().click();
   await page.getByLabel("Name").fill("Synthetic Created");
@@ -61,7 +52,8 @@ test("browser workflow performs generic Tryton CRUD and keeps JSON-RPC boundarie
 
 test("browser workflow maps CSV import and exports through Tryton methods", async ({ page }) => {
   const mock = await installMockTryton(page);
-  await login(page);
+  await loginThroughBackendMenu(page);
+  await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
 
   await page.getByLabel("Import CSV file").setInputFiles({
     name: "synthetic.csv",
@@ -94,7 +86,8 @@ test("browser saves queued one2many create and edit through one parent write wit
   page,
 }) => {
   const mock = await installMockTryton(page);
-  await login(page);
+  await loginThroughBackendMenu(page);
+  await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
 
   await page.getByRole("row").filter({ hasText: "Synthetic Alpha" }).click();
   await expect(page.getByRole("heading", { name: "party.party #1" })).toBeVisible();
@@ -132,6 +125,37 @@ test("browser saves queued one2many create and edit through one parent write wit
   await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
 
   const parentWrites = mock.calls.filter((call) => call.method === "model.party.party.write");
+  const childOnChanges = mock.calls.filter(
+    (call) => call.method === "model.party.address.on_change_city",
+  );
+  const childPreValidations = mock.calls.filter(
+    (call) => call.method === "model.party.address.pre_validate",
+  );
+  expect(childOnChanges).toHaveLength(2);
+  expect(childOnChanges[0]?.params[0]).toEqual({
+    id: -1,
+    street: "Synthetic Avenue",
+    city: "New City",
+  });
+  expect(childOnChanges[1]?.params[0]).toEqual({
+    id: 10,
+    street: "Synthetic Road Updated",
+    city: "Updated City",
+  });
+  expect(childPreValidations).toHaveLength(2);
+  expect(childPreValidations[0]?.params[0]).toEqual({
+    id: -1,
+    street: "Synthetic Avenue",
+    city: "New City",
+  });
+  expect(childPreValidations[1]?.params[0]).toMatchObject({
+    id: 10,
+    street: "Synthetic Road Updated",
+    city: "Updated City",
+  });
+  expect(mock.calls.indexOf(childPreValidations[1]!)).toBeLessThan(
+    mock.calls.indexOf(parentWrites[0]!),
+  );
   expect(parentWrites).toHaveLength(1);
   expect(parentWrites[0]?.params[0]).toEqual([1]);
   expect(parentWrites[0]?.params[1]).toMatchObject({
@@ -151,9 +175,60 @@ test("browser saves queued one2many create and edit through one parent write wit
   expect(mock.addresses.size).toBe(2);
 });
 
+test("browser saves a many2many membership delta through one parent write without Apply", async ({
+  page,
+}) => {
+  const mock = await installMockTryton(page, { includeMany2Many: true });
+  await loginThroughBackendMenu(page);
+  await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
+
+  await page.getByRole("row").filter({ hasText: "Synthetic Alpha" }).click();
+  await expect(page.getByRole("heading", { name: "party.party #1" })).toBeVisible();
+  await page.getByRole("button", { name: "Mode: read", exact: true }).click();
+
+  const categoriesField = page.locator('.epiton-o2m[data-relation="party.category"]');
+  await expect(categoriesField.getByText("2 record(s)", { exact: true })).toBeVisible();
+  await categoriesField.getByRole("button", { name: "Open lines", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Categories (many2many)" })).toBeVisible();
+  await expect(
+    page.getByLabel("Board tree").getByRole("button", { name: /Synthetic Category Alpha/ }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Search add", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Search Categories" })).toBeVisible();
+  await page.getByRole("button", { name: "#22 · Synthetic Category Gamma", exact: true }).click();
+  await expect(page.getByText(/lines: 3 · queued creates: 0 · pending ops: 1/)).toBeVisible();
+
+  await page
+    .getByLabel("Board tree")
+    .getByRole("button", { name: /Synthetic Category Alpha/ })
+    .click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByText(/lines: 2 · queued creates: 0 · pending ops: 2/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
+
+  const parentWrites = mock.calls.filter((call) => call.method === "model.party.party.write");
+  expect(parentWrites).toHaveLength(1);
+  expect(parentWrites[0]?.params[0]).toEqual([1]);
+  expect(parentWrites[0]?.params[1]).toMatchObject({
+    categories: [
+      ["add", [22]],
+      ["remove", [20]],
+    ],
+  });
+  expect(parentWrites[0]?.params[2]).toEqual(expect.any(Object));
+  expect(mock.records.get(1)?.categories).toEqual([21, 22]);
+  expect(mock.calls.some((call) => call.method === "model.party.category.create")).toBe(false);
+  expect(mock.calls.some((call) => call.method === "model.party.category.write")).toBe(false);
+  expect(mock.categories.size).toBe(3);
+});
+
 test("a late read of A cannot replace or redirect a subsequent write of B", async ({ page }) => {
   const mock = await installMockTryton(page, { holdPartyReadIds: [1] });
-  await login(page);
+  await loginThroughBackendMenu(page);
+  await expect(page.getByText("Synthetic Alpha").first()).toBeVisible();
 
   await page.getByRole("row").filter({ hasText: "Synthetic Alpha" }).click();
   await mock.waitForPartyRead(1);

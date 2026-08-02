@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  adaptiveLayout,
-  strictAclCoach,
-  suggestNextActions,
-  unifiedSearch,
-  workspaceFavorites,
-} from "./index";
+import { adaptiveLayout, strictAclCoach, suggestNextActions, unifiedSearch } from "./index";
 
 describe("intelligence", () => {
   it("ranks unified search hits", () => {
@@ -38,9 +32,5 @@ describe("intelligence", () => {
   it("coaches missing ACL", () => {
     expect(strictAclCoach("x.y", false)?.severity).toBe("warn");
     expect(strictAclCoach("x.y", true)).toBeNull();
-  });
-
-  it("returns only generic Tryton favorites", () => {
-    expect(workspaceFavorites("general")).toEqual(["party.party", "company.company"]);
   });
 });

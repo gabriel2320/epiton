@@ -9,9 +9,11 @@ import {
   hydrateSelectedScreen,
   idsFromRelationValue,
   isScreenReadyToSave,
+  relationQueueOnChangeValue,
   relationQueueWireValue,
   screenForSelection,
   screenIsDirty,
+  screenValuesForOnChange,
   screenValuesForSave,
   setScreenRelationQueue,
   shouldApplyNewDefaults,
@@ -103,6 +105,42 @@ describe("screen", () => {
         ["write", [8], { quantity: 3 }],
         ["create", { quantity: 1 }],
       ],
+    });
+  });
+
+  it("uses child dictionaries for O2M on_change and ids for M2M", () => {
+    const fields: Record<string, ViewField> = {
+      lines: field("lines", "one2many"),
+      tags: field("tags", "many2many"),
+      party: field("party", "many2one"),
+    };
+    let screen = createScreen("sale.sale", 7, {
+      lines: [8],
+      tags: [1, 2],
+      party: [9, "Party"],
+    });
+    const lines = createRelationQueue("one2many", [8]);
+    lines.commands = [
+      { op: "write", id: 8, values: { quantity: 3 } },
+      { op: "create", values: { quantity: 1 } },
+    ];
+    const tags = createRelationQueue("many2many", [1, 2]);
+    tags.ids = [2, 3];
+    screen = setScreenRelationQueue(screen, "lines", lines);
+    screen = setScreenRelationQueue(screen, "tags", tags);
+
+    expect(relationQueueOnChangeValue(lines)).toEqual([
+      { id: 8, quantity: 3 },
+      { id: -2, quantity: 1 },
+    ]);
+    expect(screenValuesForOnChange(screen, fields)).toEqual({
+      id: 7,
+      lines: [
+        { id: 8, quantity: 3 },
+        { id: -2, quantity: 1 },
+      ],
+      tags: [2, 3],
+      party: [9, "Party"],
     });
   });
 

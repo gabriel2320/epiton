@@ -1,16 +1,7 @@
 import { type Page, expect, test } from "@playwright/test";
-import { type MockTryton, installMockTryton } from "./support/mockTryton";
+import { type MockTryton, installMockTryton, loginThroughBackendMenu } from "./support/mockTryton";
 
 type JsonObject = Record<string, unknown>;
-
-async function login(page: Page) {
-  await page.goto("/");
-  await page.getByLabel("Database").fill("epiton_lab");
-  await page.getByLabel("User").fill("admin");
-  await page.getByLabel("Password").fill("admin");
-  await page.getByRole("button", { name: "Enter Epiton" }).click();
-  await expect(page.getByRole("tab", { name: "party.party" })).toBeVisible();
-}
 
 async function openCalendar(page: Page, mock: MockTryton) {
   await page
@@ -41,7 +32,7 @@ async function dragInitialEvent(page: Page, mock: MockTryton) {
 
 test("calendar click-create and pointer drag persist parsed date fields", async ({ page }) => {
   const mock = await installMockTryton(page, { includeCalendar: true });
-  await login(page);
+  await loginThroughBackendMenu(page);
   const calendar = await openCalendar(page, mock);
 
   const createCell = calendar.locator(
@@ -82,7 +73,7 @@ test("calendar write rejection is surfaced and never reported as moved", async (
     includeCalendar: true,
     rejectCalendarWrite: true,
   });
-  await login(page);
+  await loginThroughBackendMenu(page);
   await openCalendar(page, mock);
 
   await dragInitialEvent(page, mock);

@@ -1,9 +1,13 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { discardBackendProjection } from "./lib/backendTruth";
+import { clearLegacyBrowserPersistence } from "./lib/legacyBrowserPersistence";
 import { applyShellDataset, detectShell } from "./lib/nativeShell";
 import { clearSecureSession } from "./lib/secureSessionBridge";
+import { clearClientAuthentication } from "./lib/sessionBoundary";
 import { useAppStore } from "./lib/store";
-import { LoginPage } from "./pages/LoginPage";
-import { Shell } from "./pages/Shell";
+import { LoginPage } from "./screens/LoginPage";
+import { Shell } from "./screens/Shell";
 
 async function hydrateNativeSession(): Promise<boolean> {
   if (detectShell() === "web") return false;
@@ -14,6 +18,7 @@ async function hydrateNativeSession(): Promise<boolean> {
 }
 
 export function App() {
+  const queryClient = useQueryClient();
   const session = useAppStore((s) => s.session);
   const theme = useAppStore((s) => s.theme);
   const [booting, setBooting] = useState(() => detectShell() !== "web");
@@ -24,7 +29,18 @@ export function App() {
 
   useEffect(() => {
     applyShellDataset();
+    clearLegacyBrowserPersistence();
   }, []);
+
+  useEffect(() => {
+    if (!session) discardBackendProjection(queryClient);
+  }, [queryClient, session]);
+
+  useEffect(() => {
+    const onPageHide = () => clearClientAuthentication(queryClient);
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [queryClient]);
 
   useEffect(() => {
     let cancelled = false;

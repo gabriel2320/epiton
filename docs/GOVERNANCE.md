@@ -66,7 +66,12 @@ When in doubt: read the Tryton docs / live RPC, then write original TypeScript.
 | Control | Location |
 |---------|----------|
 | Session in memory (web) | `@epiton/web` store |
-| Session in memory (desktop/mobile beta) | Native session bridges; persistence disabled until an audited provider exists |
+| Session in memory (desktop/mobile beta) | Persistence APIs disabled; exact deletion-only legacy cleanup, never hydration |
+| Client projections in memory | TanStack Query / Zustand / component state; never persisted or encoded in URL history |
+| Authentication boundary purge | Logout, authenticated 401, and page lifecycle teardown clear user-scoped state |
+| Strict JSON-RPC response contract | Matching request id; exactly one `result` or `error`; typed login and row shapes |
+| RPC / bus transport privacy | `cache: no-store`, `credentials: omit`, `referrerPolicy: no-referrer` |
+| PWA static assets only | Service worker has no runtime cache for RPC, bus, auth, or dynamic responses |
 | Block `javascript:` URLs | protocol / view-engine guards |
 | CORS allowlist | `EPITON_CORS_ORIGINS` |
 | Login rate limit | gateway |
@@ -91,8 +96,8 @@ From [`INTELLIGENCE.md`](INTELLIGENCE.md):
 
 - Charts and board panes aggregate **`search_read` / `search_count`** results.
 - They are **not** a warehouse, OLAP cube, or second SoT.
-- Layout order may live in `sessionStorage`; never sync layout prefs that embed
-  record payloads to third parties.
+- Layout and analytic projections live in process memory only. Never sync them,
+  record identifiers, or payloads to browser/native persistence or third parties.
 
 ## Incident / stop conditions
 

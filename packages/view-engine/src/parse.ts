@@ -50,6 +50,12 @@ export interface ViewField {
   domain?: unknown;
   on_change?: string[];
   on_change_with?: string[];
+  /** View policy: run Model.pre_validate before accepting an embedded record. */
+  pre_validate?: boolean;
+  /** View policy: allow creation from this relation widget (default true). */
+  create?: boolean;
+  /** View policy: allow deletion from this relation widget (default true). */
+  delete?: boolean;
 }
 
 export interface ViewNode {
@@ -163,6 +169,11 @@ function mapFieldType(raw: unknown): FieldType {
   return (allowed.includes(t as FieldType) ? t : "unknown") as FieldType;
 }
 
+function booleanViewAttr(raw: string | undefined): boolean | undefined {
+  if (raw === undefined) return undefined;
+  return !["0", "false", "no"].includes(raw.trim().toLowerCase());
+}
+
 export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView {
   const archRaw = payload.arch ?? payload.arch_tree ?? payload.arch_form;
   if (typeof archRaw !== "string") {
@@ -220,10 +231,18 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
     }
     if (node.tag === "field" && node.attrs.name) {
       const field = fields[node.attrs.name];
-      if (field && node.attrs.widget) {
-        field.widget = node.attrs.widget;
-        const widgetType = mapFieldType(node.attrs.widget);
-        if (widgetType !== "unknown") field.type = widgetType;
+      if (field) {
+        if (node.attrs.widget) {
+          field.widget = node.attrs.widget;
+          const widgetType = mapFieldType(node.attrs.widget);
+          if (widgetType !== "unknown") field.type = widgetType;
+        }
+        const preValidate = booleanViewAttr(node.attrs.pre_validate);
+        const create = booleanViewAttr(node.attrs.create);
+        const deleteRecords = booleanViewAttr(node.attrs.delete);
+        if (preValidate !== undefined) field.pre_validate = preValidate;
+        if (create !== undefined) field.create = create;
+        if (deleteRecords !== undefined) field.delete = deleteRecords;
       }
     }
     for (const child of node.children) walk(child);

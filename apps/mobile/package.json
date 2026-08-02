@@ -6,9 +6,11 @@
   "scripts": {
     "build:web": "pnpm --filter @epiton/web build",
     "prepare:www": "rm -rf www && cp -R ../web/dist www",
-    "sync": "pnpm build:web && pnpm prepare:www && npx cap sync",
-    "open:android": "npx cap open android",
-    "open:ios": "npx cap open ios",
+    "sync": "pnpm build:web && pnpm prepare:www && pnpm exec cap sync",
+    "sync:android": "pnpm build:web && pnpm prepare:www && pnpm exec cap sync android",
+    "build:android:debug": "pnpm sync:android && ./android/gradlew -p android assembleDebug",
+    "open:android": "pnpm exec cap open android",
+    "open:ios": "pnpm exec cap open ios",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'mobile tests run via web package'",
     "build": "pnpm prepare:www"

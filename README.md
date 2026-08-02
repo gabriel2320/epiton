@@ -18,6 +18,8 @@ safer, adaptive UI. **trytond remains the system of record.**
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | PHI, license, promotion, approvals |
 | [`docs/AGENT_LOOP.md`](docs/AGENT_LOOP.md) | Daily gates and “continua” loop |
 | [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | Sao/Tryton parity matrix |
+| [`docs/THREE_LAYER_ARCHITECTURE.md`](docs/THREE_LAYER_ARCHITECTURE.md) | Three-layer map and Next.js host convergence |
+| [`docs/CLIENT_CAPABILITY_INVENTORY.md`](docs/CLIENT_CAPABILITY_INVENTORY.md) | Tryton client capability ownership/evidence inventory |
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Library allow/deny (SQLAlchemy, shadcn, …) |
 | [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) | On-device search/suggestions (no auto-writes) |
 | [`docs/GNU_HEALTH.md`](docs/GNU_HEALTH.md) | GNU Health metadata-only discovery contract |
@@ -31,7 +33,10 @@ safer, adaptive UI. **trytond remains the system of record.**
 ## Stack
 
 - TypeScript monorepo (pnpm + Turborepo + Biome)
-- React 19 + Vite + Tailwind CSS 4
+- Next.js 16 App Router target + React 19 + Tailwind CSS 4
+- Next production-web host with per-request CSP and a static-only PWA cache
+- Vite static packaging adapter for Tauri/Capacitor; temporarily also the web
+  release bridge until the N2 web cutover
 - `@epiton/protocol` — Tryton JSON-RPC Session (`/{db}/` + `/rpc/` fallback)
 - `@epiton/view-engine` — Tryton XML views → React (+ graph/board analytics helpers)
 - `@epiton/ui` — shared primitives
@@ -71,7 +76,11 @@ Compatibility and browser-boundary checks (synthetic disposable data only):
 pnpm compat:live       # Epiton protocol contract
 pnpm lab:oracle:7      # isolated Proteus reference oracle
 pnpm test:e2e:mock     # deterministic browser suite
+pnpm test:e2e:next     # production Next host + nonce CSP/static-only PWA suite
 pnpm test:e2e:live     # requires EPITON_E2E_LAB=disposable
+pnpm --filter @epiton/mobile sync:android       # native asset receipt
+pnpm --filter @epiton/mobile build:android:debug # requires JDK + Android SDK
+pnpm --filter @epiton/desktop build:linux        # requires Rust + Linux WebKit
 ```
 
 ## Agent / AI usage

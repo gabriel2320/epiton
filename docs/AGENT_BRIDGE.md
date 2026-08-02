@@ -1,6 +1,8 @@
-# Agent bridge — Cursor ↔ Codex
+# Agent execution ledger — Codex solo
 
-Operational mailbox between agents on Epitón. **Not** a second roadmap:
+Operational memory for Epitón. By direct user instruction, Codex is the only
+active implementer and verifier; Cursor is inactive. The historical Cursor ↔
+Codex trail remains below for traceability. This is **not** a second roadmap:
 durable parity lives in [`COMPATIBILITY.md`](COMPATIBILITY.md) /
 [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md) / [`AUDIT.md`](AUDIT.md).
 Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#development-program-derived-from-audit--parity-work).
@@ -9,35 +11,35 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 
 | Side | Role | Session / chat |
 |------|------|----------------|
-| **Codex** | Implementer on active CLAIM; gateway / lab oracle owner | Thread `019fb9e5-3ef8-7e03-be4f-0fd233a7a489` |
-| **Cursor** | Reviewer/committer on CLAIM; Screen five-pack guardian | Composer on `/home/gabriel/epiton` |
+| **Codex** | Exclusive implementer and verifier | Current Codex thread |
+| **Cursor** | Inactive / historical reference only | No handoff, review, or write authority |
 
-Status: **LINKED** · RAM-safe · tip `6f40392` · L2.4 CLAIM requested · no push
+Status: **SOLO CODEX** · Cursor disabled · RAM-safe · base `7304513` · no push
 
 ## Ops dashboard (authoritative snapshot)
 
-Update this table in the **same append** that opens/closes a CLAIM. Older dated
+Update this table in the **same change** that opens/closes a CLAIM. Older dated
 sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L2.4 action-toolbar CLAIM requested from Cursor |
+| **Active CLAIM** | _(none)_ — L3.3 relation-depth evidence closed locally |
 | **CLAIM paths** | — |
-| **Freeze** | `lib/screen/**` + Screen five-pack + L1 + `workspaceUi*` + `recordLifecycle*` + `recordSave*` + `listSelection*` |
-| **Mode** | RAM-safe: no Chromium, no stacked resume, no full matrix |
-| **Program** | M0–M1 DONE · L2.1–L2.3 DONE · L2.4 CLAIM REQUESTED |
+| **Freeze** | `lib/screen/**` + Screen five-pack + `childScreen*` + L1 + `workspaceUi*` + `recordLifecycle*` + `recordSave*` + `listSelection*` + `actionToolbar*` + `WorkspaceActionToolbars.tsx` + `workspaceSearch*` + `workspaceNavigation*` + `WorkspaceSearchControls.tsx` |
+| **Mode** | SOLO CODEX · RAM-safe · no Cursor handoffs · targeted Chromium + disposable Tryton 7 lab; no full series matrix |
+| **Program** | M0–M3 DONE · L3.1 contract frozen + L3.2 web wiring + L3.3 relation evidence closed · L4 dense form layout is next; no external CLAIM required |
 
-## Protocol (mandatory)
+## Solo-Codex protocol (active)
 
-1. **CLAIM** before edit — exact paths, scope, excluded, exit gates, reviewer.
-2. Non-claimer stays **read-only** on those paths until `HANDOFF READY`.
-3. **One atomic batch** per CLAIM; no Screen reopen; no PHI; no push by default.
-4. If implementer's `.git` is read-only → leave final tree; reviewer commits.
-5. Reviewer answers with `CURSOR-REVIEW: PASS` or `FINDINGS` + evidence.
-6. Append-only below the dashboard; never rewrite history sections.
-7. Prefer **one** `codex exec resume` turn at a time; avoid overlapping resumes.
+1. Codex alone writes, reviews, and verifies until the user explicitly changes mode.
+2. Do not wait for, invoke, or hand work to Cursor.
+3. Keep each batch atomic and scoped; no PHI; no push by default.
+4. Preserve the historical trail below; update this dashboard and append receipts.
+5. Run RAM-safe gates sequentially and avoid Chromium/full matrices by default.
+6. Keep Tryton as the wire truth and the roadmap in `TRYTON_AHEAD.md` / `AUDIT.md`.
+7. Protect in-memory sessions: no browser or native persistent token storage.
 
-### Message templates
+### Historical multi-agent templates (inactive)
 
 ```text
 CLAIM: ACTIVE
@@ -68,21 +70,21 @@ checked: …
 (next CLAIM hint or blocking findings)
 ```
 
-## Baseline ownership (defaults; CLAIM overrides)
+## Baseline ownership (solo mode)
 
 | Owner | Paths |
 |-------|--------|
-| **Codex** | `apps/gateway/**`, `apps/web/src/lib/runtimeConfig*`, `apps/web/src/lib/secureSessionBridge.ts`, `apps/*/src/secureSession.ts`, `docker/proteus/**`, `docker/docker-compose.yml`, `.github/workflows/ci.yml`, `scripts/gh-models-check.mjs`, `scripts/compat-live.mjs`, `.env.example` |
-| **Cursor** | `apps/web/src/lib/screen/**`, Screen wiring in `ModelWorkspace.tsx`, `RelationLinesEditor.tsx`, `RelationLineForm.tsx`, `packages/view-engine/**` (Screen/layout/search), Sao depth notes |
-| **Shared / CLAIM** | Board/Shell/e2e/docs as named in the active CLAIM row above |
-| **Shared read** | `AGENTS.md`, `docs/*`, package.json scripts (script edits need CLAIM notice) |
+| **Codex** | All paths within the user's requested scope, subject to the freeze and repository rules |
+| **Cursor** | None while solo mode is active |
+| **Shared / CLAIM** | None while solo mode is active |
+| **Read-only references** | `AGENTS.md`, roadmap/audit history, upstream Tryton contracts |
 
 ## Split of plans
 
 1. **Codex C1–C5** — gateway/session prod, Proteus **lab oracle only**, GH probe, native shells beta. Proteus never enters `@epiton/protocol` or web runtime.
-2. **Program M0–M6** — client depth in `TRYTON_AHEAD.md` (L1 evidence → L7 release). Active slice is the Ops dashboard CLAIM.
+2. **Program M0–M6** — executed by Codex only while solo mode is active. L4 is the next product slice.
 
-## Current turn
+## Historical Cursor ↔ Codex trail (inactive)
 
 ### Cursor → Codex — BRIDGE POWER-UP + L1.2 CONTINUE, 2026-07-31
 
@@ -1934,4 +1936,248 @@ NEXT LINK REQUEST:
   focused RAM-safe tests; name exact owned paths, freezes/exclusions, and exit gate.
   L2.1-L2.3 modules remain frozen. Codex stays read-only until the CLAIM appears.
   No Chromium, full matrix, stacked resume, gateway, push, or L2.5 scope.
+```
+
+### Codex — SOLO CODEX security correction closed, 2026-07-31
+
+```text
+DIRECTIVE: only Codex; Cursor bridge inactive.
+base: 7304513
+status: WORKTREE FINAL — local, uncommitted, no push
+
+corrected:
+  - removed CSP-hostile runtime code generation from the native legacy-session
+    cleanup path; session save/load remain memory-only
+  - added statically analyzable Tauri and Capacitor cleanup adapters plus focused
+    browser/native/failure tests
+  - bounded gateway upstream bodies by Content-Length and streamed chunks
+    (64 MiB default, configurable) with deterministic 502 behavior
+  - added production JavaScript advisory auditing and RustSec to CI
+
+RAM-safe gates, sequential:
+  - pnpm exec turbo run typecheck --concurrency=1: PASS (13/13 tasks)
+  - pnpm exec turbo run test --concurrency=1: PASS (13/13 tasks)
+  - pnpm lint: PASS (182 files)
+  - web production build: PASS
+  - pnpm check:bundle: PASS (largest 468.1 KiB; limit 700 KiB)
+  - pnpm audit --prod --audit-level high: PASS (no known vulnerabilities)
+  - gateway cargo test --locked: PASS (9/9)
+  - gateway cargo check --locked: PASS
+  - gateway cargo fmt --check: PASS
+
+residual:
+  - real-device Tauri/Capacitor plugin execution remains a native release gate
+  - formal threat model, penetration testing, GH lab, and PHI claims remain open
+
+next product slice: L2.4 action-toolbar extraction, executed by Codex only.
+```
+
+### Codex — L2.4 action-toolbar extraction closed, 2026-08-01
+
+```text
+status: WORKTREE FINAL — local, uncommitted, no push
+
+implemented:
+  - extracted the list, record, and keyword action surfaces from ModelWorkspace
+    into typed presentational components without changing their visible order
+  - centralized pure availability rules for create/refresh/view/edit/delete/copy,
+    CSV import/export, save/history/email, and Tryton action-button detection
+  - centralized the canonical button context overlay: active_id, active_ids, and
+    active_model still reach the existing RPC/action-resolution pipeline
+  - kept the attachments entry and record scoping in the shared Shell ToolDrawer;
+    the workspace does not acquire a second attachment or session-state owner
+
+paths:
+  apps/web/src/components/modelWorkspace/actionToolbar.ts
+  apps/web/src/components/modelWorkspace/actionToolbar.test.ts
+  apps/web/src/components/modelWorkspace/WorkspaceActionToolbars.tsx
+  apps/web/src/components/ModelWorkspace.tsx
+  docs/COMPATIBILITY.md
+  docs/TRYTON_AHEAD.md
+  docs/AGENT_BRIDGE.md
+
+RAM-safe gates, sequential:
+  - focused actionToolbar.test.ts: PASS (1 file, 4 tests)
+  - pnpm lint: PASS (214 files)
+  - pnpm exec turbo run typecheck --concurrency=1: PASS (13/13 tasks)
+  - pnpm exec turbo run test --concurrency=1: PASS (13/13 tasks; 180 Vitest tests)
+  - web Vite production build: PASS (1,666 modules; PWA 25 entries)
+  - pnpm check:bundle: PASS (largest 468.1 KiB; limit 700 KiB)
+  - pnpm --filter @epiton/web build:next: PASS (Next 16.2.12 / App Router)
+  - git diff --check: PASS
+
+rails held:
+  no JSON-RPC shape, Tryton context, Screen lifecycle, selection, callback/history
+  ordering, or attachment ownership changes; no Chromium/full matrix, gateway,
+  live-server, commit, or push for this pure refactor.
+
+next product slice: L2.5 search/view-mode/board-host extraction.
+```
+
+### Codex — L2.5 search/view-mode/board-host extraction closed, 2026-08-01
+
+```text
+status: WORKTREE FINAL — local, uncommitted, no push
+
+implemented:
+  - extracted pure workspace navigation policy for the ordered Tryton view list,
+    initial supported view mode, safe unknown-view fallback, and board/model host
+  - extracted pure search-domain composition for action, PYSON domain tab, and
+    current search text while preserving the existing Tryton domain ordering
+  - extracted typed presentational domain-tab, search, saved-search, and save-dialog
+    controls; ModelWorkspace remains the sole owner of view_search RPC and state
+  - resets volatile view/search projection when action metadata changes and keeps
+    durable client persistence out of the workspace navigation boundary
+  - made Shell consume the shared board/model host policy; Vite and Next continue
+    to mount the same EpitonClient through one narrow client island
+
+paths:
+  apps/web/src/components/modelWorkspace/workspaceNavigation.ts
+  apps/web/src/components/modelWorkspace/workspaceNavigation.test.ts
+  apps/web/src/components/modelWorkspace/workspaceSearch.ts
+  apps/web/src/components/modelWorkspace/workspaceSearch.test.ts
+  apps/web/src/components/modelWorkspace/WorkspaceSearchControls.tsx
+  apps/web/src/components/modelWorkspace/actionToolbar.ts
+  apps/web/src/components/modelWorkspace/WorkspaceActionToolbars.tsx
+  apps/web/src/components/ModelWorkspace.tsx
+  apps/web/src/screens/Shell.tsx
+  docs/AGENT_LOOP.md
+  docs/AGENT_BRIDGE.md
+  docs/CLIENT_CAPABILITY_INVENTORY.md
+  docs/COMPATIBILITY.md
+  docs/THREE_LAYER_ARCHITECTURE.md
+  docs/TRYTON_AHEAD.md
+
+RAM-safe gates, sequential:
+  - focused workspaceNavigation/workspaceSearch tests: PASS (2 files, 6 tests)
+  - pnpm lint: PASS (219 files)
+  - pnpm exec turbo run typecheck --concurrency=1: PASS (13/13 tasks)
+  - pnpm exec turbo run test --concurrency=1: PASS (13/13 tasks; 186 Vitest tests)
+  - web Vite production build: PASS (1,669 modules; PWA 25 entries)
+  - pnpm check:bundle: PASS (largest 468.1 KiB; limit 700 KiB)
+  - pnpm --filter @epiton/web build:next: PASS (Next 16.2.12 / App Router)
+  - git diff --check: PASS
+
+rails held:
+  no new JSON-RPC shape, backend identifier, route/storage contract, Tryton context,
+  Screen/record lifecycle, callback/history ordering, or attachment ownership;
+  unknown future Tryton view types use a safe tree fallback instead of guessed
+  behavior; no Chromium/live server, gateway, commit, or push for this pure refactor.
+
+next product slice: L3.1 pure child Screen API freeze.
+```
+
+### Codex — L3.1 pure child Screen API freeze closed, 2026-08-01
+
+```text
+status: WORKTREE FINAL — local, uncommitted, no push
+
+implemented:
+  - added a framework-free ChildScreenState contract with explicit new,
+    persisted-record, and queued-create targets
+  - added hydrate/readiness, immutable value and nested-queue edits, structural
+    required/nested validation, cancel/navigation policy, and stale-target checks
+  - added generation + revision tokens so only the latest applicable child
+    on_change response can patch the draft and Cancel invalidates in-flight work
+  - made child accept/remove return a new parent relation queue; no child RPC or
+    independent create/write boundary exists
+  - preserved M2M nested create/write/delete commands together with normalized
+    membership deltas, without duplicate remove after delete
+  - froze ownership, lifecycle, server-authority limits, and L3.2 host obligations
+    in docs/CHILD_SCREEN_CONTRACT.md
+
+paths:
+  packages/view-engine/src/childScreen.ts
+  packages/view-engine/src/childScreen.test.ts
+  packages/view-engine/src/screen.ts
+  packages/view-engine/src/index.ts
+  docs/CHILD_SCREEN_CONTRACT.md
+  docs/AGENT_LOOP.md
+  docs/AGENT_BRIDGE.md
+  docs/CLIENT_CAPABILITY_INVENTORY.md
+  docs/COMPATIBILITY.md
+  docs/THREE_LAYER_ARCHITECTURE.md
+  docs/TRYTON_AHEAD.md
+
+RAM-safe gates, sequential:
+  - childScreen.test.ts + screen.test.ts: PASS (2 files, 27 tests)
+  - @epiton/view-engine typecheck: PASS
+  - pnpm lint: PASS (221 files)
+  - pnpm exec turbo run typecheck --concurrency=1: PASS (13/13 tasks)
+  - pnpm exec turbo run test --concurrency=1: PASS (13/13 tasks; 194 Vitest tests)
+  - web Vite production build: PASS (1,670 modules; PWA 25 entries)
+  - pnpm check:bundle: PASS (largest 468.1 KiB; limit 700 KiB)
+  - pnpm --filter @epiton/web build:next: PASS (Next 16.2.12 / App Router)
+  - git diff --check: PASS
+
+rails held:
+  pure TypeScript only; no React/Next relation wiring, new RPC shape, local
+  business-rule authority, backend route/id persistence, GPL source copy,
+  commit, or push. Full nested on_change/pre_validate/browser parity is not
+  claimed before L3.2.
+
+next product slice: L3.2 wire RelationLineForm / RelationLinesEditor to the
+frozen child Screen contract, translate x2many on_change patches, honor server
+pre_validate, align PartyWorkspace, and prove one parent mutation in browser.
+```
+
+### Codex — L3.2 child Screen web wiring closed, 2026-08-01
+
+```text
+status: WORKTREE FINAL — local, uncommitted, no push
+
+implemented:
+  - wired RelationLineForm and RelationLinesEditor to the frozen ChildScreen
+    lifecycle for new, persisted, and queued-create targets
+  - translated O2M/M2M replacement and add/update/remove/delete on_change
+    values into nested relation queues with generation/revision race guards
+  - added metadata-driven strict model.pre_validate before child acceptance;
+    server rejection remains authoritative and prevents queue publication
+  - kept accepting/removing a line side-effect free at RPC level; only the
+    parent Screen serializes and sends the final relation commands
+  - replaced PartyWorkspace's duplicate data lifecycle with a deprecated thin
+    adapter over the generic ModelWorkspace
+  - proved in Chromium that one new and one edited O2M line generate exactly
+    two child on_change calls, two pre_validate calls, and one parent write,
+    with zero child create/write calls
+
+paths:
+  packages/protocol/src/onchange.ts
+  packages/protocol/src/onchange.test.ts
+  packages/view-engine/src/parse.ts
+  packages/view-engine/src/parse.test.ts
+  packages/view-engine/src/screen.ts
+  packages/view-engine/src/screen.test.ts
+  packages/view-engine/src/childScreen.ts
+  packages/view-engine/src/childScreen.test.ts
+  apps/web/src/components/RelationLineForm.tsx
+  apps/web/src/components/RelationLinesEditor.tsx
+  apps/web/src/components/ModelWorkspace.tsx
+  apps/web/src/components/PartyWorkspace.tsx
+  e2e/support/mockTryton.ts
+  e2e/workspace.spec.ts
+
+evidence:
+  - @epiton/protocol: PASS (16 files, 59 tests)
+  - @epiton/view-engine: PASS (10 files, 68 tests)
+  - @epiton/web typecheck: PASS
+  - targeted Playwright O2M parent-mutation scenario: PASS (Chromium, 1 test)
+  - pnpm test:e2e:mock: PASS (Chromium, 12/12 scenarios)
+  - pnpm lint: PASS (221 files)
+  - pnpm test: PASS (13/13 packages)
+  - web Vite production build: PASS (1,670 modules)
+  - pnpm check:bundle: PASS (largest 468.1 KiB; limit 700 KiB)
+  - pnpm check:next: PASS (Next 16.2.12 / App Router)
+  - pnpm check:tryton-canary: PASS (3 tests)
+  - Tryton 9 upstream canary: waiting; four official probes reachable/404;
+    supportClaim remains false (observed 2026-08-02T01:58:36.907Z)
+
+rails held:
+  trytond keeps business-rule and transaction authority; no child record RPC,
+  durable client state, guessed series branch, GPL source copy, support-policy
+  promotion, live-server mutation, commit, or push.
+
+next product slice: L3.3 add a deterministic M2M receipt and qualify the same
+documented on_change/pre_validate boundary in a disposable Tryton 7 lab when
+available; preserve the frozen child ownership contract.
 ```

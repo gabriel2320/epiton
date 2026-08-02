@@ -56,6 +56,9 @@ export default defineConfig(({ mode }) => {
       },
       VitePWA({
         registerType: "autoUpdate",
+        // Backend truth is never a PWA runtime cache entry. Workbox may only
+        // precache versioned build assets emitted by this production build.
+        workbox: { runtimeCaching: [] },
         manifest: {
           name: "Epiton",
           short_name: "Epiton",

@@ -1,3 +1,4 @@
+import { currentWebHostEnvironment } from "./hostEnvironment";
 import { type ShellKind, detectShell } from "./nativeShell";
 
 export interface RuntimePolicyInput {
@@ -48,15 +49,16 @@ export function resolveRuntimeConnectionPolicy(input: RuntimePolicyInput): Runti
 }
 
 export function runtimeConnectionPolicy(): RuntimeConnectionPolicy {
+  const environment = currentWebHostEnvironment();
   const origin =
     typeof window !== "undefined" && window.location.origin !== "null"
       ? window.location.origin
       : "http://localhost";
   return resolveRuntimeConnectionPolicy({
-    production: import.meta.env.PROD,
+    production: environment.production,
     shell: detectShell(),
     origin,
-    configuredGateway: import.meta.env.VITE_EPITON_GATEWAY_URL,
+    configuredGateway: environment.configuredGateway,
   });
 }
 

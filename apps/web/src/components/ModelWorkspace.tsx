@@ -3,6 +3,7 @@ import {
   type ActWindowDomainTab,
   type JsonObject,
   type JsonValue,
+  type ViewSearchRow,
   copyRecords,
   createViewSearch,
   deleteViewSearch,
@@ -15,17 +16,7 @@ import {
   saveTreeState,
   viewIdForMode,
 } from "@epiton/protocol";
-import {
-  Alert,
-  Badge,
-  Button,
-  ConfirmDialog,
-  MetaStrip,
-  Panel,
-  StateBlock,
-  Tab,
-  Tabs,
-} from "@epiton/ui";
+import { Alert, Button, ConfirmDialog, MetaStrip, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
   type ViewField,
@@ -76,12 +67,20 @@ import { CsvImportDialog, applyCsvColumnMapping } from "./CsvImportDialog";
 import { EmailComposeDialog } from "./EmailComposeDialog";
 import { GraphView } from "./GraphView";
 import { ListFormView } from "./ListFormView";
-import { RecordActionsMenu } from "./RecordActionsMenu";
 import { RecordHistoryPanel } from "./RecordHistoryPanel";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
-import { SavedSearchDialog } from "./SavedSearchDialog";
 import { VirtualPartyTable } from "./VirtualPartyTable";
+import {
+  WorkspaceKeywordActions,
+  WorkspaceListActionToolbar,
+  WorkspaceRecordActionToolbar,
+} from "./modelWorkspace/WorkspaceActionToolbars";
+import {
+  WorkspaceDomainTabs,
+  WorkspaceSearchControls,
+} from "./modelWorkspace/WorkspaceSearchControls";
+import { buttonRpcContext, isActionButton } from "./modelWorkspace/actionToolbar";
 import {
   adjacentSelectedId,
   effectiveSelectedIds,
@@ -104,7 +103,16 @@ import {
   screenAfterDiscard,
   screenAfterNewDefaults,
 } from "./modelWorkspace/recordSave";
-import { domainTabStorageKey, noticeTone } from "./modelWorkspace/workspaceUi";
+import {
+  type WorkspaceListViewMode,
+  initialWorkspaceViewMode,
+} from "./modelWorkspace/workspaceNavigation";
+import {
+  activeWorkspaceTabDomain,
+  savedSearchText,
+  workspaceListDomain,
+} from "./modelWorkspace/workspaceSearch";
+import { noticeTone } from "./modelWorkspace/workspaceUi";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
@@ -144,7 +152,9 @@ export function ModelWorkspace(props: {
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"tree" | "list-form" | "calendar" | "graph">("tree");
+  const [viewMode, setViewMode] = useState<WorkspaceListViewMode>(() =>
+    initialWorkspaceViewMode(props.actionViews),
+  );
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -162,19 +172,11 @@ export function ModelWorkspace(props: {
   const [csvExportOpen, setCsvExportOpen] = useState(false);
   const [savedSearchDialog, setSavedSearchDialog] = useState<"save" | "delete" | null>(null);
   const [onChangePending, setOnChangePending] = useState(false);
-  const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>(() => {
-    try {
-      const raw = sessionStorage.getItem(`epiton.tree.hidden.${props.model}`);
-      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>({});
   const [treeM2O, setTreeM2O] = useState<{
     id: number;
     field: ViewField;
   } | null>(null);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenRef = useRef(screen);
@@ -487,12 +489,14 @@ export function ModelWorkspace(props: {
   );
 
   const domainTabs = props.actionDomains ?? [];
-  const activeTabDomain = useMemo(() => {
-    if (domainTab < 0) return [];
-    const tab = domainTabs[domainTab];
-    if (!tab) return [];
-    return evalDomain(tab.domain ?? [], { ...sessionContext, ...actionCtxOverlay });
-  }, [domainTabs, domainTab, sessionContext, actionCtxOverlay]);
+  const activeTabDomain = useMemo(
+    () =>
+      activeWorkspaceTabDomain(domainTabs, domainTab, {
+        ...sessionContext,
+        ...actionCtxOverlay,
+      }),
+    [domainTabs, domainTab, sessionContext, actionCtxOverlay],
+  );
 
   const searchFields = useMemo(() => {
     if (!treeViewQuery.data) return ["rec_name", "name", "code"];
@@ -511,43 +515,23 @@ export function ModelWorkspace(props: {
     );
   }, [treeViewQuery.data, formViewQuery.data]);
 
-  const listDomain = useMemo(() => {
-    const search = buildSearchDomain(searchQuery, searchFields);
-    return mergeDomains(mergeDomains(resolvedActionDomain, activeTabDomain), search);
-  }, [resolvedActionDomain, activeTabDomain, searchQuery, searchFields]);
+  const listDomain = useMemo(
+    () => workspaceListDomain(resolvedActionDomain, activeTabDomain, searchQuery, searchFields),
+    [resolvedActionDomain, activeTabDomain, searchQuery, searchFields],
+  );
 
   const order = useMemo(() => formatOrder(sorts), [sorts]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: model/action changes define a new volatile workspace projection.
   useEffect(() => {
-    void props.model;
-    void props.actionDomains;
     setOffset(0);
     setExpandedTreeIds(new Set());
     setLazyTreeRows([]);
     setEmptyTreeParents(new Set());
-    const key = domainTabStorageKey(props.model, props.actionDomains);
-    if (!key) {
-      setDomainTab(-1);
-      return;
-    }
-    try {
-      const raw = sessionStorage.getItem(key);
-      const n = raw == null ? -1 : Number(raw);
-      setDomainTab(Number.isFinite(n) ? n : -1);
-    } catch {
-      setDomainTab(-1);
-    }
-  }, [props.model, props.actionDomains]);
-
-  useEffect(() => {
-    const key = domainTabStorageKey(props.model, props.actionDomains);
-    if (!key) return;
-    try {
-      sessionStorage.setItem(key, String(domainTab));
-    } catch {
-      /* ignore */
-    }
-  }, [domainTab, props.model, props.actionDomains]);
+    setDomainTab(-1);
+    setHiddenOptionalCols({});
+    setViewMode(initialWorkspaceViewMode(props.actionViews));
+  }, [props.model, props.actionDomains, props.actionViews]);
   const listQuery = useQuery({
     queryKey: [
       "model",
@@ -836,17 +820,6 @@ export function ModelWorkspace(props: {
     );
   }, [recordQuery.data, props.model, selectedId]);
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(
-        `epiton.tree.hidden.${props.model}`,
-        JSON.stringify(hiddenOptionalCols),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [hiddenOptionalCols, props.model]);
-
   const isDirty = mode === "write" && screenIsDirty(screen);
   dirtyRef.current = isDirty;
 
@@ -1093,26 +1066,22 @@ export function ModelWorkspace(props: {
       setNotice("Select a record before running a button");
       return;
     }
-    const buttonType = (meta?.type ?? "").toLowerCase();
-    const looksLikeAction =
-      buttonType === "action" ||
-      /^(ir\.action\.|act_|wizard\.|report\.)/i.test(name) ||
-      /^[\w.-]+,[\d]+$/.test(name);
-    if (looksLikeAction && props.onOpenAction) {
+    if (isActionButton(name, meta?.type) && props.onOpenAction) {
       setNotice(`Opening action ${name}…`);
       props.onOpenAction(name, `button:${name}`);
       props.onHistory?.(`button:action:${name}`);
       return;
     }
     const ids = effectiveSelectedIds(selectedIds, selectedId);
+    const activeIds = ids as [number, ...number[]];
     setNotice(`Running ${name}…`);
     try {
-      await client.model(props.model, name, [ids], {
-        ...rpcContext,
-        active_id: ids[0]!,
-        active_ids: ids,
-        active_model: props.model,
-      });
+      await client.model(
+        props.model,
+        name,
+        [ids],
+        buttonRpcContext(rpcContext, props.model, activeIds),
+      );
       props.onHistory?.(`button:${name}`);
       setNotice(`Button ${name} OK (${ids.length})`);
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
@@ -1190,24 +1159,20 @@ export function ModelWorkspace(props: {
   ) {
     if (!client) return;
     selectId(id);
-    const buttonType = (action.type ?? "").toLowerCase();
-    const looksLikeAction =
-      buttonType === "action" ||
-      /^(ir\.action\.|act_|wizard\.|report\.)/i.test(action.name) ||
-      /^[\w.-]+,[\d]+$/.test(action.name);
-    if (looksLikeAction && props.onOpenAction) {
+    if (isActionButton(action.name, action.type) && props.onOpenAction) {
       props.onOpenAction(action.name, `tree-button:${action.name}`);
       props.onHistory?.(`tree-button:action:${action.name}`);
       return;
     }
     setNotice(`Running ${action.name} on #${id}…`);
     try {
-      await client.model(props.model, action.name, [[id]], {
-        ...rpcContext,
-        active_id: id,
-        active_ids: [id],
-        active_model: props.model,
-      });
+      const ids: [number] = [id];
+      await client.model(
+        props.model,
+        action.name,
+        [ids],
+        buttonRpcContext(rpcContext, props.model, ids),
+      );
       props.onHistory?.(`tree-button:${action.name}`);
       setNotice(`Button ${action.name} OK`);
       await queryClient.invalidateQueries({ queryKey: ["model", props.model] });
@@ -1367,6 +1332,64 @@ export function ModelWorkspace(props: {
       ? screen.relationQueues[relationField.name]
       : undefined;
 
+  function selectDomainTab(index: number) {
+    setDomainTab(index);
+    setOffset(0);
+  }
+
+  function applySearch() {
+    setOffset(0);
+    setSearchQuery(searchInput);
+  }
+
+  function clearSearch() {
+    setSearchInput("");
+    setSearchQuery("");
+    setOffset(0);
+  }
+
+  function applySavedSearch(row: ViewSearchRow) {
+    const text = savedSearchText(row.domain);
+    setSearchInput(text);
+    setSearchQuery(text);
+    setOffset(0);
+    setNotice(`Applied saved search “${row.name}”`);
+  }
+
+  async function saveCurrentSearch(name: string) {
+    if (!client || !session) return;
+    try {
+      const domain = buildSearchDomain(searchQuery, searchFields);
+      await createViewSearch(
+        client,
+        {
+          name,
+          model: props.model,
+          domain: (domain as JsonValue) ?? [],
+          user: session.userId,
+        },
+        rpcContext,
+      );
+      await viewSearchesQuery.refetch();
+      setNotice(`Saved search “${name}”`);
+      setSavedSearchDialog(null);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Could not save search");
+    }
+  }
+
+  async function removeSavedSearch(id: number) {
+    if (!client) return;
+    try {
+      await deleteViewSearch(client, id, rpcContext);
+      await viewSearchesQuery.refetch();
+      setNotice(`Deleted saved search #${id}`);
+      setSavedSearchDialog(null);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Delete search failed");
+    }
+  }
+
   return (
     <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
       <ConfirmDialog
@@ -1413,197 +1436,41 @@ export function ModelWorkspace(props: {
         }}
       />
       <Panel title={props.model}>
-        {domainTabs.length ? (
-          <Tabs aria-label="Action domains" className="epiton-domain-tabs">
-            <Tab
-              active={domainTab < 0}
-              onClick={() => {
-                setDomainTab(-1);
-                setOffset(0);
-              }}
-            >
-              All
-            </Tab>
-            {domainTabs.map((tab, index) => (
-              <Tab
-                key={`${tab.name}-${index}`}
-                active={domainTab === index}
-                onClick={() => {
-                  setDomainTab(index);
-                  setOffset(0);
-                }}
-              >
-                {tab.name}
-                {tab.count && domainCountQuery.data?.[index] != null
-                  ? ` (${domainCountQuery.data[index]})`
-                  : ""}
-              </Tab>
-            ))}
-          </Tabs>
-        ) : null}
-        <div className="epiton-toolbar">
-          <Button variant="primary" onClick={() => void startNew()}>
-            {t("workspace.new")}
-          </Button>
-          <Button onClick={() => listQuery.refetch()}>{t("workspace.refresh")}</Button>
-          <Button onClick={() => setViewMode("tree")}>{t("workspace.tree")}</Button>
-          <Button
-            variant={forceTreeEdit || treeIsEditable ? "primary" : "default"}
-            onClick={() => setForceTreeEdit((v) => !v)}
-          >
-            {t("workspace.inlineEdit")}
-            {treeIsEditable ? " · on" : ""}
-          </Button>
-          <Button onClick={() => setViewMode("list-form")}>{t("workspace.listForm")}</Button>
-          <Button onClick={() => setViewMode("calendar")}>{t("workspace.calendar")}</Button>
-          <Button onClick={() => setViewMode("graph")}>{t("workspace.graph")}</Button>
-          <Button
-            variant="danger"
-            disabled={!selectedIds.length && !selectedId}
-            onClick={() => requestDelete(effectiveSelectedIds(selectedIds, selectedId))}
-          >
-            {t("workspace.delete")}
-            {selectedIds.length > 1 ? ` (${selectedIds.length})` : ""}
-          </Button>
-          <Button
-            disabled={!client || (!selectedIds.length && !selectedId)}
-            onClick={() => void copySelected()}
-          >
-            {t("workspace.copy")}
-          </Button>
-          <Button
-            disabled={!client || (!selectedIds.length && !selectedId && !listQuery.data?.length)}
-            onClick={() => setCsvExportOpen(true)}
-          >
-            {t("workspace.exportCsv")}
-          </Button>
-          <Button disabled={!client} onClick={() => importInputRef.current?.click()}>
-            {t("workspace.importCsv")}
-          </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            hidden
-            aria-label="Import CSV file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) void importCsvFile(file);
-            }}
-          />
-        </div>
-        <div className="epiton-toolbar">
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                setOffset(0);
-                setSearchQuery(searchInput);
-              }
-            }}
-            placeholder="Search name/code, id, or JSON domain"
-            aria-label="Domain search"
-            style={{ flex: 1, minWidth: "12rem" }}
-          />
-          <Button
-            onClick={() => {
-              setOffset(0);
-              setSearchQuery(searchInput);
-            }}
-          >
-            {t("workspace.filter")}
-          </Button>
-          <Button
-            onClick={() => {
-              setSearchInput("");
-              setSearchQuery("");
-              setOffset(0);
-            }}
-          >
-            {t("workspace.clear")}
-          </Button>
-          <select
-            aria-label="Saved searches"
-            value=""
-            disabled={!viewSearchesQuery.data?.length}
-            onChange={(e) => {
-              const id = Number(e.target.value);
-              e.target.value = "";
-              const row = viewSearchesQuery.data?.find((r) => r.id === id);
-              if (!row) return;
-              const text =
-                typeof row.domain === "string" ? row.domain : JSON.stringify(row.domain ?? []);
-              setSearchInput(text);
-              setSearchQuery(text);
-              setOffset(0);
-              setNotice(`Applied saved search “${row.name}”`);
-            }}
-          >
-            <option value="">Saved searches…</option>
-            {(viewSearchesQuery.data ?? []).map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-                {row.user == null ? " (shared)" : ""}
-              </option>
-            ))}
-          </select>
-          <Button
-            disabled={!client || !session || !searchQuery.trim()}
-            onClick={() => setSavedSearchDialog("save")}
-          >
-            Save filter
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={!viewSearchesQuery.data?.length}
-            onClick={() => setSavedSearchDialog("delete")}
-          >
-            Delete filter
-          </Button>
-        </div>
-        <SavedSearchDialog
-          mode={savedSearchDialog === "delete" ? "delete" : "save"}
-          open={savedSearchDialog != null}
-          rows={viewSearchesQuery.data}
-          onCancel={() => setSavedSearchDialog(null)}
-          onSave={(name) => {
-            void (async () => {
-              if (!client || !session) return;
-              try {
-                const domain = buildSearchDomain(searchQuery, searchFields);
-                await createViewSearch(
-                  client,
-                  {
-                    name,
-                    model: props.model,
-                    domain: (domain as JsonValue) ?? [],
-                    user: session.userId,
-                  },
-                  rpcContext,
-                );
-                await viewSearchesQuery.refetch();
-                setNotice(`Saved search “${name}”`);
-                setSavedSearchDialog(null);
-              } catch (err) {
-                setNotice(err instanceof Error ? err.message : "Could not save search");
-              }
-            })();
-          }}
-          onDelete={(id) => {
-            void (async () => {
-              if (!client) return;
-              try {
-                await deleteViewSearch(client, id, rpcContext);
-                await viewSearchesQuery.refetch();
-                setNotice(`Deleted saved search #${id}`);
-                setSavedSearchDialog(null);
-              } catch (err) {
-                setNotice(err instanceof Error ? err.message : "Delete search failed");
-              }
-            })();
-          }}
+        <WorkspaceDomainTabs
+          tabs={domainTabs}
+          activeIndex={domainTab}
+          counts={domainCountQuery.data}
+          onSelect={selectDomainTab}
+        />
+        <WorkspaceListActionToolbar
+          clientAvailable={Boolean(client)}
+          hasFocusedRecord={Boolean(selectedId)}
+          multiSelectedCount={selectedIds.length}
+          visibleRowCount={listQuery.data?.length ?? 0}
+          inlineEditActive={forceTreeEdit}
+          treeEditable={treeIsEditable}
+          onNew={() => void startNew()}
+          onRefresh={() => void listQuery.refetch()}
+          onSelectView={setViewMode}
+          onToggleInlineEdit={() => setForceTreeEdit((value) => !value)}
+          onDelete={() => requestDelete(effectiveSelectedIds(selectedIds, selectedId))}
+          onCopy={() => void copySelected()}
+          onExportCsv={() => setCsvExportOpen(true)}
+          onImportCsv={(file) => void importCsvFile(file)}
+        />
+        <WorkspaceSearchControls
+          searchInput={searchInput}
+          savedSearches={viewSearchesQuery.data}
+          savedSearchDialog={savedSearchDialog}
+          canSaveSearch={Boolean(client && session && searchQuery.trim())}
+          onSearchInputChange={setSearchInput}
+          onApplySearch={applySearch}
+          onClearSearch={clearSearch}
+          onApplySavedSearch={applySavedSearch}
+          onOpenSavedSearchDialog={setSavedSearchDialog}
+          onCancelSavedSearchDialog={() => setSavedSearchDialog(null)}
+          onSaveSearch={(name) => void saveCurrentSearch(name)}
+          onDeleteSearch={(id) => void removeSavedSearch(id)}
         />
         <div className="epiton-toolbar">
           <Button disabled={!canPrev} onClick={() => setOffset((o) => Math.max(0, o - pageSize))}>
@@ -1818,52 +1685,36 @@ export function ModelWorkspace(props: {
           </Alert>
         ) : null}
         {notice ? <Alert tone={noticeTone(notice)}>{notice}</Alert> : null}
-        <div className="epiton-toolbar">
-          <Button
-            onClick={() => {
-              if (mode === "write" && !confirmDiscard()) return;
-              if (mode === "write") {
-                const restored = screenAfterDiscard(
-                  props.model,
-                  selectedId,
-                  recordQuery.data?.values,
-                );
-                if (restored) setScreen(restored);
-                leaveWriteMode();
-                return;
-              }
-              setMode("write");
-            }}
-          >
-            {t("workspace.mode")}: {mode}
-          </Button>
-          <Badge tone={mode === "write" ? "accent" : "muted"}>{mode}</Badge>
-          {isDirty ? <Badge tone="accent">{t("workspace.unsaved")}</Badge> : null}
-          {onChangePending ? <Badge tone="muted">Updating fields…</Badge> : null}
-          <Button
-            variant="primary"
-            disabled={saveMutation.isPending || !canSave}
-            onClick={() => saveMutation.mutate()}
-          >
-            {t("workspace.save")}
-          </Button>
-          <Button
-            variant="danger"
-            disabled={!selectedId}
-            onClick={() => selectedId && requestDelete([selectedId])}
-          >
-            {t("workspace.delete")}
-          </Button>
-          <Button disabled={!client || !selectedId} onClick={() => void copySelected()}>
-            {t("workspace.copy")}
-          </Button>
-          <Button disabled={!selectedId} onClick={() => setShowHistory((v) => !v)}>
-            {t("workspace.history")}
-          </Button>
-          <Button disabled={!selectedId} onClick={() => void openEmail()}>
-            {t("workspace.email")}
-          </Button>
-        </div>
+        <WorkspaceRecordActionToolbar
+          mode={mode}
+          isDirty={isDirty}
+          onChangePending={onChangePending}
+          clientAvailable={Boolean(client)}
+          hasFocusedRecord={Boolean(selectedId)}
+          canSave={canSave}
+          savePending={saveMutation.isPending}
+          onToggleMode={() => {
+            if (mode === "write" && !confirmDiscard()) return;
+            if (mode === "write") {
+              const restored = screenAfterDiscard(
+                props.model,
+                selectedId,
+                recordQuery.data?.values,
+              );
+              if (restored) setScreen(restored);
+              leaveWriteMode();
+              return;
+            }
+            setMode("write");
+          }}
+          onSave={() => saveMutation.mutate()}
+          onDelete={() => {
+            if (selectedId) requestDelete([selectedId]);
+          }}
+          onCopy={() => void copySelected()}
+          onToggleHistory={() => setShowHistory((value) => !value)}
+          onEmail={() => void openEmail()}
+        />
         <MetaStrip values={draft} />
         {showHistory && selectedId != null ? (
           <RecordHistoryPanel
@@ -1898,13 +1749,11 @@ export function ModelWorkspace(props: {
             }}
           />
         ) : null}{" "}
-        {props.onOpenAction ? (
-          <RecordActionsMenu
-            model={props.model}
-            recordId={selectedId}
-            onOpen={(ref, source) => props.onOpenAction?.(ref, source)}
-          />
-        ) : null}
+        <WorkspaceKeywordActions
+          model={props.model}
+          recordId={selectedId}
+          onOpen={props.onOpenAction}
+        />
         {formViewQuery.data
           ? renderView(formViewQuery.data, {
               values: draft,
@@ -2001,6 +1850,7 @@ export function ModelWorkspace(props: {
             mode={mode}
             recordValues={draft}
             domain={relationDomain}
+            context={rpcContext}
             queue={activeRelationQueue}
             onQueueChange={(update: (current: RelationCommandQueue) => RelationCommandQueue) => {
               setScreen((current) => {

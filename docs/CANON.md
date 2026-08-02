@@ -22,6 +22,9 @@ disagree, this file wins on **authority**; then the linked specialist doc.
 | Agent daily loop / gates | [`docs/AGENT_LOOP.md`](AGENT_LOOP.md) |
 | Governance / approvals / PHI | [`docs/GOVERNANCE.md`](GOVERNANCE.md) |
 | Sao/Tryton parity matrix | [`docs/COMPATIBILITY.md`](COMPATIBILITY.md) |
+| Three-layer architecture and host convergence | [`docs/THREE_LAYER_ARCHITECTURE.md`](THREE_LAYER_ARCHITECTURE.md) |
+| Tryton client capability routing inventory | [`docs/CLIENT_CAPABILITY_INVENTORY.md`](CLIENT_CAPABILITY_INVENTORY.md) |
+| Tryton series targets, certifications, and canary activation | [`config/tryton-series-policy.json`](../config/tryton-series-policy.json) |
 | Library allow/deny | [`docs/TOOLING.md`](TOOLING.md) |
 | On-device intelligence | [`docs/INTELLIGENCE.md`](INTELLIGENCE.md) |
 | GNU Health path | [`docs/GNU_HEALTH.md`](GNU_HEALTH.md) |
@@ -58,14 +61,33 @@ Forbidden second truths:
 - Client SQLAlchemy / direct Postgres from the SPA
 - Client-authored clinical PDFs as “system of record”
 - Intelligence auto-`write` / auto-`create` / auto-`delete`
-- Caching session tokens in `localStorage`
+- Any implicit durable client copy of authentication, connection details,
+  backend/model/record identifiers, RPC payloads, drafts, domains, navigation,
+  layout, or preferences
+- Backend/model/record identifiers encoded into URL or browser history
+- Client-fabricated menus, views, business rows, favorites, defaults, or action
+  targets when trytond is unavailable or returns malformed data
 
 Allowed non-authoritative client data:
 
-- `localStorage` key `epiton.connection` → connection preferences only; production web ignores a stored `baseUrl`
-- `sessionStorage` board pane order (`epiton.board.order.*`)
-- In-memory Session token + preferences after login
-- Chart aggregations derived from `search_read` (display only)
+- Session, connection, preferences, navigation, layout, and backend projections
+  in process memory only; user-scoped state is purged on logout, authenticated
+  401, and page lifecycle teardown
+- Chart aggregations derived from `search_read` in memory (display only)
+- Deletion-only migration adapters for erasing historical storage keys; they may
+  never read or hydrate stored values
+- Explicit user exports/downloads initiated by a user gesture
+- PWA precache of static build assets only; never RPC, bus, authentication, or
+  other dynamic responses
+
+JSON-RPC responses are accepted only when their id matches the request and the
+envelope contains exactly one of `result` or `error`. The browser and bus use
+`no-store`, omit ambient credentials, and suppress referrer data.
+
+Navigation authority also stays in trytond: menus come from `ir.ui.menu`, and
+per-user favorites use only `ir.ui.menu.favorite.get/set/unset`. A failed or
+malformed backend response produces an explicit unavailable/error state; the
+client must not substitute a plausible local business projection.
 
 ## Package canon
 
@@ -75,7 +97,7 @@ Allowed non-authoritative client data:
 | `@epiton/view-engine` | XML arch parse/render, PYSON, graph/board/analytics helpers |
 | `@epiton/ui` | Shared primitives (Button, Alert, ConfirmDialog, …) |
 | `@epiton/intelligence` | Local search, suggestions, presets — **no writes** |
-| `@epiton/web` | SPA shell + workspaces |
+| `@epiton/web` | Next.js target host + temporary Vite static bridge + shared workspaces |
 | `@epiton/desktop` | Tauri beta shell; session stays in memory |
 | `@epiton/mobile` | Capacitor beta shell; session stays in memory |
 | `epiton-gateway` | Axum reverse proxy |
@@ -95,6 +117,11 @@ Default lab RPC bases:
 Proteus is permitted only as a pinned, isolated compatibility oracle under
 `docker/proteus/`. It is not a runtime dependency and must not enter UI or
 production paths.
+
+The server series exposed by `@epiton/protocol` is an observed `X.Y` capability,
+not a support enum. Supported tiers and the evidence required to activate the
+Tryton 9 lab are declared separately in
+[`config/tryton-series-policy.json`](../config/tryton-series-policy.json).
 
 ## UI state exclusivity
 

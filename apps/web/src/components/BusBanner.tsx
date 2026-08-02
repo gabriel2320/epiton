@@ -2,6 +2,7 @@ import { BusClient, type BusMessage } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { clearClientAuthentication } from "../lib/sessionBoundary";
 import { useAppStore } from "../lib/store";
 
 interface BusNote {
@@ -83,7 +84,9 @@ export function BusBanner(props: {
       setStatus("idle");
       return;
     }
-    const bus = new BusClient(client.busUrl(), session);
+    const bus = new BusClient(client.busUrl(), session, {
+      onSessionInvalidated: () => clearClientAuthentication(queryClient),
+    });
     let active = true;
     setStatus("listening");
     const channels = [`user:${session.userId}`, "client"];

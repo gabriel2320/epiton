@@ -1,6 +1,6 @@
 # Where Tryton (Sao/GTK) still surpasses Epitón
 
-Date: **2026-07-31**. Companion to [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)
+Updated: **2026-08-01**. Companion to [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)
 (live RPC evidence) and [`COMPATIBILITY.md`](COMPATIBILITY.md) (status matrix).
 
 **Frame:** Epitón already matches Tryton on the **Session wire** and core
@@ -35,9 +35,9 @@ with record-isolation guards; plus attachments depth, graph operators, ↑/↓ n
 | **`_actions` cross-filter** | Click graph/list selection filters sibling panes | **Improved:** `_actions` dict + `active_id`; relation heuristics as fallback | Small | `BoardWorkspace` / `BoardPane` |
 | **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** selection/date/m2o cells + New row | Small | `VirtualPartyTable.tsx` |
 | **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy fetch + tree_state(+domain) + sequence DnD | Small | `tree_hierarchy.ts`, `tree_state.ts` |
-| **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + sessionStorage page memory | Small | `render.tsx` `NotebookHost` |
+| **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + process-local page selection | Small | `render.tsx` `NotebookHost` |
 | **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
-| **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** `ir.ui.menu.favorite` + star toggle; preset fallback | Small | `Shell.tsx`, `MenuTree.tsx` |
+| **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** exact `ir.ui.menu.favorite.get/set/unset` + star toggle; strict server tuples and no fabricated fallback | Small | `menus.ts`, `Shell.tsx`, `MenuTree.tsx` |
 | **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** catalog + `t()` labels + Shell/workspace chrome | Small | `i18n.ts`, `Shell.tsx` |
 | **Reports** | Broader formats + print pipeline | **Improved:** formats + pdfjs + `ir.action.report` picker | Small | `ReportDownload.tsx` |
 | **Wizards** | Validate flags, icons, robust end-state execute | **Improved:** end-state + validate + on_change + M2O search | Small | `WizardStepper.tsx` |
@@ -65,7 +65,7 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 | Area | Note |
 |------|------|
-| Session CRUD / act_window / keywords | Live `compat:live` 19/19 on Tryton 7 and 8 labs |
+| Session CRUD / act_window / menu favorites / keywords | Live `compat:live` 21/21 on Tryton 7 (including relation-child boundary) and prior 20/20 on Tryton 8 |
 | Domain tabs + `search_count` badges | Implemented |
 | Client analytics overlays | Boards/graphs aggregate `search_read` with insights |
 | Gateway (CSP, rate limit, strict ACL coach) | Sao has no equivalent Axum edge |
@@ -105,11 +105,11 @@ agent ownership in [`AGENT_BRIDGE.md`](AGENT_BRIDGE.md).
 - **Do not rebuild Screen or Board from zero.** Parent-owned relation commands,
   record-isolation guards, and tree/graph/form board panes are already
   `Improved`.
-- **Evidence comes first.** The 19/19 live receipt proves the wire, not deep
+- **Evidence comes first.** The 21/21 Tryton 7 and 20/20 Tryton 8 live receipts prove the wire, not deep
   browser behavior. Relation queues, board actions, wizards, reports, and
   calendars need deterministic browser scenarios.
 - **Reduce the workspace hotspot before adding more UI state.**
-  `ModelWorkspace.tsx` is about 2,000 lines and currently concentrates list,
+  `ModelWorkspace.tsx` is now below 2,000 lines but still concentrates list,
   record, action, calendar, search, and relation behavior.
 - **Nested Screen and dense form layout are the main client-depth gaps.** A
   multi-clause filter builder is valuable, but the existing field-aware search
@@ -187,7 +187,7 @@ business truth outside trytond.
 
 | Track | Evidence | Commits / gates (local, 2026-07-31) |
 |-------|----------|-------------------------------------|
-| Session wire + CRUD | `compat:live` 19/19 on Tryton 7 and 8 | CI + lab receipts |
+| Session wire + CRUD | `compat:live` 21/21 on Tryton 7, including transient relation child; prior 20/20 on Tryton 8 | CI + lab receipts |
 | Proteus lab oracle | Isolated docker oracle 4/4 | Never product runtime |
 | Screen host + parent O2M/M2M queue | Hydrate flag; pristine `default_get`; generation + last-request-wins `on_change`; Save flushes pending work | `06627c7`, `7a7f0fe` (PASS) |
 | Browser relation / isolation | One parent `write` for queued create+edit; late A read cannot redirect B | `75a6e44` (PASS); mock e2e 8/8 |
@@ -198,6 +198,7 @@ business truth outside trytond.
 
 | Stream | Goal | Primary packages | Audit / gap anchors |
 |--------|------|------------------|---------------------|
+| **W0 Host convergence** | Qualify Next App Router without forking the product | `apps/web/app`, host adapters, shell configs | `THREE_LAYER_ARCHITECTURE.md`; Next canary compatibility row |
 | **W1 Evidence** | Deterministic Playwright for remaining Sao-depth flows | `e2e/**`, mock Tryton | AUDIT next-batches #1; AHEAD L1 |
 | **W2 Workspace structure** | Shrink `ModelWorkspace` hotspot without RPC drift | `apps/web` hooks/components | AHEAD L2 |
 | **W3 Nested Screen** | Child Screen contract + single parent mutation | `view-engine`, relation editors | AHEAD L3; executive shortlist #3 |
@@ -205,7 +206,7 @@ business truth outside trytond.
 | **W5 Domain UX** | Typed filter builder ↔ Tryton domains | `view-engine` + workspace search | AHEAD L5 |
 | **W6 Board polish** | Wizard/report via shared shell host | Board + Shell action host | AHEAD L6; AUDIT smoke #4 |
 | **W7 Release / ops** | Threat model, a11y/perf, GH metadata lab | gateway docs, `GNU_HEALTH.md` | AUDIT A-01/A-09; L7 |
-| **W8 Platform shells** | Native secret-store only if persistence is required | Tauri / Capacitor bridges | AUDIT A-05 |
+| **W8 Platform shells** | Verify memory-only lifecycle and deletion-only migration on real devices | Tauri / Capacitor bridges | AUDIT A-05 |
 
 ### L1 — Browser depth evidence (atomic slices)
 
@@ -222,7 +223,8 @@ failed client gate.
 
 Rules for every L1 slice:
 
-1. One CLAIM, one owner, one atomic commit (or Cursor commit if Codex `.git` is RO).
+1. One CLAIM, one owner, one atomic commit; execution is Codex-only while that
+   user instruction remains active.
 2. Expand mock fixtures only as needed for that slice.
 3. Do not reopen Screen five-pack without a reproducible regression + new CLAIM.
 4. Update `COMPATIBILITY.md` notes when the evidence changes the claim wording.
@@ -231,10 +233,19 @@ Rules for every L1 slice:
 
 Extract without changing JSON-RPC shapes or Screen invariants:
 
-1. Record lifecycle / hydrate / save / discard hooks (consume `view-engine` Screen).
-2. List selection, multi-select, adjacent nav, domain tabs.
-3. Action toolbar (keywords, buttons, copy, CSV, attachments entry).
-4. Search / view-mode / board-host switching.
+1. **DONE (L2.1/L2.2):** record lifecycle / hydrate / save / discard helpers
+   (consume `view-engine` Screen).
+2. **DONE (L2.3):** list selection, multi-select, adjacent nav, domain tabs.
+3. **DONE (L2.4, 2026-08-01):** typed list/record action toolbars plus pure
+   button-action detection, availability, and canonical active-record context.
+   Keywords still use the shared action host; attachments remain owned by the
+   shared Shell drawer so the extraction creates no second record-scoped runtime.
+4. **DONE (L2.5, 2026-08-01):** pure search/domain composition and ordered
+   view/host policy plus typed domain-tab and saved-search controls. The
+   workspace still owns `ir.ui.view_search` RPC and volatile state; the shared
+   Shell remains the only board/model host router. The first supported Tryton
+   action view (`calendar`, `graph`, or `list-form`) is honored and reset when
+   action metadata changes; form-only and unknown kinds safely use tree.
 
 Exit: no new monolith; L1.1–L1.x still green; bundle budget intact; each extract
 has a focused test or an e2e that pins behavior.
@@ -243,12 +254,21 @@ has a focused test or an e2e that pins behavior.
 
 Highest product-depth risk. Sequence:
 
-1. Freeze a pure `view-engine` child Screen API (validation, `on_change`, cancel,
-   command bubble into parent queue).
-2. Record the API handoff in `AGENT_BRIDGE` / COMPATIBILITY before web wiring.
-3. Wire `RelationLinesEditor` / line forms to that API; align or retire
-   duplicate paths (e.g. `PartyWorkspace`).
-4. One relation-heavy browser flow proves a **single** parent `create`/`write`.
+1. **DONE (L3.1, 2026-08-01):** freeze a pure `view-engine` child Screen API
+   (validation, last-request-wins `on_change`, cancel/navigation, immutable
+   command bubble into the parent queue).
+2. **DONE (L3.1, 2026-08-01):** record the normative handoff in
+   [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md), `AGENT_BRIDGE`, and
+   `COMPATIBILITY` before web wiring.
+3. **DONE (L3.2, 2026-08-01):** wire `RelationLinesEditor` / line forms to that
+   API; translate x2many `on_change` patches, honor server `pre_validate`, and
+   retire the duplicate `PartyWorkspace` lifecycle behind a thin adapter.
+4. **DONE (L3.2, 2026-08-01):** one relation-heavy browser flow proves queued
+   child create + edit produce exactly one parent `write` and no child mutation.
+5. **DONE (L3.3, 2026-08-01):** a deterministic M2M receipt proves add/remove
+   membership as one parent write with zero child mutation; the disposable
+   Tryton 7 lab discovers a relation child from metadata and accepts its
+   transient `on_change_with` + `pre_validate` path (`compat:live` 21/21).
 
 Do not start L3 while **L1.3–L1.4** evidence is still open unless a production
 blocker appears; prefer finishing L1 evidence and L2 first to reduce merge
@@ -307,17 +327,18 @@ raises priority (then CLAIM explicitly).
 | Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
 | Human | Authority for push, PHI, production, license exceptions |
 
-Default next implementer claim after the completed L1 evidence program: **L2
-`ModelWorkspace` decomposition**, beginning with a read-only boundary inventory and
-one behavior-preserving extraction.
+Default next implementation slice: **L4 dense form layout**. Preserve the
+frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md) and its exact
+L3.3 evidence boundary; add Sao-shaped layout semantics through neutral parser
+fixtures and shared form hosts without coupling L5 filter work into the slice.
 
 ### Milestone map (relative, not calendar)
 
 ```text
 M0  Wire + Screen + L1.1 + L1.2   ████ DONE
 M1  L1.3–L1.4 browser evidence    ████ DONE
-M2  L2 workspace decomposition    ░░░ NEXT
-M3  L3 nested Screen API+wire     ░░░
+M2  L2 workspace decomposition    ████ DONE
+M3  L3 nested Screen API+wire     ████ DONE (L3.1 contract + L3.2 wire + L3.3 evidence)
 M4  L4 form density ‖ L5 filters  ░░░ (path-isolated)
 M5  L6 board polish (optional)    ░░░
 M6  L7 release candidate          ░░░

@@ -1,6 +1,6 @@
 # Epitón vs Tryton — comparison & compatibility evidence
 
-Date: **2026-07-31**. Supported lab tiers: Tryton **7.0** and **8.0**, each
+Date: **2026-08-01**. Supported lab tiers: Tryton **7.0** and **8.0**, each
 behind its own Epitón gateway.
 Authority: [`CANON.md`](CANON.md) · Matrix: [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
@@ -29,7 +29,7 @@ Epitón aims for **wire + UX parity**, not a GPL reimplementation.
 | CRUD + `copy` + `export_data` | Yes | Yes | PASS |
 | `default_get` / preferences | Yes | Yes | PASS |
 | `ir.action.act_window` resolve | Yes | Yes | PASS (Parties #68) |
-| Menus `ir.ui.menu` | Yes | Yes | PASS (4 roots) |
+| Menus + user favorites | Yes | Yes | PASS (`ir.ui.menu` + `ir.ui.menu.favorite.get`) |
 | Keywords `get_keyword` | Yes | Yes | PASS (relate) |
 | Attachments model | Yes | Yes | PASS (search) |
 | Bus endpoint | Yes | Client + panel | `supportsBus: true` |
@@ -71,18 +71,22 @@ CI runs lint/typecheck/test/build/bundle, a deterministic browser suite, Rust
 gateway gates, and a Tryton 7/8 matrix containing protocol, Proteus-oracle, and
 live browser checks.
 
-## Live run snapshot (2026-07-31)
+## Live run snapshot (2026-08-01)
 
 Commands: `pnpm compat:live` against each local lab tier.
 
 | Tier | Epitón protocol | Proteus oracle | Browser CRUD |
 |------|------------------|----------------|--------------|
-| Tryton 7.0 | 19 pass / 0 fail | 4 pass / 0 fail | pass |
-| Tryton 8.0 | 19 pass / 0 fail | 4 pass / 0 fail | pass |
+| Tryton 7.0 | 21 pass / 0 fail | 4 pass / 0 fail | pass |
+| Tryton 8.0 | 20 pass / 0 fail | 4 pass / 0 fail | pass |
 
 Notable passes: login, preferences, party tree/form views, search_read/count,
-default_get, create/write/read/copy/export/delete, act_window Parties,
-menus, attachments search, form_relate keywords, logout.
+default_get, create/write/read/copy/export/delete, act_window Parties, strict
+menus plus server-owned favorites, attachments search, form_relate keywords,
+logout. The current Tryton 7 run additionally discovers a metadata-requested
+`party.identifier` child boundary and accepts its transient `on_change_with` +
+`pre_validate` path. The Tryton 8 figure is the prior green snapshot; the new
+deep relation check has not been generalized to that series.
 
 Notable lab limits (not Epitón defects): no `party.party` graph view; no board
 views in stock party/company lab image; unauthenticated server version empty.
@@ -97,8 +101,14 @@ PYSON + O2M/M2M + board/graph parse).
    optional deny-only strict ACL guard).
 3. **Intelligence** — local search/suggestions; never auto-writes.
 4. **Analytics** — client charts over `search_read` (≤500 rows), not a warehouse.
-5. **Storage** — session token in memory on every current shell; only sanitized
-   connection preferences may use `localStorage`.
+5. **Client boundary** — authentication, connection, backend projections,
+   identifiers, domains, navigation, layout, and preferences remain in process
+   memory and are purged at authentication/lifecycle boundaries.
+
+This is an Epitón hardening advantage at the client boundary: strict response-id
+correlation, no durable business-state copy, and no identifiers in URL/history,
+while trytond remains the same authority. It is not a claim that upstream Tryton
+or Sao is insecure, nor a substitute for closing the remaining Sao UX gaps.
 
 ## Remaining gaps vs Sao (priority)
 

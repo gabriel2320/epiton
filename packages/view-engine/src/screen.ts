@@ -217,8 +217,25 @@ export function relationQueueHasChanges(queue: RelationCommandQueue): boolean {
 
 export function relationQueueWireValue(queue: RelationCommandQueue): unknown[] {
   if (queue.kind === "many2many") {
-    // M2M ids are authoritative; commands only preserve editor intent/dirty state.
-    return toTrytonM2MDelta(queue.baselineIds, queue.ids);
+    // Membership is normalized from ids, while nested record mutations retain
+    // their explicit order. A delete already implies unlink, so do not emit a
+    // duplicate remove for that id.
+    const nested = queue.commands.filter(
+      (command) => command.op === "create" || command.op === "write" || command.op === "delete",
+    );
+    if (!nested.length) return toTrytonM2MDelta(queue.baselineIds, queue.ids);
+    const deleted = new Set(
+      nested.filter((command) => command.op === "delete").map((command) => command.id),
+    );
+    const previous = new Set(queue.baselineIds);
+    const next = new Set(queue.ids);
+    const membership: O2MCommand[] = [
+      ...queue.ids.filter((id) => !previous.has(id)).map((id): O2MCommand => ({ op: "add", id })),
+      ...queue.baselineIds
+        .filter((id) => !next.has(id) && !deleted.has(id))
+        .map((id): O2MCommand => ({ op: "remove", id })),
+    ];
+    return toTrytonO2M([...nested, ...membership]);
   }
   let commands = queue.commands;
   if (!commands.length) {
@@ -236,6 +253,67 @@ export function relationQueueWireValue(queue: RelationCommandQueue): unknown[] {
     }
   }
   return toTrytonO2M(commands);
+}
+
+/**
+ * Encode the live relation snapshot used by Tryton on_change methods.
+ * This is deliberately different from relationQueueWireValue: O2M uses child
+ * dictionaries and M2M uses ids, while parent persistence uses command tuples.
+ */
+export function relationQueueOnChangeValue(queue: RelationCommandQueue): unknown[] {
+  if (queue.kind === "many2many") return [...queue.ids];
+
+  const rows = new Map<number, Record<string, unknown>>();
+  for (const id of queue.ids) rows.set(id, { id });
+  const creates: Array<Record<string, unknown>> = [];
+
+  for (let commandIndex = 0; commandIndex < queue.commands.length; commandIndex += 1) {
+    const command = queue.commands[commandIndex];
+    if (!command) continue;
+    if (command.op === "create") {
+      creates.push({ ...command.values, id: -(commandIndex + 1) });
+    } else if (command.op === "write") {
+      if (rows.has(command.id))
+        rows.set(command.id, { ...rows.get(command.id), ...command.values, id: command.id });
+    } else if (command.op === "add") {
+      if (!rows.has(command.id)) rows.set(command.id, { id: command.id });
+    } else if (command.op === "remove" || command.op === "delete") {
+      rows.delete(command.id);
+    }
+  }
+
+  const persisted = queue.ids.flatMap((id) => {
+    const row = rows.get(id);
+    return row ? [row] : [];
+  });
+  return [...persisted, ...creates];
+}
+
+/** Encode a Screen for on_change/pre_validate without leaking write tuples. */
+export function screenValuesForOnChange(
+  screen: ScreenState,
+  fieldMeta: Readonly<Record<string, ViewField>>,
+): Record<string, unknown> {
+  const values: Record<string, unknown> = {
+    id: screen.recordId ?? numericId(screen.values.id) ?? -1,
+  };
+  for (const [name, meta] of Object.entries(fieldMeta)) {
+    const queue = screen.relationQueues[name];
+    if (queue && queue.kind === meta.type) {
+      values[name] = relationQueueOnChangeValue(queue);
+      continue;
+    }
+    if (!(name in screen.values)) continue;
+    const raw = screen.values[name];
+    if (meta.type === "many2many") {
+      values[name] = relationValueForOnChange("many2many", raw);
+    } else if (meta.type === "one2many") {
+      values[name] = relationValueForOnChange("one2many", raw);
+    } else {
+      values[name] = raw;
+    }
+  }
+  return values;
 }
 
 export function screenIsDirty(screen: ScreenState): boolean {
@@ -291,4 +369,65 @@ function serialize(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function numericId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isFinite(id) ? id : null;
+}
+
+function relationValueForOnChange(kind: RelationFieldKind, value: unknown): unknown[] {
+  if (!isTrytonRelationCommands(value)) {
+    if (kind === "many2many") return idsFromRelationValue(value);
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        return [{ ...(item as Record<string, unknown>) }];
+      }
+      const id = Array.isArray(item) ? numericId(item[0]) : numericId(item);
+      return id == null ? [] : [{ id }];
+    });
+  }
+
+  const queue: RelationCommandQueue = {
+    kind,
+    ids: idsFromRelationValue(value),
+    baselineIds: [],
+    commands: relationCommandsFromWire(value),
+  };
+  return relationQueueOnChangeValue(queue);
+}
+
+function relationCommandsFromWire(value: unknown): O2MCommand[] {
+  if (!Array.isArray(value)) return [];
+  const commands: O2MCommand[] = [];
+  for (const item of value) {
+    if (!Array.isArray(item) || typeof item[0] !== "string") continue;
+    const op = item[0];
+    if (op === "create" && item[1] && typeof item[1] === "object" && !Array.isArray(item[1])) {
+      commands.push({ op, values: { ...(item[1] as Record<string, unknown>) } });
+      continue;
+    }
+    if (
+      op === "write" &&
+      Array.isArray(item[1]) &&
+      item[2] &&
+      typeof item[2] === "object" &&
+      !Array.isArray(item[2])
+    ) {
+      for (const rawId of item[1]) {
+        const id = numericId(rawId);
+        if (id != null)
+          commands.push({ op, id, values: { ...(item[2] as Record<string, unknown>) } });
+      }
+      continue;
+    }
+    if ((op === "add" || op === "remove" || op === "delete") && Array.isArray(item[1])) {
+      for (const rawId of item[1]) {
+        const id = numericId(rawId);
+        if (id != null) commands.push({ op, id });
+      }
+    }
+  }
+  return commands;
 }

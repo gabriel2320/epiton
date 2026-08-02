@@ -1,12 +1,12 @@
-import type { MenuItem } from "@epiton/intelligence";
+import type { TrytonMenu } from "@epiton/protocol";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-interface TreeNode extends MenuItem {
+interface TreeNode extends TrytonMenu {
   children: TreeNode[];
 }
 
-function buildTree(items: MenuItem[]): TreeNode[] {
+function buildTree(items: TrytonMenu[]): TreeNode[] {
   const map = new Map<string | number, TreeNode>();
   for (const item of items) {
     map.set(item.id, { ...item, children: [] });
@@ -96,7 +96,7 @@ function MenuNode(props: {
 }
 
 export function MenuTree(props: {
-  items: MenuItem[];
+  items: TrytonMenu[];
   onOpen: (action: string) => void;
   onPrefetch?: (action: string) => void;
   onToggleFavorite?: (id: number, next: boolean) => void;

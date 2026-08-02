@@ -1,0 +1,31 @@
+{
+  "schema": "epiton.tryton-series-policy.v1",
+  "productTargetSeries": ["7.0", "9.0"],
+  "certifiedSeries": {
+    "7.0": {
+      "evidence": ["protocol", "proteus", "browser"]
+    },
+    "8.0": {
+      "evidence": ["protocol", "proteus", "browser"]
+    }
+  },
+  "canary": {
+    "series": "9.0",
+    "supportClaim": false,
+    "sources": {
+      "serverPackage": "https://pypi.org/pypi/trytond/9.0.0/json",
+      "clientOraclePackage": "https://pypi.org/pypi/proteus/9.0.0/json",
+      "serverDocs": "https://docs.tryton.org/9.0/server/",
+      "container": "https://hub.docker.com/v2/repositories/tryton/tryton/tags/9.0"
+    },
+    "activationRequires": [
+      "serverPackage",
+      "clientOraclePackage",
+      "serverDocs",
+      "container",
+      "protocol",
+      "proteus",
+      "browser"
+    ]
+  }
+}

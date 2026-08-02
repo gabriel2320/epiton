@@ -14,6 +14,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
+    fmt,
     net::SocketAddr,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -34,6 +35,50 @@ struct AppState {
     http: reqwest::Client,
     login_hits: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
     login_limit: usize,
+    response_limit: usize,
+}
+
+#[derive(Debug)]
+enum ForwardError {
+    Upstream(reqwest::Error),
+    InvalidJson(serde_json::Error),
+    ResponseTooLarge { limit: usize },
+}
+
+impl ForwardError {
+    fn is_timeout(&self) -> bool {
+        matches!(self, Self::Upstream(error) if error.is_timeout())
+    }
+
+    fn is_response_too_large(&self) -> bool {
+        matches!(self, Self::ResponseTooLarge { .. })
+    }
+}
+
+impl fmt::Display for ForwardError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Upstream(error) => write!(formatter, "{error}"),
+            Self::InvalidJson(error) => write!(formatter, "invalid upstream JSON: {error}"),
+            Self::ResponseTooLarge { limit } => {
+                write!(formatter, "upstream response exceeds {limit} bytes")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ForwardError {}
+
+impl From<reqwest::Error> for ForwardError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::Upstream(error)
+    }
+}
+
+impl From<serde_json::Error> for ForwardError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::InvalidJson(error)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +105,7 @@ async fn main() {
         parse_cors_origins(&std::env::var("EPITON_CORS_ORIGINS").unwrap_or_default())
             .expect("invalid EPITON_CORS_ORIGINS");
     let body_limit = env_usize("EPITON_MAX_BODY_BYTES", 16 * 1024 * 1024);
+    let response_limit = env_usize("EPITON_MAX_RESPONSE_BYTES", 64 * 1024 * 1024);
     let login_limit = env_usize("EPITON_LOGIN_LIMIT_PER_MINUTE", 20);
     let timeout = Duration::from_secs(env_usize("EPITON_UPSTREAM_TIMEOUT_SECS", 120) as u64);
     let http = reqwest::Client::builder()
@@ -76,6 +122,7 @@ async fn main() {
         http,
         login_hits: Arc::new(Mutex::new(HashMap::new())),
         login_limit,
+        response_limit,
     };
 
     let mut app = Router::new()
@@ -297,7 +344,9 @@ async fn proxy_rpc_inner(
         Ok(resp) => resp,
         Err(err) => {
             tracing::error!(%correlation, error=%err, "upstream error");
-            if err.is_timeout() {
+            if err.is_response_too_large() {
+                (StatusCode::BAD_GATEWAY, "upstream response too large").into_response()
+            } else if err.is_timeout() {
                 (StatusCode::GATEWAY_TIMEOUT, "upstream timeout").into_response()
             } else {
                 (StatusCode::BAD_GATEWAY, "upstream error").into_response()
@@ -312,7 +361,7 @@ async fn probe_model_access(
     headers: &HeaderMap,
     model: &str,
     correlation: &str,
-) -> Result<bool, reqwest::Error> {
+) -> Result<bool, ForwardError> {
     let body = json!({
         "id": 1,
         "method": "model.ir.model.access.search_read",
@@ -324,7 +373,8 @@ async fn probe_model_access(
     }
     req = req.header("x-correlation-id", correlation);
     let resp = req.send().await?;
-    let payload: Value = resp.json().await?;
+    let bytes = read_upstream_body(resp, state.response_limit.min(1024 * 1024)).await?;
+    let payload: Value = serde_json::from_slice(&bytes)?;
     if let Some(result) = payload.get("result") {
         return Ok(strict::access_rows_present(result));
     }
@@ -368,6 +418,9 @@ async fn proxy_bus(
     .await
     {
         Ok(resp) => resp,
+        Err(err) if err.is_response_too_large() => {
+            (StatusCode::BAD_GATEWAY, "upstream response too large").into_response()
+        }
         Err(err) if err.is_timeout() => {
             (StatusCode::GATEWAY_TIMEOUT, "upstream timeout").into_response()
         }
@@ -383,7 +436,7 @@ async fn forward(
     body: Bytes,
     correlation: &str,
     rpc_method: Option<&str>,
-) -> Result<Response, reqwest::Error> {
+) -> Result<Response, ForwardError> {
     let mut req = state.http.request(method.clone(), url);
     if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION) {
         req = req.header(axum::http::header::AUTHORIZATION, auth);
@@ -398,7 +451,7 @@ async fn forward(
     let status =
         StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let content_type = upstream.headers().get(header::CONTENT_TYPE).cloned();
-    let bytes = upstream.bytes().await?;
+    let bytes = read_upstream_body(upstream, state.response_limit).await?;
 
     tracing::info!(
         %correlation,
@@ -422,6 +475,41 @@ async fn forward(
             .insert(header::CONTENT_TYPE, content_type);
     }
     Ok(response)
+}
+
+async fn read_upstream_body(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, ForwardError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        return Err(ForwardError::ResponseTooLarge { limit });
+    }
+
+    let capacity = response
+        .content_length()
+        .and_then(|length| usize::try_from(length).ok())
+        .unwrap_or_default()
+        .min(limit);
+    let mut body = Vec::with_capacity(capacity);
+    while let Some(chunk) = response.chunk().await? {
+        append_response_chunk(&mut body, &chunk, limit)?;
+    }
+    Ok(body)
+}
+
+fn append_response_chunk(
+    body: &mut Vec<u8>,
+    chunk: &[u8],
+    limit: usize,
+) -> Result<(), ForwardError> {
+    if chunk.len() > limit.saturating_sub(body.len()) {
+        return Err(ForwardError::ResponseTooLarge { limit });
+    }
+    body.extend_from_slice(chunk);
+    Ok(())
 }
 
 fn valid_database_name(db: &str) -> bool {
@@ -486,6 +574,7 @@ mod tests {
             http: reqwest::Client::new(),
             login_hits: Arc::new(Mutex::new(HashMap::new())),
             login_limit: 20,
+            response_limit: 64 * 1024 * 1024,
         };
         for _ in 0..5 {
             assert!(rate_limit(&state, "127.0.0.1"));
@@ -532,5 +621,16 @@ mod tests {
         assert!(is_json_request(&headers));
         headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
         assert!(!is_json_request(&headers));
+    }
+
+    #[test]
+    fn response_chunks_are_bounded() {
+        let mut body = Vec::new();
+        append_response_chunk(&mut body, b"1234", 8).expect("first chunk");
+        append_response_chunk(&mut body, b"5678", 8).expect("exact limit");
+        assert_eq!(body, b"12345678");
+
+        let error = append_response_chunk(&mut body, b"9", 8).expect_err("over limit");
+        assert!(matches!(error, ForwardError::ResponseTooLarge { limit: 8 }));
     }
 }

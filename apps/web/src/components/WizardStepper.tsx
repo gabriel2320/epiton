@@ -32,8 +32,6 @@ interface WizardRuntime {
   context: JsonObject;
 }
 
-const DEFAULT_WIZARDS = ["ir.module.activate_upgrade", "ir.translation.export", "res.user.config"];
-
 function wizardContext(
   initialContext: JsonObject | null | undefined,
   activeId: number | null | undefined,
@@ -65,7 +63,7 @@ export function WizardStepper(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
-  const [wizardName, setWizardName] = useState(props.initialWizard ?? "ir.module.activate_upgrade");
+  const [wizardName, setWizardName] = useState(props.initialWizard ?? "");
   const [runtime, setRuntime] = useState<WizardRuntime | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
   const [message, setMessage] = useState("Pick a wizard and start");
@@ -131,6 +129,11 @@ export function WizardStepper(props: {
 
   async function start(name = wizardName) {
     if (!client) return;
+    if (!name.trim()) {
+      setStatus("error");
+      setMessage("Choose a wizard supplied by a backend action or enter its technical name");
+      return;
+    }
     setWizardName(name);
     setStatus("loading");
     try {
@@ -320,14 +323,9 @@ export function WizardStepper(props: {
           value={wizardName}
           onChange={(e) => setWizardName(e.target.value)}
           aria-label="Wizard technical name"
-          list="epiton-wizard-suggestions"
+          placeholder="wizard technical name"
           style={{ minWidth: "16rem" }}
         />
-        <datalist id="epiton-wizard-suggestions">
-          {DEFAULT_WIZARDS.map((w) => (
-            <option key={w} value={w} />
-          ))}
-        </datalist>
         <Button variant="primary" onClick={() => void start()}>
           Start
         </Button>

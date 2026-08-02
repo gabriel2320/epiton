@@ -13,6 +13,7 @@ type SyntheticRecord = {
   code: string;
   active: boolean;
   addresses: number[];
+  categories: number[];
 };
 
 type SyntheticAddress = {
@@ -20,6 +21,12 @@ type SyntheticAddress = {
   rec_name: string;
   street: string;
   city: string;
+};
+
+type SyntheticCategory = {
+  id: number;
+  rec_name: string;
+  name: string;
 };
 
 type SyntheticCalendarRecord = {
@@ -43,14 +50,34 @@ const partyFields = {
   },
 };
 
+const partyFieldsWithMany2Many = {
+  ...partyFields,
+  categories: {
+    name: "categories",
+    string: "Categories",
+    type: "many2many",
+    relation: "party.category",
+  },
+};
+
 const partyTree = {
   arch: '<tree string="Parties"><field name="name"/><field name="code"/><field name="active"/></tree>',
   fields: partyFields,
 };
 
 const partyForm = {
-  arch: '<form string="Party"><group string="Identity"><field name="name"/><field name="code"/><field name="active"/><field name="addresses"/></group></form>',
+  arch: '<form string="Party"><group string="Identity"><field name="name"/><field name="code"/><field name="active"/><field name="addresses" pre_validate="1"/></group></form>',
   fields: partyFields,
+};
+
+const partyTreeWithMany2Many = {
+  ...partyTree,
+  fields: partyFieldsWithMany2Many,
+};
+
+const partyFormWithMany2Many = {
+  arch: '<form string="Party"><group string="Identity"><field name="name"/><field name="code"/><field name="active"/><field name="addresses" pre_validate="1"/><field name="categories"/></group></form>',
+  fields: partyFieldsWithMany2Many,
 };
 
 const partyBoard = {
@@ -129,7 +156,7 @@ const syntheticReportAction = {
 
 const addressFields = {
   street: { name: "street", string: "Street", type: "char", required: true },
-  city: { name: "city", string: "City", type: "char" },
+  city: { name: "city", string: "City", type: "char", on_change: ["street"] },
 };
 
 const addressTree = {
@@ -140,6 +167,20 @@ const addressTree = {
 const addressForm = {
   arch: '<form string="Address"><group><field name="street"/><field name="city"/></group></form>',
   fields: addressFields,
+};
+
+const categoryFields = {
+  name: { name: "name", string: "Name", type: "char", required: true },
+};
+
+const categoryTree = {
+  arch: '<tree string="Categories"><field name="name"/></tree>',
+  fields: categoryFields,
+};
+
+const categoryForm = {
+  arch: '<form string="Category"><group><field name="name"/></group></form>',
+  fields: categoryFields,
 };
 
 const calendarFields = {
@@ -185,12 +226,15 @@ export type MockTrytonOptions = {
   includeCalendar?: boolean;
   /** Return a JSON-RPC error for synthetic calendar writes. */
   rejectCalendarWrite?: boolean;
+  /** Add a synthetic party.category Many2Many relation for browser evidence. */
+  includeMany2Many?: boolean;
 };
 
 export type MockTryton = {
   calls: RpcRequest[];
   records: Map<number, SyntheticRecord>;
   addresses: Map<number, SyntheticAddress>;
+  categories: Map<number, SyntheticCategory>;
   calendarRecords: Map<number, SyntheticCalendarRecord>;
   calendarDates: {
     initial: string;
@@ -286,11 +330,25 @@ async function rpcRequest(route: Route): Promise<RpcRequest | null> {
   }
 }
 
+/** Log in to the synthetic backend and open the model exposed by its real menu contract. */
+export async function loginThroughBackendMenu(page: Page): Promise<void> {
+  await page.goto("/");
+  await page.getByLabel("Database").fill("epiton_lab");
+  await page.getByLabel("User").fill("admin");
+  await page.getByLabel("Password").fill("admin");
+  await page.getByRole("button", { name: "Enter Epiton" }).click();
+  const parties = page.locator("aside").getByRole("button", { name: "Parties", exact: true });
+  await parties.first().waitFor({ state: "visible" });
+  await parties.first().click();
+  await page.getByRole("tab", { name: "party.party" }).waitFor({ state: "visible" });
+}
+
 /** Deterministic JSON-RPC boundary for browser tests. It contains synthetic data only. */
 export async function installMockTryton(
   page: Page,
   options: MockTrytonOptions = {},
 ): Promise<MockTryton> {
+  const favoriteMenuIds = new Set<number>([1]);
   const records = new Map<number, SyntheticRecord>([
     [
       1,
@@ -301,6 +359,7 @@ export async function installMockTryton(
         code: "SYN-001",
         active: true,
         addresses: [10],
+        categories: [20, 21],
       },
     ],
     [
@@ -312,6 +371,7 @@ export async function installMockTryton(
         code: "SYN-002",
         active: true,
         addresses: [],
+        categories: [],
       },
     ],
   ]);
@@ -325,6 +385,11 @@ export async function installMockTryton(
         city: "Old City",
       },
     ],
+  ]);
+  const categories = new Map<number, SyntheticCategory>([
+    [20, { id: 20, rec_name: "Synthetic Category Alpha", name: "Synthetic Category Alpha" }],
+    [21, { id: 21, rec_name: "Synthetic Category Beta", name: "Synthetic Category Beta" }],
+    [22, { id: 22, rec_name: "Synthetic Category Gamma", name: "Synthetic Category Gamma" }],
   ]);
   const calendarDates = {
     initial: currentMonthDate(8),
@@ -400,6 +465,25 @@ export async function installMockTryton(
     return nextIds;
   }
 
+  function applyCategoryCommands(currentIds: number[], value: unknown): number[] {
+    if (!Array.isArray(value)) return currentIds;
+    const nextIds = [...currentIds];
+    for (const command of value) {
+      if (!Array.isArray(command) || typeof command[0] !== "string") continue;
+      const operation = command[0];
+      const commandIds = idsFrom(command[1]);
+      if (operation === "add") {
+        for (const id of commandIds) if (!nextIds.includes(id)) nextIds.push(id);
+      } else if (operation === "remove") {
+        for (const id of commandIds) {
+          const index = nextIds.indexOf(id);
+          if (index >= 0) nextIds.splice(index, 1);
+        }
+      }
+    }
+    return nextIds;
+  }
+
   async function dispatch(request: RpcRequest): Promise<unknown> {
     const { method, params } = request;
 
@@ -418,7 +502,6 @@ export async function installMockTryton(
           name: "Parties",
           parent: null,
           action: "party.party",
-          favorite: true,
         },
       ];
       if (options.includeBoard) {
@@ -427,7 +510,6 @@ export async function installMockTryton(
           name: "Synthetic Board",
           parent: null,
           action: "ir.action.act_window,900",
-          favorite: false,
         });
       }
       if (options.includeWizardReportBoard) {
@@ -436,7 +518,6 @@ export async function installMockTryton(
           name: "Synthetic Wizard/Report Board",
           parent: null,
           action: "ir.action.act_window,910",
-          favorite: false,
         });
       }
       if (options.includeCalendar) {
@@ -445,10 +526,22 @@ export async function installMockTryton(
           name: "Synthetic Calendar",
           parent: null,
           action: "synthetic.calendar",
-          favorite: false,
         });
       }
       return menus;
+    }
+    if (method === "model.ir.ui.menu.favorite.get") {
+      return [...favoriteMenuIds].map((id) => [id, id === 1 ? "Parties" : `Menu ${id}`, null]);
+    }
+    if (method === "model.ir.ui.menu.favorite.set") {
+      const id = Number(params[0]);
+      if (Number.isSafeInteger(id) && id > 0) favoriteMenuIds.add(id);
+      return true;
+    }
+    if (method === "model.ir.ui.menu.favorite.unset") {
+      const id = Number(params[0]);
+      if (Number.isSafeInteger(id) && id > 0) favoriteMenuIds.delete(id);
+      return true;
     }
     if (method === "model.ir.ui.view_search.search_read") return [];
     if (method === "model.ir.model.access.search_read") return [{ id: 1 }];
@@ -499,6 +592,9 @@ export async function installMockTryton(
         return partyWizardReportBoard;
       }
       if (options.includeBoard && params[1] === "board") return partyBoard;
+      if (options.includeMany2Many) {
+        return params[1] === "tree" ? partyTreeWithMany2Many : partyFormWithMany2Many;
+      }
       return params[1] === "tree" ? partyTree : partyForm;
     }
     if (method === "model.party.party.search_read") {
@@ -529,6 +625,7 @@ export async function installMockTryton(
         code: text(values.code),
         active: values.active !== false,
         addresses: [],
+        categories: applyCategoryCommands([], values.categories),
       });
       return [id];
     }
@@ -539,6 +636,7 @@ export async function installMockTryton(
         if (!current) continue;
         const nextName = text(values.name, current.name);
         const nextAddresses = applyAddressCommands(current.addresses, values.addresses);
+        const nextCategories = applyCategoryCommands(current.categories, values.categories);
         records.set(id, {
           ...current,
           ...values,
@@ -547,6 +645,7 @@ export async function installMockTryton(
           code: text(values.code, current.code),
           active: values.active == null ? current.active : Boolean(values.active),
           addresses: nextAddresses,
+          categories: nextCategories,
         });
       }
       return true;
@@ -567,6 +666,7 @@ export async function installMockTryton(
           name: `${source.name} copy`,
           rec_name: `${source.name} copy`,
           addresses: [...source.addresses],
+          categories: [...source.categories],
         });
         created.push(id);
       }
@@ -607,6 +707,7 @@ export async function installMockTryton(
           code: text(values.code),
           active: values.active !== false,
           addresses: [],
+          categories: [],
         });
       }
       return rows.length;
@@ -636,11 +737,34 @@ export async function installMockTryton(
       });
     }
     if (method === "model.party.address.default_get") return {};
+    if (method === "model.party.address.on_change_city") return {};
+    if (method === "model.party.address.pre_validate") return null;
     if (
       method === "model.party.address.on_change" ||
       method === "model.party.address.on_change_with"
     ) {
       return {};
+    }
+
+    if (method === "model.party.category.fields_view_get") {
+      return params[1] === "tree" ? categoryTree : categoryForm;
+    }
+    if (method === "model.party.category.search_read") {
+      const requestedIds = domainIds(params[0]);
+      const offset = Number(params[1]) || 0;
+      const requestedLimit = params[2] == null ? categories.size : Number(params[2]);
+      const limit = Number.isFinite(requestedLimit) ? requestedLimit : categories.size;
+      const rows = [...categories.values()]
+        .filter((row) => requestedIds == null || requestedIds.includes(row.id))
+        .slice(offset, offset + limit);
+      return projectRows(rows, params[4]);
+    }
+    if (method === "model.party.category.search_count") return categories.size;
+    if (method === "model.party.category.read") {
+      return idsFrom(params[0]).flatMap((id) => {
+        const record = categories.get(id);
+        return record ? [record] : [];
+      });
     }
 
     if (method === "model.synthetic.calendar.fields_view_get") {
@@ -727,7 +851,18 @@ export async function installMockTryton(
     return true;
   }
 
-  await page.route(/^http:\/\/(?:localhost|127\.0\.0\.1):8080\//, async (route) => {
+  // Keep the synthetic backend hermetic when a real gateway is also listening on
+  // :8080. A 404 advertises that this fixture has no bus and, importantly, keeps a
+  // real gateway 401 from invalidating the synthetic session after login.
+  await page.route(/^https?:\/\/[^/]+\/[^/]+\/bus$/, async (route) => {
+    await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+  });
+
+  // Match only Tryton's database JSON-RPC roots. Vite talks to the development
+  // gateway on :8080 while the production Next host is deliberately same-origin;
+  // keeping the test boundary path-shaped proves both hosts without intercepting
+  // either host's documents or static assets.
+  await page.route(/^https?:\/\/[^/]+\/[^/]+\/(?:rpc\/)?$/, async (route) => {
     const request = await rpcRequest(route);
     if (!request) {
       await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
@@ -760,6 +895,7 @@ export async function installMockTryton(
     calls,
     records,
     addresses,
+    categories,
     calendarRecords,
     calendarDates,
     waitForPartyRead: async (id: number) => {

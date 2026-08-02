@@ -10,8 +10,9 @@ describe("wizard helpers", () => {
   });
 
   it("creates a session from [id, start, end]", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response(JSON.stringify({ id: 1, result: [42, "start", "end"] }), {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as { id: number };
+      return new Response(JSON.stringify({ id: request.id, result: [42, "start", "end"] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -34,6 +35,7 @@ describe("wizard helpers", () => {
   it("executes with Sao-shaped params", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as {
+        id: number;
         method: string;
         params: unknown[];
       };
@@ -42,7 +44,7 @@ describe("wizard helpers", () => {
       expect(body.params[2]).toBe("start");
       return new Response(
         JSON.stringify({
-          id: 1,
+          id: body.id,
           result: {
             view: {
               state: "start",

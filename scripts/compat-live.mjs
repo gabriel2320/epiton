@@ -11,10 +11,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  buildOnChangeArgs,
   copyRecords,
   createClient,
   exportModelCsv,
+  loadMenus,
   loadUserPreferences,
+  preValidateRecord,
   resolveAction,
   resolveWorkspaceModel,
 } from "../packages/protocol/dist/index.js";
@@ -112,6 +115,86 @@ async function main() {
     if (parsed.type !== "form") throw new Error(`type=${parsed.type}`);
     return { fields: Object.keys(parsed.fields).length };
   });
+
+  await tryCheck(
+    "relation_child_boundary",
+    "fields_view_get + on_change_with + pre_validate on transient relation child",
+    async () => {
+      const partyForm = parseFieldsViewGet(await client.fieldsViewGet("party.party", null, "form"));
+      const parentField = Object.values(partyForm.fields).find(
+        (field) =>
+          field.type === "one2many" &&
+          field.pre_validate === true &&
+          typeof field.relation === "string",
+      );
+      if (!parentField?.relation) {
+        throw new Error("party form has no pre_validate one2many relation");
+      }
+
+      const childForm = parseFieldsViewGet(
+        await client.fieldsViewGet(parentField.relation, null, "form"),
+      );
+      const changedField = Object.values(childForm.fields).find((field) =>
+        Object.values(childForm.fields).some(
+          (candidate) =>
+            candidate.name !== field.name && candidate.on_change_with?.includes(field.name),
+        ),
+      );
+      if (!changedField) throw new Error("relation has no on_change_with dependency");
+
+      const dependents = Object.values(childForm.fields).filter(
+        (field) =>
+          field.name !== changedField.name && field.on_change_with?.includes(changedField.name),
+      );
+      const rows = await client.searchRead("party.party", [], ["id"], 0, 1);
+      const parentId = rows[0] ? Number(rows[0].id) : null;
+      if (!parentId) throw new Error("no synthetic party row for relation probe");
+
+      const defaults = await client.model(parentField.relation, "default_get", [
+        Object.keys(childForm.fields),
+        {},
+      ]);
+      const values = {
+        ...(defaults && typeof defaults === "object" && !Array.isArray(defaults) ? defaults : {}),
+        id: -1,
+        party: parentId,
+        code: "EPITON-LIVE-RELATION",
+        [changedField.name]: null,
+      };
+      const dependentNames = dependents.map((field) => field.name);
+      const argumentNames = [
+        "id",
+        ...dependentNames,
+        ...dependents.flatMap((field) => field.on_change_with ?? []),
+      ];
+      const args = buildOnChangeArgs(values, [...new Set(argumentNames)], childForm.fields);
+      const patch = await client.model(parentField.relation, "on_change_with", [
+        args,
+        dependentNames,
+      ]);
+      if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+        throw new Error("on_change_with did not return an object patch");
+      }
+
+      const validation = await preValidateRecord(
+        client,
+        parentField.relation,
+        { ...values, ...patch },
+        childForm.fields,
+      );
+      if (validation !== null) {
+        throw new Error(`pre_validate returned ${JSON.stringify(validation)}`);
+      }
+      return {
+        parentField: parentField.name,
+        relation: parentField.relation,
+        changedField: changedField.name,
+        dependents: dependentNames,
+        patchKeys: Object.keys(patch),
+        validation: "accepted",
+      };
+    },
+  );
 
   await tryCheck("fields_view_get_graph", "model.*.fields_view_get graph", async () => {
     try {
@@ -214,6 +297,14 @@ async function main() {
       10,
     );
     return { roots: menus.length };
+  });
+
+  await tryCheck("menu_favorites", "ir.ui.menu.search_read + ir.ui.menu.favorite.get", async () => {
+    const menus = await loadMenus(client);
+    return {
+      menus: menus.length,
+      favorites: menus.filter((menu) => menu.favorite).length,
+    };
   });
 
   await tryCheck("attachment_model", "ir.attachment.search_read", async () => {

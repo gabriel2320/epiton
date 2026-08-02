@@ -1,245 +1,436 @@
-import type { JsonObject } from "@epiton/protocol";
-import { applyFieldChange } from "@epiton/protocol";
+import { type JsonObject, applyFieldChange, preValidateRecord } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
+  type ChildScreenState,
+  type ChildScreenTarget,
   type ParsedView,
   type RecordValues,
+  type RelationCommandQueue,
   type ViewField,
+  acceptChildScreenOnChange,
+  applyChildScreenTrytonOnChange,
+  beginChildScreenOnChange,
+  cancelChildScreen,
+  childScreenExitDecision,
+  commitChildScreen,
+  createChildScreen,
+  createRelationQueue,
+  hydrateChildScreen,
   parseFieldsViewGet,
+  relationQueueOnChangeValue,
   renderView,
+  screenValuesForOnChange,
+  setChildScreenRelationQueue,
+  updateChildScreenValues,
+  validateChildScreen,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
 
-/** Embedded O2M line form: create or edit related values before queuing commands. */
+interface ChildOnChangeWork {
+  promise: Promise<{ failed: boolean; error?: unknown }>;
+  start: () => void;
+  cancel: () => void;
+}
+
+function queuedCreateValues(
+  target: ChildScreenTarget,
+  queue: RelationCommandQueue,
+): RecordValues | undefined {
+  if (target.kind !== "queued-create") return undefined;
+  const command = queue.commands[target.commandIndex];
+  return command?.op === "create" ? (command.values as RecordValues) : {};
+}
+
+/** Embedded relation form. Accepting it only updates the parent-owned queue. */
 export function RelationLineForm(props: {
   model: string;
-  lineId?: number | null;
+  target: ChildScreenTarget;
+  parentQueue: RelationCommandQueue;
   context?: JsonObject;
-  /** Seed draft for editing a queued create (no server id yet). */
-  initialValues?: RecordValues;
+  preValidate?: boolean;
   onCancel: () => void;
-  onSave: (values: RecordValues, lineId: number | null) => void;
+  onCommit: (queue: RelationCommandQueue) => void;
   onOpenRelated?: (model: string, id: number) => void;
 }) {
-  const client = useAppStore((s) => s.client);
-  const density = useAppStore((s) => s.density);
-  const sessionContext = useAppStore((s) => s.sessionContext);
-  const rpcContext: JsonObject = { ...sessionContext, ...(props.context ?? {}) };
-  const [draft, setDraft] = useState<RecordValues>({});
-  const [viewError, setViewError] = useState<string | null>(null);
+  const client = useAppStore((state) => state.client);
+  const density = useAppStore((state) => state.density);
+  const sessionContext = useAppStore((state) => state.sessionContext);
+  const rpcContext: JsonObject = useMemo(
+    () => ({ ...sessionContext, ...(props.context ?? {}) }),
+    [sessionContext, props.context],
+  );
+  const [child, setChild] = useState<ChildScreenState>(() =>
+    createChildScreen(
+      props.model,
+      props.target,
+      queuedCreateValues(props.target, props.parentQueue),
+    ),
+  );
+  const childRef = useRef(child);
+  const workRef = useRef<ChildOnChangeWork | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [relationField, setRelationField] = useState<ViewField | null>(null);
-  const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
-  const [buttonNotice, setButtonNotice] = useState<string | null>(null);
-  const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const editing = props.lineId != null;
+  const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [noticeIsError, setNoticeIsError] = useState(false);
+  const [onChangePending, setOnChangePending] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const editing = props.target.kind === "record";
+
+  const publishChild = useCallback((next: ChildScreenState) => {
+    childRef.current = next;
+    setChild(next);
+  }, []);
 
   const viewQuery = useQuery({
-    queryKey: ["relation-line-form", props.model, "form"],
+    queryKey: ["relation-line-form", props.model, "form", JSON.stringify(rpcContext)],
     enabled: Boolean(client && props.model),
     staleTime: 5 * 60_000,
-    queryFn: async (): Promise<ParsedView | null> => {
-      if (!client) return null;
-      try {
-        setViewError(null);
-        return parseFieldsViewGet(
-          await client.fieldsViewGet(props.model, null, "form", {
-            ...sessionContext,
-            ...(props.context ?? {}),
-          }),
-        );
-      } catch (err) {
-        setViewError(err instanceof Error ? err.message : "fields_view_get failed");
-        return null;
-      }
+    queryFn: async (): Promise<ParsedView> => {
+      if (!client) throw new Error("No client");
+      return parseFieldsViewGet(await client.fieldsViewGet(props.model, null, "form", rpcContext));
     },
   });
 
   const recordQuery = useQuery({
-    queryKey: ["relation-line-form", props.model, props.lineId, viewQuery.dataUpdatedAt],
-    enabled: Boolean(client && props.model && editing && viewQuery.data),
-    queryFn: async () => {
-      if (!client || props.lineId == null) return null;
-      const fields = Object.keys(viewQuery.data?.fields ?? { rec_name: true, name: true });
+    queryKey: [
+      "relation-line-form",
+      props.model,
+      props.target.kind === "record" ? props.target.id : null,
+      viewQuery.dataUpdatedAt,
+      JSON.stringify(rpcContext),
+    ],
+    enabled: Boolean(client && editing && viewQuery.data),
+    queryFn: async (): Promise<RecordValues> => {
+      if (!client || props.target.kind !== "record") throw new Error("No relation record");
+      const fields = [...new Set(["id", ...Object.keys(viewQuery.data?.fields ?? {})])];
       const rows = await client.searchRead(
         props.model,
-        [["id", "=", props.lineId]],
-        fields.length ? fields : ["id", "rec_name", "name"],
+        [["id", "=", props.target.id]],
+        fields,
         0,
         1,
         null,
         rpcContext,
       );
-      return (rows[0] as RecordValues) ?? null;
+      const row = rows[0];
+      if (!row) throw new Error(`${props.model} #${props.target.id} was not found`);
+      return row as RecordValues;
+    },
+  });
+
+  const defaultsQuery = useQuery({
+    queryKey: [
+      "relation-line-form",
+      props.model,
+      "defaults",
+      Object.keys(viewQuery.data?.fields ?? {}).join(","),
+      JSON.stringify(rpcContext),
+    ],
+    enabled: Boolean(client && props.target.kind === "new" && viewQuery.data),
+    queryFn: async (): Promise<RecordValues> => {
+      if (!client) throw new Error("No client");
+      const fields = Object.keys(viewQuery.data?.fields ?? {});
+      const result = await client.model(
+        props.model,
+        "default_get",
+        [fields.length ? fields : ["name"]],
+        rpcContext,
+      );
+      return result && typeof result === "object" && !Array.isArray(result)
+        ? (result as RecordValues)
+        : {};
     },
   });
 
   useEffect(() => {
-    if (editing) {
-      if (recordQuery.data) setDraft(recordQuery.data);
-      return;
-    }
-    if (props.initialValues) {
-      setDraft(props.initialValues);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      if (!client) {
-        if (!cancelled) setDraft({});
-        return;
-      }
-      const fieldNames = Object.keys(viewQuery.data?.fields ?? {});
-      try {
-        const defaults = await client.model(
-          props.model,
-          "default_get",
-          [fieldNames.length ? fieldNames : ["name"]],
-          { ...sessionContext, ...(props.context ?? {}) },
-        );
-        if (cancelled) return;
-        setDraft(
-          defaults && typeof defaults === "object" && !Array.isArray(defaults)
-            ? (defaults as RecordValues)
-            : {},
-        );
-      } catch {
-        if (!cancelled) setDraft({});
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    editing,
-    recordQuery.data,
-    client,
-    props.model,
-    props.context,
-    props.initialValues,
-    sessionContext,
-    viewQuery.data?.fields,
-  ]);
+    if (!recordQuery.data) return;
+    const next = hydrateChildScreen(childRef.current, recordQuery.data);
+    if (next !== childRef.current) publishChild(next);
+  }, [recordQuery.data, publishChild]);
 
   useEffect(() => {
-    return () => {
-      if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
-    };
-  }, []);
+    if (!defaultsQuery.data) return;
+    const next = hydrateChildScreen(childRef.current, defaultsQuery.data);
+    if (next !== childRef.current) publishChild(next);
+  }, [defaultsQuery.data, publishChild]);
 
-  function handleChange(name: string, value: unknown) {
-    setDraft((d) => ({ ...d, [name]: value }));
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      workRef.current?.cancel();
+    },
+    [],
+  );
+
+  function scheduleOnChange(name: string) {
     if (!client || !viewQuery.data) return;
-    if (onChangeTimer.current) clearTimeout(onChangeTimer.current);
-    onChangeTimer.current = setTimeout(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    workRef.current?.cancel();
+
+    const started = beginChildScreenOnChange(childRef.current);
+    publishChild(started.child);
+    setOnChangePending(true);
+    const values = screenValuesForOnChange(started.child.screen, viewQuery.data.fields);
+    let didStart = false;
+    let settled = false;
+    let resolveWork: (result: { failed: boolean; error?: unknown }) => void = () => {};
+    const promise = new Promise<{ failed: boolean; error?: unknown }>((resolve) => {
+      resolveWork = resolve;
+    });
+    const settle = (result: { failed: boolean; error?: unknown }) => {
+      if (settled) return;
+      settled = true;
+      resolveWork(result);
+    };
+    const start = () => {
+      if (didStart || settled) return;
+      didStart = true;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
       void (async () => {
-        if (!client || !viewQuery.data) return;
-        const fieldsMeta: Record<
-          string,
-          { name: string; on_change?: string[]; on_change_with?: string[] }
-        > = {};
-        for (const [fname, field] of Object.entries(viewQuery.data.fields)) {
-          fieldsMeta[fname] = {
-            name: fname,
-            on_change: field.on_change,
-            on_change_with: field.on_change_with,
-          };
-        }
+        let error: unknown;
         try {
           const patch = await applyFieldChange(
             client,
             props.model,
-            fieldsMeta,
-            { ...draftRef.current, [name]: value },
+            viewQuery.data.fields,
+            values,
             name,
             rpcContext,
           );
-          if (!Object.keys(patch).length) return;
-          setDraft((d) => ({ ...d, ...patch }));
-        } catch {
-          /* soft-fail */
+          const current = childRef.current;
+          const next = applyChildScreenTrytonOnChange(
+            current,
+            started.token,
+            patch,
+            viewQuery.data.fields,
+          );
+          if (next !== current) publishChild(next);
+        } catch (caught) {
+          if (acceptChildScreenOnChange(childRef.current, started.token)) {
+            error = caught;
+            setNoticeIsError(true);
+            setNotice(caught instanceof Error ? caught.message : "on_change failed");
+          }
+        } finally {
+          if (workRef.current === work) {
+            workRef.current = null;
+            setOnChangePending(false);
+          }
+          settle({ failed: error != null, error });
         }
       })();
-    }, 250);
+    };
+    const cancel = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      settle({ failed: false });
+    };
+    const work: ChildOnChangeWork = { promise, start, cancel };
+    workRef.current = work;
+    timerRef.current = setTimeout(start, 250);
+  }
+
+  async function flushOnChange() {
+    while (workRef.current) {
+      const work = workRef.current;
+      work.start();
+      const result = await work.promise;
+      if (result.failed) {
+        throw result.error instanceof Error ? result.error : new Error("on_change failed");
+      }
+    }
+  }
+
+  function handleChange(name: string, value: unknown) {
+    const current = childRef.current;
+    publishChild(
+      updateChildScreenValues(current, {
+        ...current.screen.values,
+        [name]: value,
+      }),
+    );
+    scheduleOnChange(name);
+  }
+
+  function handleRelationQueueChange(
+    field: ViewField,
+    update: (current: RelationCommandQueue) => RelationCommandQueue,
+  ) {
+    const current = childRef.current;
+    const kind = field.type === "many2many" ? "many2many" : "one2many";
+    const queue =
+      current.screen.relationQueues[field.name] ??
+      createRelationQueue(kind, current.screen.values[field.name]);
+    const nextQueue = update(queue);
+    let next = setChildScreenRelationQueue(current, field.name, nextQueue);
+    next = updateChildScreenValues(next, {
+      ...next.screen.values,
+      [field.name]: relationQueueOnChangeValue(nextQueue),
+    });
+    publishChild(next);
+    scheduleOnChange(field.name);
+  }
+
+  function openRelation(field: ViewField, value: unknown, domain?: unknown[]) {
+    if (field.type === "one2many" || field.type === "many2many") {
+      const current = childRef.current;
+      if (!current.screen.relationQueues[field.name]) {
+        publishChild(
+          setChildScreenRelationQueue(current, field.name, createRelationQueue(field.type, value)),
+        );
+      }
+    }
+    setRelationField(field);
+    setRelationDomain(domain);
+    if (
+      field.type === "many2one" &&
+      field.relation &&
+      Array.isArray(value) &&
+      typeof value[0] === "number" &&
+      props.onOpenRelated
+    ) {
+      props.onOpenRelated(field.relation, value[0]);
+    }
+  }
+
+  async function acceptChild() {
+    if (!client || !viewQuery.data || committing) return;
+    setCommitting(true);
+    setNotice(null);
+    setNoticeIsError(false);
+    try {
+      await flushOnChange();
+      const current = childRef.current;
+      const issues = validateChildScreen(current, viewQuery.data.fields);
+      if (issues.length) {
+        setNoticeIsError(true);
+        setNotice(`Required: ${issues.map((issue) => issue.path.join(".")).join(", ")}`);
+        return;
+      }
+      if (props.preValidate) {
+        await preValidateRecord(
+          client,
+          props.model,
+          screenValuesForOnChange(current.screen, viewQuery.data.fields),
+          viewQuery.data.fields,
+          rpcContext,
+        );
+      }
+      const result = commitChildScreen(props.parentQueue, current, viewQuery.data.fields);
+      if (!result.ok) {
+        setNoticeIsError(true);
+        setNotice(
+          result.issues.length
+            ? `Invalid: ${result.issues.map((issue) => issue.path.join(".")).join(", ")}`
+            : `Line cannot be queued (${result.reason})`,
+        );
+        return;
+      }
+      props.onCommit(result.queue);
+    } catch (error) {
+      setNoticeIsError(true);
+      setNotice(error instanceof Error ? error.message : "Line validation failed");
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  function discardChild() {
+    const current = childRef.current;
+    if (
+      childScreenExitDecision(current).kind === "confirm-discard" &&
+      !globalThis.confirm("Discard unsaved line changes?")
+    ) {
+      return;
+    }
+    workRef.current?.cancel();
+    publishChild(cancelChildScreen(current));
+    props.onCancel();
   }
 
   async function runButton(name: string, meta?: { type?: string }) {
     if (!client) return;
-    const buttonType = (meta?.type ?? "").toLowerCase();
-    if (buttonType === "action") {
-      setButtonNotice(`Action buttons open from the parent workspace (${name})`);
+    if ((meta?.type ?? "").toLowerCase() === "action") {
+      setNoticeIsError(false);
+      setNotice(`Action buttons open from the parent workspace (${name})`);
       return;
     }
-    if (props.lineId == null) {
-      setButtonNotice("Queue/save the line before running buttons");
+    if (props.target.kind !== "record") {
+      setNoticeIsError(false);
+      setNotice("Queue/save the line before running buttons");
       return;
     }
-    setButtonNotice(`Running ${name}…`);
+    setNoticeIsError(false);
+    setNotice(`Running ${name}…`);
     try {
-      await client.model(props.model, name, [[props.lineId]], {
+      await client.model(props.model, name, [[props.target.id]], {
         ...rpcContext,
-        active_id: props.lineId,
-        active_ids: [props.lineId],
+        active_id: props.target.id,
+        active_ids: [props.target.id],
         active_model: props.model,
       });
-      setButtonNotice(`Button ${name} OK`);
+      setNotice(`Button ${name} OK`);
       await recordQuery.refetch();
-    } catch (err) {
-      setButtonNotice(err instanceof Error ? err.message : "Button failed");
+    } catch (error) {
+      setNoticeIsError(true);
+      setNotice(error instanceof Error ? error.message : "Button failed");
     }
   }
 
   const state =
-    viewQuery.isLoading || (editing && recordQuery.isLoading)
+    viewQuery.isLoading ||
+    (editing && recordQuery.isLoading) ||
+    (props.target.kind === "new" && defaultsQuery.isLoading)
       ? "loading"
-      : viewQuery.isError || viewError
+      : viewQuery.isError || recordQuery.isError || defaultsQuery.isError
         ? "error"
-        : viewQuery.data
+        : viewQuery.data && child.screen.hydrated
           ? "data"
           : "empty";
-
+  const stateMessage =
+    (viewQuery.error instanceof Error && viewQuery.error.message) ||
+    (recordQuery.error instanceof Error && recordQuery.error.message) ||
+    (defaultsQuery.error instanceof Error && defaultsQuery.error.message) ||
+    "Loading…";
   const nestedLines = relationField?.type === "one2many" || relationField?.type === "many2many";
+  const title =
+    props.target.kind === "record"
+      ? `Edit ${props.model} #${props.target.id}`
+      : props.target.kind === "queued-create"
+        ? `Edit queued ${props.model} line`
+        : `New ${props.model} line`;
 
   return (
-    <Panel title={editing ? `Edit ${props.model} #${props.lineId}` : `New ${props.model} line`}>
-      <StateBlock
-        state={state}
-        message={
-          viewError ?? (viewQuery.error instanceof Error ? viewQuery.error.message : "Loading…")
-        }
-      >
+    <Panel title={title}>
+      <StateBlock state={state} message={stateMessage}>
         {viewQuery.data
           ? renderView(viewQuery.data, {
-              values: draft,
+              values: child.screen.values,
               mode: "write",
               density,
               model: props.model,
               onChange: handleChange,
               onButton: (name, meta) => void runButton(name, meta),
-              onOpenRelation: (field, value, domain) => {
-                setRelationField(field);
-                setRelationDomain(domain);
-                if (
-                  field.type === "many2one" &&
-                  field.relation &&
-                  Array.isArray(value) &&
-                  typeof value[0] === "number" &&
-                  props.onOpenRelated
-                ) {
-                  props.onOpenRelated(field.relation, value[0]);
-                }
-              },
+              onOpenRelation: openRelation,
             })
           : null}
         {relationField?.type === "many2one" ? (
           <RelationSearch
             field={relationField}
-            recordValues={draft}
+            recordValues={child.screen.values}
             domain={relationDomain}
             mode="write"
             onCancel={() => {
@@ -256,31 +447,31 @@ export function RelationLineForm(props: {
         {nestedLines && relationField ? (
           <RelationLinesEditor
             field={relationField}
-            value={draft[relationField.name]}
+            value={child.screen.values[relationField.name]}
             mode="write"
-            recordValues={draft}
+            recordValues={child.screen.values}
             domain={relationDomain}
+            context={rpcContext}
+            queue={child.screen.relationQueues[relationField.name]}
+            onQueueChange={(update) => handleRelationQueueChange(relationField, update)}
             onOpenLine={props.onOpenRelated}
-            onCommit={(next) => {
-              handleChange(relationField.name, next);
+            onCommit={() => {
               setRelationField(null);
               setRelationDomain(undefined);
             }}
           />
         ) : null}
-        {buttonNotice ? <p role="status">{buttonNotice}</p> : null}
+        {onChangePending ? <p role="status">Applying on_change…</p> : null}
+        {notice ? <p role={noticeIsError ? "alert" : "status"}>{notice}</p> : null}
         <div className="epiton-toolbar">
           <Button
             variant="primary"
-            disabled={!viewQuery.data}
-            onClick={() => {
-              const { id: _id, ...values } = draft;
-              props.onSave(values, props.lineId ?? null);
-            }}
+            disabled={!viewQuery.data || !child.screen.hydrated || committing}
+            onClick={() => void acceptChild()}
           >
-            Queue {editing ? "write" : "create"}
+            Queue {props.target.kind === "record" ? "write" : "create"}
           </Button>
-          <Button onClick={props.onCancel}>Cancel</Button>
+          <Button onClick={discardChild}>Cancel</Button>
         </div>
       </StateBlock>
     </Panel>

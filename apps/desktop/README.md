@@ -1,14 +1,19 @@
 # Epiton desktop (Tauri 2)
 
-Wraps `@epiton/web` with a native window. Session tokens are memory-only and the
-bridge deliberately refuses persistence until an audited OS secret-store
-provider is wired. Legacy persistent slots are cleared and never hydrated.
+Wraps `@epiton/web` with a native window. Session tokens are memory-only. The
+native shell exposes one deletion-only command for the exact legacy session
+file; it does not register a generic preference-store plugin. Legacy values are
+never read or hydrated.
 
 ```bash
 pnpm --filter @epiton/desktop dev
+pnpm --filter @epiton/desktop build:tauri
+pnpm --filter @epiton/desktop build:linux # DEB + AppImage
 ```
 
 Requires Rust + platform WebView dependencies.
+CI builds and uploads unsigned Linux DEB/AppImage artifacts. Platform signing
+and real-device acceptance remain release gates.
 
 ## Shell depth
 

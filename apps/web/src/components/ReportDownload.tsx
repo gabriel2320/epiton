@@ -31,9 +31,9 @@ export function ReportDownload(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
-  const [reportName, setReportName] = useState(props.initialReport ?? "party.label");
+  const [reportName, setReportName] = useState(props.initialReport ?? "");
   const [idsText, setIdsText] = useState(props.initialIds ?? "");
-  const [modelName, setModelName] = useState(props.initialModel ?? "party.party");
+  const [modelName, setModelName] = useState(props.initialModel ?? "");
   const [format, setFormat] = useState<"pdf" | "odt" | "csv" | "xls" | "html">("pdf");
   const [message, setMessage] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -115,6 +115,10 @@ export function ReportDownload(props: {
 
   async function run(preview: boolean) {
     if (!client) return;
+    if (!reportName.trim()) {
+      setMessage("Choose a report supplied by the backend");
+      return;
+    }
     if (!ids.length) {
       setMessage("Enter at least one record id (select a record in the workspace)");
       return;

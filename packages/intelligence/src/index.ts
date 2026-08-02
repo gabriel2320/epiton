@@ -148,14 +148,3 @@ export function strictAclCoach(
     message: `Model ${model} has no ir.model.access rows; Tryton defaults to allow-all. Enable Epiton gateway strict mode or add access rules.`,
   };
 }
-
-export function workspaceFavorites(preset: WorkspacePreset): string[] {
-  switch (preset) {
-    case "accounting":
-      return ["account.move", "account.account", "party.party"];
-    case "warehouse":
-      return ["stock.shipment.in", "stock.shipment.out", "product.product"];
-    default:
-      return ["party.party", "company.company"];
-  }
-}

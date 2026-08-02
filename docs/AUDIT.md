@@ -194,3 +194,120 @@ Active CLAIM: none — next L1.3 requires new CLAIM
 
 Sao/GTK GPL import · Proteus in product runtime · Intelligence auto-writes ·
 Client SQL · PHI fixtures · force-push / prod promotion without human order.
+
+---
+
+# Epitón audit delta — 2026-07-31 (Codex-only security correction)
+
+Targeted re-audit after the user disabled the Cursor bridge. This section is an
+append-only delta; earlier findings remain historical evidence rather than the
+current execution state.
+
+## Verdict
+
+The corrected worktree preserves Tryton wire truth and in-memory-only sessions.
+Three concrete security/availability gaps are closed locally. No PHI/HIS,
+penetration-test, or native-release claim is added.
+
+| ID | Severity | Finding | Closure |
+|----|----------|---------|---------|
+| S-01 | High | Native legacy cleanup used runtime code generation, conflicting with a strict CSP and hiding cleanup failures | Static local Tauri/Capacitor adapters, no session save/load persistence, five focused tests, production build proof |
+| S-02 | Medium | Gateway buffered upstream response bodies without an application cap | Configurable 64 MiB default; Content-Length precheck plus streamed chunk enforcement; deterministic 502 and unit coverage |
+| S-03 | Medium | CI lacked explicit production JavaScript and Rust advisory gates | `pnpm audit --prod --audit-level high` plus RustSec `audit-check`; local JavaScript audit is clean |
+| S-04 | Process | Operational dashboard still required a Cursor reviewer/CLAIM despite the user's solo-Codex directive | Dashboard switched to Codex-only mode; prior Cursor exchanges retained as inactive history |
+
+## Verification snapshot (RAM-safe and sequential)
+
+```text
+Base: 7304513
+Typecheck: PASS — 13/13 tasks
+Unit tests: PASS — 13/13 tasks; web 27 tests; gateway 9 tests
+Lint: PASS — 182 files
+Web production build: PASS
+Bundle budget: PASS — largest initial chunk 468.1 KiB / 700 KiB
+Production JS advisory audit: PASS — no known vulnerabilities
+Gateway cargo fmt --check / test --locked / check --locked: PASS
+Push: not done
+```
+
+## Residual risk and next action
+
+- Tauri and Capacitor cleanup modules compile and their adapter contracts are
+  tested, but real-device plugin execution remains a native release gate.
+- Size `EPITON_MAX_RESPONSE_BYTES` against the largest legitimate deployment
+  report; exceeding it intentionally returns 502 instead of exhausting memory.
+- Formal threat modeling, penetration testing, GNU Health lab evidence, and PHI
+  readiness remain open. Epitón must not be marketed as certified on this basis.
+- L2.4 action-toolbar extraction remains the next product slice, now executed and
+  verified by Codex without Cursor handoffs.
+
+---
+
+# Epitón audit delta — 2026-07-31 (backend-authority boundary)
+
+Codex-only review of canon, client architecture, protocol contracts, gateway
+limits, and live compatibility. This delta supersedes earlier client-persistence
+recommendations: current Epitón does not offer persistent sessions, including
+through a native secret store. Any future exception requires an explicit canon
+and threat-model change.
+
+## Verdict
+
+trytond remains the only business and clinical authority. Authentication,
+connection data, RPC results, backend identifiers, domains, drafts, navigation,
+layout, preferences, and analytic projections now remain in process memory and
+are discarded at the authentication/lifecycle boundary. Static PWA build assets
+and explicit user exports are not backend-state copies.
+
+| ID | Severity | Finding | Closure |
+|----|----------|---------|---------|
+| B-01 | High | Connection, board order, domain tabs, notebook tabs, and deep links could survive or escape the process boundary | Removed durable storage and backend identifiers from URL/history; added deletion-only legacy cleanup and a repository contract test |
+| B-02 | High | Logout or an authenticated 401 could leave query, protocol, bus, or UI projections visible | Centralized purge clears the protocol session, TanStack Query cache, Zustand user state, and bus loop; page lifecycle teardown also purges |
+| B-03 | Medium | RPC accepted weakly correlated/malformed envelopes and coerced login/search shapes | Per-client request sequence, exact response id, exclusive `result`/`error`, strict login tuple and object-row validation |
+| B-04 | Medium | Browser transport and PWA caching policy were partly implicit | RPC/bus set `no-store`, omit ambient credentials and referrers; Workbox runtime caching is empty |
+| B-05 | Medium | Tauri registered the generic Store default permission, leaving read/write persistence commands available beyond the deletion need | Removed plugin, JavaScript/Rust dependencies, and Store capability; an exact native unlink command is the only desktop migration surface |
+| B-06 | Medium | Gateway buffered upstream reports without an application response cap | 64 MiB configurable default with Content-Length precheck and per-chunk enforcement |
+| B-07 | High | Shell navigation queried a fictional favorite field, could write `ir.ui.menu`, and supplied locally invented fallback actions | Added the exact `ir.ui.menu.favorite.get/set/unset` contract, strict menu/favorite decoding, backend error states, and tests that forbid menu-record writes and client fallbacks |
+| B-08 | Medium | The mock browser suite assumed a client-invented initial Party workspace and did not expose Tryton's favorite service | The mock now implements the exact favorite RPCs; shared login opens the backend-supplied menu, and all 12 browser scenarios pass without a fabricated startup view |
+
+## Verification snapshot (sequential / RAM-safe)
+
+```text
+Base: 7304513
+Typecheck: PASS — 13/13 tasks
+Lint: PASS — 190 files
+Unit/contract tests: PASS — 170 tests (protocol 55, view-engine 57,
+  web 30, compat 19, intelligence 4, ui 5)
+Mock browser E2E: PASS — 12/12
+Web production bundle: PASS — largest initial chunk 468.1 KiB / 700 KiB
+Production JavaScript advisory audit: PASS — no known vulnerabilities
+Gateway cargo fmt --check / test --locked / check --locked: PASS — 9 tests
+Desktop cargo fmt --check / check --locked: PASS
+Live protocol compatibility: PASS — Tryton 7 20/20; Tryton 8 20/20
+git diff --check: PASS
+Push: not done
+```
+
+## Position relative to Tryton
+
+- Epitón continues to use Tryton's Session JSON-RPC, models, ACLs, rules,
+  wizards, reports, and PostgreSQL-owned truth; live 7/8 compatibility proves the
+  wire contract for the covered fixture.
+- Epitón adds an executable client-minimization boundary, strict response
+  correlation, explicit transport privacy flags, and deterministic purge tests.
+- These are Epitón hardening properties, not an assertion that Sao/GTK is
+  insecure and not a claim of complete Sao feature parity.
+
+## Residual risk
+
+- Tauri and Capacitor deletion adapters still require real-device integration
+  evidence; desktop removal is exact-file-only and mobile uses only
+  `Preferences.remove`, never `get` or `set`.
+- Desktop/mobile package test scripts remain placeholders. The static contract
+  scans their TypeScript and desktop Rust sources, while real lifecycle behavior
+  remains a native release gate.
+- RustSec is enforced in CI; local evidence covered the production JavaScript
+  audit, gateway Rust format/test/check, and desktop Rust format/check gates.
+- Formal threat modeling, penetration testing, production IdP/TLS/rotation,
+  accessibility/performance budgets, GNU Health evidence, and PHI readiness
+  remain open. Do not market Epitón as certified or as Epione HIS.

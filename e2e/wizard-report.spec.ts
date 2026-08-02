@@ -1,16 +1,7 @@
-import { type Page, expect, test } from "@playwright/test";
-import { installMockTryton } from "./support/mockTryton";
+import { expect, test } from "@playwright/test";
+import { installMockTryton, loginThroughBackendMenu } from "./support/mockTryton";
 
 type JsonObject = Record<string, unknown>;
-
-async function login(page: Page) {
-  await page.goto("/");
-  await page.getByLabel("Database").fill("epiton_lab");
-  await page.getByLabel("User").fill("admin");
-  await page.getByLabel("Password").fill("admin");
-  await page.getByRole("button", { name: "Enter Epiton" }).click();
-  await expect(page.getByRole("tab", { name: "party.party" })).toBeVisible();
-}
 
 function hasForeignSelection(context: JsonObject, actionId: number): boolean {
   const actions = context._actions as JsonObject | undefined;
@@ -31,7 +22,7 @@ test("board wizard and report use shared Shell hosts with foreign selection cont
   page,
 }) => {
   const mock = await installMockTryton(page, { includeWizardReportBoard: true });
-  await login(page);
+  await loginThroughBackendMenu(page);
 
   await page
     .locator("aside")

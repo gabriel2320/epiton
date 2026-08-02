@@ -1,16 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { installMockTryton } from "./support/mockTryton";
+import { installMockTryton, loginThroughBackendMenu } from "./support/mockTryton";
 
 type JsonObject = Record<string, unknown>;
-
-async function login(page: Parameters<typeof installMockTryton>[0]) {
-  await page.goto("/");
-  await page.getByLabel("Database").fill("epiton_lab");
-  await page.getByLabel("User").fill("admin");
-  await page.getByLabel("Password").fill("admin");
-  await page.getByRole("button", { name: "Enter Epiton" }).click();
-  await expect(page.getByRole("tab", { name: "party.party" })).toBeVisible();
-}
 
 function rpcContext(params: unknown[]): JsonObject {
   const value = params.at(-1);
@@ -21,7 +12,7 @@ test("board action opens through Shell and preserves foreign selection context",
   page,
 }) => {
   const mock = await installMockTryton(page, { includeBoard: true });
-  await login(page);
+  await loginThroughBackendMenu(page);
 
   await page.locator("aside").getByRole("button", { name: "Synthetic Board", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Board · party.party" })).toBeVisible();

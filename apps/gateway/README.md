@@ -20,7 +20,7 @@ Features:
 - Correlation id (`X-Correlation-Id`)
 - Login rate limiting by peer IP; `X-Forwarded-For` is accepted only with
   `EPITON_TRUST_PROXY=true`
-- Configurable body limit and upstream timeouts
+- Configurable request and response limits plus upstream timeouts
 - Explicit CORS allowlist (`EPITON_CORS_ORIGINS`); empty means same-origin and
   `*` is rejected
 - Audit log lines (method, rpc, status, latency) without response bodies
@@ -47,6 +47,15 @@ decision. The flag controls an additional deny-only gateway guard.
 
 This flag is a defense-in-depth compatibility policy, not a substitute for
 complete Tryton groups, rules, access rows, TLS, or edge controls.
+
+## Payload limits
+
+`EPITON_MAX_BODY_BYTES` limits requests (16 MiB by default), while
+`EPITON_MAX_RESPONSE_BYTES` bounds every buffered upstream response (64 MiB by
+default). The response limit is also enforced while streaming chunks, so a
+missing or dishonest `Content-Length` cannot grow gateway memory without a
+bound. Oversized upstream responses fail with `502 Bad Gateway`; deployments
+may lower the cap after validating their largest report payload.
 
 Terminate TLS at a reverse proxy (Caddy/nginx) in front of this gateway; the process itself speaks HTTP.
 

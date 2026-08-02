@@ -7,14 +7,13 @@
     "dev": "tauri dev",
     "build": "echo 'Use pnpm build:tauri when Rust toolchain is available'",
     "build:tauri": "tauri build",
+    "build:linux": "tauri build --bundles deb,appimage",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'desktop tests run via web package'"
   },
   "dependencies": {
-    "@epiton/protocol": "workspace:*",
     "@epiton/web": "workspace:*",
-    "@tauri-apps/api": "^2.1.1",
-    "@tauri-apps/plugin-store": "^2.2.0"
+    "@tauri-apps/api": "^2.1.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",

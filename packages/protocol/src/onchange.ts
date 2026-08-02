@@ -11,6 +11,8 @@ export type OnChangeValues = Record<string, unknown>;
 
 export interface FieldOnChangeMeta {
   name: string;
+  /** Tryton field type; required to distinguish M2O display tuples from x2many values. */
+  type?: string;
   on_change?: string[];
   on_change_with?: string[];
 }
@@ -25,7 +27,11 @@ export interface OnChangeClient {
 }
 
 /** Collect field values for on_change / on_change_with RPC args. */
-export function buildOnChangeArgs(values: OnChangeValues, fieldNames: string[]): JsonObject {
+export function buildOnChangeArgs(
+  values: OnChangeValues,
+  fieldNames: string[],
+  fields: Readonly<Record<string, FieldOnChangeMeta>> = {},
+): JsonObject {
   const out: JsonObject = {};
   for (const name of fieldNames) {
     if (name === "id" && values.id != null) {
@@ -34,7 +40,18 @@ export function buildOnChangeArgs(values: OnChangeValues, fieldNames: string[]):
     }
     if (!(name in values)) continue;
     const raw = values[name];
-    if (Array.isArray(raw) && raw.length >= 1) {
+    const isMany2One = fields[name]?.type === "many2one";
+    // A many2one widget keeps [id, rec_name] locally. Other arrays are part of
+    // the public value contract (x2many, multiselection and reference) and must
+    // cross the RPC boundary intact. Retain the narrow tuple heuristic for old
+    // callers that do not yet provide metadata.
+    const isLegacyMany2OneTuple =
+      fields[name] == null &&
+      Array.isArray(raw) &&
+      raw.length === 2 &&
+      typeof raw[0] === "number" &&
+      typeof raw[1] === "string";
+    if ((isMany2One || isLegacyMany2OneTuple) && Array.isArray(raw)) {
       out[name] = (raw[0] ?? null) as JsonValue;
     } else {
       out[name] = raw as JsonValue;
@@ -44,6 +61,22 @@ export function buildOnChangeArgs(values: OnChangeValues, fieldNames: string[]):
     out.id = Number(values.id) as JsonValue;
   }
   return out;
+}
+
+/**
+ * Ask trytond to validate a transient record before its parent accepts it.
+ * Unlike optional on_change methods, validation failures are authoritative and
+ * intentionally propagate to the host.
+ */
+export function preValidateRecord(
+  client: OnChangeClient,
+  model: string,
+  values: OnChangeValues,
+  fields: Readonly<Record<string, FieldOnChangeMeta>>,
+  context: JsonObject = {},
+): Promise<JsonValue> {
+  const names = [...new Set(["id", ...Object.keys(values)])];
+  return client.model(model, "pre_validate", [buildOnChangeArgs(values, names, fields)], context);
 }
 
 function asObject(value: unknown): OnChangeValues {
@@ -70,7 +103,7 @@ export async function applyFieldChange(
   const onChangeDeps = changedMeta?.on_change ?? [];
   if (onChangeDeps.length > 0) {
     const argNames = [...new Set(["id", changedField, ...onChangeDeps])];
-    const args = buildOnChangeArgs(values, argNames);
+    const args = buildOnChangeArgs(values, argNames, fields);
     try {
       const result = await client.model(model, `on_change_${changedField}`, [args], context);
       Object.assign(patch, asObject(result));
@@ -90,7 +123,7 @@ export async function applyFieldChange(
     const dep = dependents[0];
     if (!dep) return patch;
     const argNames = [...new Set(["id", dep.name, ...(dep.on_change_with ?? [])])];
-    const args = buildOnChangeArgs(mergedValues, argNames);
+    const args = buildOnChangeArgs(mergedValues, argNames, fields);
     try {
       const result = await client.model(model, `on_change_with_${dep.name}`, [args], context);
       if (result && typeof result === "object" && !Array.isArray(result)) {
@@ -108,7 +141,7 @@ export async function applyFieldChange(
   const allDeps = [
     ...new Set(["id", ...names, ...dependents.flatMap((d) => d.on_change_with ?? [])]),
   ];
-  const args = buildOnChangeArgs(mergedValues, allDeps);
+  const args = buildOnChangeArgs(mergedValues, allDeps, fields);
   try {
     const result = await client.model(model, "on_change_with", [args, names], context);
     Object.assign(patch, asObject(result));
@@ -119,7 +152,7 @@ export async function applyFieldChange(
         const result = await client.model(
           model,
           `on_change_with_${dep.name}`,
-          [buildOnChangeArgs(mergedValues, argNames)],
+          [buildOnChangeArgs(mergedValues, argNames, fields)],
           context,
         );
         if (result && typeof result === "object" && !Array.isArray(result)) {
