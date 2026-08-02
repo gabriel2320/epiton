@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseFieldsViewGet,
+  parseViewLayoutAttributes,
   parseXml,
   treeButtons,
   treeColumns,
@@ -51,6 +52,55 @@ describe("view-engine", () => {
     });
     expect(parsed.fields.party?.relation).toBe("party.party");
     expect(parsed.fields.lines?.type).toBe("one2many");
+  });
+
+  it("normalizes dense form layout attributes without losing the XML contract", () => {
+    const parsed = parseFieldsViewGet({
+      arch: '<form col="6"><group colspan="6" xexpand="1"><field name="name" colspan="4" xfill="0" xalign="1"/><hpaned position="280"/></group></form>',
+      fields: { name: { type: "char", string: "Name" } },
+    });
+
+    expect(parseViewLayoutAttributes(parsed.arch.attrs)).toMatchObject({ columns: 6 });
+    const group = parsed.arch.children[0]!;
+    expect(group.attrs).toMatchObject({ colspan: "6", xexpand: "1" });
+    expect(parseViewLayoutAttributes(group.attrs)).toMatchObject({
+      colspan: 6,
+      xexpand: true,
+    });
+    expect(parseViewLayoutAttributes(group.children[0]!.attrs)).toMatchObject({
+      colspan: 4,
+      xfill: false,
+      xalign: 1,
+    });
+    expect(parseViewLayoutAttributes(group.children[1]!.attrs).position).toBe(280);
+  });
+
+  it("bounds malformed layout values and supports unconstrained containers", () => {
+    expect(
+      parseViewLayoutAttributes({
+        col: "0",
+        colspan: "nope",
+        rowspan: "-3",
+        xexpand: "false",
+        yexpand: "yes",
+        xfill: "0",
+        xalign: "9",
+        yalign: "-2",
+        position: "-10",
+      }),
+    ).toEqual({
+      columns: null,
+      colspan: 1,
+      rowspan: 1,
+      xexpand: false,
+      yexpand: true,
+      xfill: false,
+      yfill: true,
+      xalign: 1,
+      yalign: 0,
+      position: null,
+    });
+    expect(parseViewLayoutAttributes({ col: "0.5" }).columns).toBe(1);
   });
 
   it("parses on_change and domain metadata", () => {

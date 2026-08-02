@@ -70,6 +70,33 @@ const partyForm = {
   fields: partyFields,
 };
 
+const partyDenseForm = {
+  arch: `<form string="Party" col="6">
+    <group string="Identity" col="6" colspan="6" xexpand="1">
+      <field name="name" colspan="4" xexpand="1"/>
+      <field name="code" colspan="2" xfill="0" xalign="1"/>
+      <newline/>
+      <field name="active" colspan="2"/>
+      <field name="addresses" colspan="4" pre_validate="1"/>
+    </group>
+    <notebook colspan="6">
+      <page string="Overview" col="6">
+        <note string="Synthetic dense layout fixture" colspan="6"/>
+        <group string="Details" col="2" colspan="6" expandable="0">
+          <label string="Expandable content stays mounted" colspan="2"/>
+        </group>
+      </page>
+      <page string="Split view" col="6">
+        <hpaned colspan="6" position="280" string="Synthetic split">
+          <child><group string="Primary"><note string="Primary pane"/></group></child>
+          <child><group string="Secondary"><note string="Secondary pane"/></group></child>
+        </hpaned>
+      </page>
+    </notebook>
+  </form>`,
+  fields: partyFields,
+};
+
 const partyTreeWithMany2Many = {
   ...partyTree,
   fields: partyFieldsWithMany2Many,
@@ -228,6 +255,8 @@ export type MockTrytonOptions = {
   rejectCalendarWrite?: boolean;
   /** Add a synthetic party.category Many2Many relation for browser evidence. */
   includeMany2Many?: boolean;
+  /** Use a deterministic dense form fixture for responsive layout evidence. */
+  denseFormLayout?: boolean;
 };
 
 export type MockTryton = {
@@ -595,6 +624,7 @@ export async function installMockTryton(
       if (options.includeMany2Many) {
         return params[1] === "tree" ? partyTreeWithMany2Many : partyFormWithMany2Many;
       }
+      if (options.denseFormLayout && params[1] !== "tree") return partyDenseForm;
       return params[1] === "tree" ? partyTree : partyForm;
     }
     if (method === "model.party.party.search_read") {

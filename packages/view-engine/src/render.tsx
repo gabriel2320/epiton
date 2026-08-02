@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
-import { createElement, useState } from "react";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { createElement, useId, useState } from "react";
 import { formatTrytonDate, parseTrytonDateInput } from "./dates";
 import { t } from "./i18n";
+import { parseViewLayoutAttributes } from "./layout";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
 import { evalDomain, resolveStatesAttr } from "./pyson";
@@ -27,12 +28,33 @@ function NotebookHost(props: {
   pages: Array<{ key: string; title: string; content: ReactNode }>;
   density: string;
 }) {
+  const notebookId = useId();
   const [active, setActive] = useState(0);
   const safe = Math.min(active, Math.max(0, props.pages.length - 1));
-  const current = props.pages[safe];
 
   function selectPage(i: number) {
     setActive(i);
+  }
+
+  function moveFocus(event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) {
+    let next = currentIndex;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      next = (currentIndex + 1) % props.pages.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      next = (currentIndex - 1 + props.pages.length) % props.pages.length;
+    } else if (event.key === "Home") {
+      next = 0;
+    } else if (event.key === "End") {
+      next = props.pages.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    selectPage(next);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      .item(next)
+      .focus();
   }
 
   return createElement(
@@ -49,25 +71,213 @@ function NotebookHost(props: {
             type: "button",
             role: "tab",
             "aria-selected": i === safe,
+            "aria-controls": `${notebookId}-panel-${i}`,
+            id: `${notebookId}-tab-${i}`,
             className: "epiton-notebook-tab",
             "data-active": i === safe,
+            tabIndex: i === safe ? 0 : -1,
             onClick: () => selectPage(i),
+            onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => moveFocus(event, i),
           },
           page.title,
         ),
       ),
     ),
-    current
-      ? createElement(
-          "div",
-          {
-            className: "epiton-notebook-panel",
-            role: "tabpanel",
-            "aria-label": current.title,
-          },
-          current.content,
-        )
+    props.pages.map((page, i) =>
+      createElement(
+        "div",
+        {
+          key: page.key,
+          className: "epiton-notebook-panel",
+          role: "tabpanel",
+          id: `${notebookId}-panel-${i}`,
+          "aria-labelledby": `${notebookId}-tab-${i}`,
+          hidden: i !== safe,
+        },
+        page.content,
+      ),
+    ),
+  );
+}
+
+function alignmentKeyword(value: number): "start" | "center" | "end" {
+  if (value <= 0.25) return "start";
+  if (value >= 0.75) return "end";
+  return "center";
+}
+
+function layoutGridStyle(node: ViewNode): CSSProperties {
+  const layout = parseViewLayoutAttributes(node.attrs);
+  const template =
+    layout.columns === null
+      ? "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))"
+      : `repeat(${layout.columns}, minmax(0, 1fr))`;
+  return { "--epiton-layout-template": template } as CSSProperties;
+}
+
+function layoutCellStyle(node: ViewNode): CSSProperties {
+  const layout = parseViewLayoutAttributes(node.attrs);
+  const fullWidth =
+    node.tag === "newline" ||
+    node.tag === "separator" ||
+    (node.attrs.colspan === undefined &&
+      ["group", "notebook", "hpaned", "vpaned", "sheet"].includes(node.tag));
+  return {
+    ...(fullWidth ? { gridColumn: "1 / -1" } : { gridColumnEnd: `span ${layout.colspan}` }),
+    gridRowEnd: `span ${layout.rowspan}`,
+    justifySelf: layout.xfill ? "stretch" : alignmentKeyword(layout.xalign),
+    alignSelf: layout.yfill ? "stretch" : alignmentKeyword(layout.yalign),
+  };
+}
+
+function renderLayoutChildren(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode[] {
+  return node.children.map((child, index) => {
+    const rendered = renderNode(child, view, ctx);
+    if (rendered === null || rendered === undefined || rendered === false) return null;
+    const layout = parseViewLayoutAttributes(child.attrs);
+    const flowClass =
+      child.tag === "newline"
+        ? " epiton-layout-newline"
+        : child.tag === "separator"
+          ? " epiton-layout-separator"
+          : "";
+    return createElement(
+      "div",
+      {
+        key: `${child.tag}-${child.attrs.name ?? child.attrs.string ?? index}-${index}`,
+        className: `epiton-layout-cell${flowClass}`,
+        style: layoutCellStyle(child),
+        "data-colspan": child.attrs.colspan ?? "default",
+        "data-rowspan": layout.rowspan,
+        "data-xexpand": layout.xexpand,
+        "data-yexpand": layout.yexpand,
+      },
+      rendered,
+    );
+  });
+}
+
+function layoutGrid(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode {
+  const layout = parseViewLayoutAttributes(node.attrs);
+  return createElement(
+    "div",
+    {
+      className: `epiton-layout-grid epiton-${node.tag}-grid`,
+      style: layoutGridStyle(node),
+      "data-layout-columns": layout.columns ?? "auto",
+    },
+    renderLayoutChildren(node, view, ctx),
+  );
+}
+
+function ExpandableGroup(props: {
+  node: ViewNode;
+  view: ParsedView;
+  ctx: RenderContext;
+}) {
+  const regionId = useId();
+  const raw = props.node.attrs.expandable?.trim().toLowerCase();
+  const [expanded, setExpanded] = useState(!["0", "false", "no", "off"].includes(raw ?? ""));
+  const title = props.node.attrs.string ?? "Section";
+
+  return createElement(
+    "section",
+    {
+      className: `epiton-group epiton-expandable-group density-${props.ctx.density}`,
+      "data-string": props.node.attrs.string,
+    },
+    createElement(
+      "h3",
+      { className: "epiton-group-title" },
+      createElement(
+        "button",
+        {
+          type: "button",
+          className: "epiton-group-toggle",
+          "aria-expanded": expanded,
+          "aria-controls": regionId,
+          onClick: () => setExpanded((current) => !current),
+        },
+        createElement("span", { "aria-hidden": true }, expanded ? "▾" : "▸"),
+        title,
+      ),
+    ),
+    createElement(
+      "div",
+      { id: regionId, hidden: !expanded },
+      layoutGrid(props.node, props.view, props.ctx),
+    ),
+  );
+}
+
+function renderContainerNode(
+  node: ViewNode,
+  view: ParsedView,
+  ctx: RenderContext,
+  showTitle = true,
+): ReactNode {
+  if (node.tag === "group" && node.attrs.expandable !== undefined) {
+    return createElement(ExpandableGroup, { node, view, ctx });
+  }
+  return createElement(
+    "section",
+    {
+      className: `epiton-${node.tag} density-${ctx.density}`,
+      "data-string": node.attrs.string,
+    },
+    showTitle && node.attrs.string
+      ? createElement("h3", { className: "epiton-group-title" }, node.attrs.string)
       : null,
+    layoutGrid(node, view, ctx),
+  );
+}
+
+function renderPanedNode(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode {
+  const horizontal = node.tag === "hpaned";
+  const layout = parseViewLayoutAttributes(node.attrs);
+  const panes = node.children.slice(0, 2);
+  const style = (
+    layout.position === null ? undefined : { "--epiton-pane-position": `${layout.position}px` }
+  ) as CSSProperties | undefined;
+  const children: ReactNode[] = [];
+
+  panes.forEach((pane, index) => {
+    if (index > 0) {
+      children.push(
+        createElement("div", {
+          key: "divider",
+          className: "epiton-paned-divider",
+          role: "separator",
+          "aria-orientation": horizontal ? "vertical" : "horizontal",
+        }),
+      );
+    }
+    const contentNodes = pane.tag === "child" ? pane.children : [pane];
+    children.push(
+      createElement(
+        "div",
+        { key: `pane-${index}`, className: "epiton-paned-pane" },
+        contentNodes.map((child, childIndex) =>
+          createElement(
+            "div",
+            { key: `${child.tag}-${child.attrs.name ?? childIndex}` },
+            renderNode(child, view, ctx),
+          ),
+        ),
+      ),
+    );
+  });
+
+  return createElement(
+    "div",
+    {
+      className: `epiton-paned epiton-paned-${horizontal ? "horizontal" : "vertical"}`,
+      role: "group",
+      "aria-label": node.attrs.string ?? (horizontal ? "Horizontal split" : "Vertical split"),
+      "data-position": layout.position ?? undefined,
+      style,
+    },
+    children,
   );
 }
 
@@ -474,11 +684,7 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       pages.push({
         key: `${page.attrs.string ?? "page"}-${i}`,
         title: page.attrs.string ?? `Page ${pages.length + 1}`,
-        content: createElement(
-          "div",
-          { className: "epiton-page" },
-          page.children.map((c, j) => createElement("div", { key: j }, renderNode(c, view, ctx))),
-        ),
+        content: renderContainerNode(page, view, ctx, false),
       });
     });
     return createElement(NotebookHost, {
@@ -488,16 +694,24 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
   }
 
   if (node.tag === "form" || node.tag === "sheet" || node.tag === "group" || node.tag === "page") {
+    return renderContainerNode(node, view, ctx);
+  }
+
+  if (node.tag === "hpaned" || node.tag === "vpaned") {
+    return renderPanedNode(node, view, ctx);
+  }
+
+  if (node.tag === "child") {
     return createElement(
-      "section",
-      {
-        className: `epiton-${node.tag} density-${ctx.density}`,
-        "data-string": node.attrs.string,
-      },
-      node.attrs.string
-        ? createElement("h3", { className: "epiton-group-title" }, node.attrs.string)
-        : null,
-      node.children.map((c, i) => createElement("div", { key: i }, renderNode(c, view, ctx))),
+      "div",
+      { className: "epiton-paned-child" },
+      node.children.map((child, index) =>
+        createElement(
+          "div",
+          { key: `${child.tag}-${child.attrs.name ?? index}` },
+          renderNode(child, view, ctx),
+        ),
+      ),
     );
   }
 
@@ -584,8 +798,16 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
     );
   }
 
-  if (node.tag === "newline" || node.tag === "separator") {
-    return createElement("hr", { className: `epiton-${node.tag}` });
+  if (node.tag === "newline") {
+    return createElement("span", { className: "epiton-newline", "aria-hidden": true });
+  }
+
+  if (node.tag === "separator") {
+    return createElement(
+      "div",
+      { className: "epiton-separator", role: "separator" },
+      node.attrs.string ? createElement("span", null, node.attrs.string) : null,
+    );
   }
 
   return createElement(

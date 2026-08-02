@@ -39,6 +39,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Email compose | mailto / form_action keywords | Improved | CC/BCC + keyword-first mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Catalog + `t()` labels + Shell/workspace chrome |
 | List-form | list-form arch | Improved | Card host renders list-form arch via `renderView` |
+| Dense form layout | form/group/notebook/paned arch | Improved | Neutral layout parsing covers col/colspan/rowspan, expand/fill/alignment, newline, expandable groups, and positioned horizontal/vertical panes; mounted notebook panels preserve nested state; desktop/mobile Chromium assertions prove responsive containment and keyboard tabs |
 | Form widgets | reference/dict/timedelta/url/email/password/progressbar/note | Improved | Reference model select + Open; URL blocks javascript: |
 | Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |

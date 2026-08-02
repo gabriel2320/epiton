@@ -14,7 +14,7 @@ Program schedule: [`TRYTON_AHEAD.md` § Development program](TRYTON_AHEAD.md#dev
 | **Codex** | Exclusive implementer and verifier | Current Codex thread |
 | **Cursor** | Inactive / historical reference only | No handoff, review, or write authority |
 
-Status: **SOLO CODEX** · Cursor disabled · RAM-safe · base `7304513` · no push
+Status: **SOLO CODEX** · Cursor disabled · RAM-safe · base `c200183` · no push
 
 ## Ops dashboard (authoritative snapshot)
 
@@ -23,11 +23,11 @@ sections below are audit trail only.
 
 | Field | Value |
 |-------|--------|
-| **Active CLAIM** | _(none)_ — L3.3 relation-depth evidence closed locally |
+| **Active CLAIM** | _(none)_ — L4 dense form layout closed locally |
 | **CLAIM paths** | — |
 | **Freeze** | `lib/screen/**` + Screen five-pack + `childScreen*` + L1 + `workspaceUi*` + `recordLifecycle*` + `recordSave*` + `listSelection*` + `actionToolbar*` + `WorkspaceActionToolbars.tsx` + `workspaceSearch*` + `workspaceNavigation*` + `WorkspaceSearchControls.tsx` |
 | **Mode** | SOLO CODEX · RAM-safe · no Cursor handoffs · targeted Chromium + disposable Tryton 7 lab; no full series matrix |
-| **Program** | M0–M3 DONE · L3.1 contract frozen + L3.2 web wiring + L3.3 relation evidence closed · L4 dense form layout is next; no external CLAIM required |
+| **Program** | M0–M3 DONE · M4 partial: L4 dense form layout closed · L5 domain filter builder is next; no external CLAIM required |
 
 ## Solo-Codex protocol (active)
 
@@ -82,7 +82,7 @@ checked: …
 ## Split of plans
 
 1. **Codex C1–C5** — gateway/session prod, Proteus **lab oracle only**, GH probe, native shells beta. Proteus never enters `@epiton/protocol` or web runtime.
-2. **Program M0–M6** — executed by Codex only while solo mode is active. L4 is the next product slice.
+2. **Program M0–M6** — executed by Codex only while solo mode is active. L5 is the next product slice.
 
 ## Historical Cursor ↔ Codex trail (inactive)
 
@@ -2180,4 +2180,38 @@ rails held:
 next product slice: L3.3 add a deterministic M2M receipt and qualify the same
 documented on_change/pre_validate boundary in a disposable Tryton 7 lab when
 available; preserve the frozen child ownership contract.
+```
+
+### Codex — L4 dense form layout closed, 2026-08-02
+
+```text
+status: WORKTREE FINAL — local, no push
+
+implemented:
+  - normalized col/colspan/rowspan, expand/fill/alignment, and pane position
+    from server XML without changing or persisting raw architecture metadata
+  - rendered responsive structural grids, newline, expandable groups, and
+    horizontal/vertical panes through the shared view host
+  - kept notebook pages mounted and added roving, keyboard-accessible tabs so
+    nested state survives page and viewport changes
+  - removed shell/workspace intrinsic-width overflow exposed by the mobile
+    acceptance scenario
+
+evidence:
+  - @epiton/view-engine: PASS (10 files, 70 tests)
+  - dense form Playwright: PASS (Chromium, 1/1 desktop/mobile scenario)
+  - pnpm test:e2e:mock: PASS (Chromium, 14/14 scenarios)
+  - typecheck: PASS (13/13 tasks)
+  - pnpm lint: PASS (223 files)
+  - pnpm test: PASS (13/13 tasks; 201 Vitest tests)
+  - web Vite production build: PASS (1,671 modules; PWA 25 entries)
+  - pnpm check:bundle: PASS (largest 468.1 KiB; limit 700 KiB)
+  - git diff --check: PASS
+
+rails held:
+  no RPC shape, business-rule authority, durable browser/native state, PHI,
+  GPL source copy, production promotion, or push.
+
+next product slice: L5 typed domain filter builder with raw JSON and saved
+search round-trip; malformed clauses must stop before RPC.
 ```

@@ -111,9 +111,9 @@ agent ownership in [`AGENT_BRIDGE.md`](AGENT_BRIDGE.md).
 - **Reduce the workspace hotspot before adding more UI state.**
   `ModelWorkspace.tsx` is now below 2,000 lines but still concentrates list,
   record, action, calendar, search, and relation behavior.
-- **Nested Screen and dense form layout are the main client-depth gaps.** A
-  multi-clause filter builder is valuable, but the existing field-aware search
-  and saved filters keep it behind those two gaps.
+- **Nested Screen and dense form layout are closed client-depth gaps.** Their
+  deterministic receipts now protect the next priority: a typed multi-clause
+  filter builder interoperable with the existing raw and saved-search paths.
 - Board wizard/report panes still hand off to the shell. Closing that placeholder
   is useful polish, not the leading protocol or workflow blocker.
 - REST Bearer, GTK-only plugins, PHI/HIS claims, and Proteus in the product
@@ -274,11 +274,15 @@ Do not start L3 while **L1.3–L1.4** evidence is still open unless a production
 blocker appears; prefer finishing L1 evidence and L2 first to reduce merge
 conflict surface.
 
-### L4 — Dense form layout
+### L4 — Dense form layout — DONE (2026-08-02)
 
-Sao-shaped `colspan`, expansion/alignment, basic paned layout. Preserve
-group/notebook memory and exclusive loading/error/empty/data states. Fixture-
-heavy in `view-engine`; Playwright at desktop/mobile widths for 1–2 dense forms.
+The neutral XML layout normalizer and shared renderer now support Sao-shaped
+`col`/`colspan`/`rowspan`, expansion/fill/alignment, newline, expandable groups,
+and basic horizontal/vertical paned layout. Notebook pages remain mounted, with
+accessible roving tabs and keyboard navigation, so nested UI state survives
+page and viewport changes. A synthetic dense form proves six-column desktop,
+single-column mobile, overflow containment, paned position/orientation, and
+group/notebook state preservation in Playwright.
 
 May proceed beside L2/L3 **only** with separate path ownership (no shared edit
 of `ModelWorkspace.tsx` / `screen.ts` / relation editors).
@@ -327,10 +331,11 @@ raises priority (then CLAIM explicitly).
 | Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
 | Human | Authority for push, PHI, production, license exceptions |
 
-Default next implementation slice: **L4 dense form layout**. Preserve the
-frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md) and its exact
-L3.3 evidence boundary; add Sao-shaped layout semantics through neutral parser
-fixtures and shared form hosts without coupling L5 filter work into the slice.
+Default next implementation slice: **L5 domain filter builder**. Preserve the
+frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md), L3.3 evidence,
+and L4 responsive layout receipts. Add typed AND/OR clauses behind the extracted
+workspace-search boundary while keeping raw JSON and `ir.ui.view_search`
+round-trippable; invalid clauses must stop before any search RPC.
 
 ### Milestone map (relative, not calendar)
 
@@ -339,7 +344,7 @@ M0  Wire + Screen + L1.1 + L1.2   ████ DONE
 M1  L1.3–L1.4 browser evidence    ████ DONE
 M2  L2 workspace decomposition    ████ DONE
 M3  L3 nested Screen API+wire     ████ DONE (L3.1 contract + L3.2 wire + L3.3 evidence)
-M4  L4 form density ‖ L5 filters  ░░░ (path-isolated)
+M4  L4 form density ‖ L5 filters  ██░░ (L4 DONE; L5 NEXT)
 M5  L6 board polish (optional)    ░░░
 M6  L7 release candidate          ░░░
 ```

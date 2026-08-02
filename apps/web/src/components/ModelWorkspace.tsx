@@ -1391,7 +1391,7 @@ export function ModelWorkspace(props: {
   }
 
   return (
-    <div style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1.1fr 1fr" }}>
+    <div className="epiton-model-workspace">
       <ConfirmDialog
         open={pendingDeleteIds != null}
         title={`Delete ${pendingDeleteIds?.length ?? 0} ${props.model} record(s)?`}

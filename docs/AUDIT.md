@@ -311,3 +311,45 @@ Push: not done
 - Formal threat modeling, penetration testing, production IdP/TLS/rotation,
   accessibility/performance budgets, GNU Health evidence, and PHI readiness
   remain open. Do not market Epitón as certified or as Epione HIS.
+
+---
+
+# Epitón audit delta — 2026-08-02 (dense form layout)
+
+L4 closes the previously recorded dense-form depth gap without changing the
+Tryton RPC contract or introducing client-side business authority. The
+implementation is a clean-room, neutral interpretation of server-supplied XML
+attributes and remains inside the shared view renderer.
+
+## Closed finding
+
+| ID | Previous severity | Finding | Closure |
+|----|-------------------|---------|---------|
+| G-05 | Medium (UX depth) | Dense form `colspan` / paned / expansion | Layout normalization and rendering now cover columns/spans, expand/fill/alignment, newline, expandable groups, and basic positioned panes. Mounted notebook panels preserve nested state; accessible keyboard tabs and responsive desktop/mobile containment are proved in Chromium. |
+
+## Verification snapshot
+
+```text
+Base: c200183 + L4 worktree
+Typecheck: PASS — 13/13 tasks
+Lint: PASS — 223 files
+Unit/contract tests: PASS — 201 tests (protocol 59, view-engine 70,
+  web 44, compat 19, intelligence 4, ui 5)
+Dense form Playwright: PASS — 1/1 desktop/mobile scenario
+Mock browser E2E: PASS — 14/14
+Web production build: PASS — 1,671 modules; PWA 25 entries
+Bundle budget: PASS — largest JavaScript asset 468.1 KiB / 700 KiB
+git diff --check: PASS
+Push: not done
+```
+
+## Residual risk and next action
+
+- The layout is intentionally a supported subset, not a claim of pixel parity
+  with every Sao/GTK extension; unsupported server widgets remain governed by
+  the existing compatibility matrix.
+- L5 typed AND/OR filtering is the next client-depth slice. Raw JSON domains and
+  server-owned saved searches must remain interoperable, and malformed clauses
+  must never issue an RPC.
+- L7 still owns the formal threat model, accessibility/performance budgets,
+  native artifact receipts, and any separately governed GNU Health evidence.

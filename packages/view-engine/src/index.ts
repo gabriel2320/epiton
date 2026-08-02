@@ -19,6 +19,10 @@ export {
   type RenderContext,
   type TreeColumn,
 } from "./render";
+export {
+  parseViewLayoutAttributes,
+  type ViewLayoutAttributes,
+} from "./layout";
 import { type ParsedView, parseFieldsViewGet } from "./parse";
 import type { RecordValues } from "./render";
 export {
