@@ -17,10 +17,10 @@ names as proof that a clinical workflow is correct.
 | Generic browser CRUD | Verified | Browser → gateway → trytond → browser on both tiers |
 | GNU Health namespace discovery | Implemented | Reads `ir.model` metadata for `gnuhealth.*` only |
 | Chilean `health` core RPC profile | Verified | Pinned Tryton 8/PostgreSQL synthetic lab; Spanish session, exact activated modules and five critical view contracts |
-| GNU Health core browser rendering | Verified | Spanish menus and live patient, appointment, prescription and evaluation workspaces through gateway → trytond |
+| GNU Health core browser rendering | Verified | Spanish menus and live patient, appointment, evaluation, prescription and vaccination workspaces through gateway → trytond |
 | Core patient CRUD | Verified | Synthetic person/patient create, read, update and delete, including Chilean federation and Many2One behavior |
 | Appointment lifecycle slice | Verified | Synthetic appointment defaults, patient relation, create, `checked_in` transition and delete |
-| Remaining clinical workflows | Not yet verified | Evaluation, prescription and vaccination lifecycles remain separate acceptance gates |
+| Protected core clinical lifecycles | Verified | Evaluation create/update with delete denied; prescription with nested line create/finalize; vaccination create/sign; final state, immutability and longitudinal events checked by the backend fixture |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
 The stock Docker lab contains party/company modules only. Therefore
@@ -41,8 +41,9 @@ For the pinned Chilean core, add
 `EPITON_GH_PROFILE=health-core-cl`. That stricter profile fails unless the
 authenticated preference is Spanish, the activated module set is exactly
 `health` plus its seven Tryton dependencies, the translated root menus are
-present, and the patient, appointment, evaluation and prescription views expose
-their required metadata. It remains read-only and synthetic.
+present, and the patient, appointment, evaluation, prescription and vaccination
+views expose their required metadata. This profile remains read-only and
+synthetic; business writes belong to the browser gate below.
 
 Connection variables follow the other lab scripts:
 `EPITON_BASE`, `EPITON_DB`, `EPITON_USER`, and `EPITON_PASSWORD`. They are used
@@ -73,19 +74,24 @@ EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
 
 The gate starts a temporary trytond HTTP listener and the Epitón gateway, then
 runs `e2e/gnu-health-core.spec.ts` against an isolated web port. It proves that
-the authenticated Spanish menu can open patient, appointment, prescription and
-evaluation workspaces from live Tryton view metadata. With synthetic data it
-then creates a person and patient, exercises Chilean federation and Many2One
-behavior, persists and reloads a patient update, and deletes both records. It
-also creates an appointment for that patient from server defaults, persists the
-`checked_in` transition and deletes the appointment.
+the authenticated Spanish menu can open patient, appointment, evaluation,
+prescription and vaccination workspaces from live Tryton view metadata. With
+synthetic data it creates and updates a person/patient, exercises Chilean
+federation and Many2One behavior, creates an appointment from server defaults,
+persists `checked_in` and deletes it. It then creates and updates an evaluation,
+creates and finalizes a prescription with a nested medication line, and creates
+and signs a vaccination with lot and expiry data.
 
 The scenario rejects page/console errors, duplicate IDs, inaccessible form
-controls, layout overlaps and unusable relations. The PostgreSQL harness then
-requires zero remaining synthetic parties, patients and appointments. This is
-evidence for the stated patient CRUD and appointment slice only; it does not
-certify evaluation, prescription or vaccination workflows, ACL correctness,
-auditing, PHI handling or production readiness.
+controls, layout overlaps and unusable relations. It also observes the effective
+evaluation access returned by Tryton and requires the delete controls to remain
+disabled. The backend fixture verifies the final protected records, rejected
+mutations and one longitudinal event for each prescription and vaccination; it
+then takes a live PostgreSQL backup, restores it into an independent database,
+and revalidates the module set, Chilean localization, protected records and
+immutability. Both databases are cleaned and required to have zero residual
+clinical fixture records. This evidence does not certify the full role/ACL
+matrix, auditing, PHI handling, observability, rollback or production readiness.
 
 ## Deployment transport controls
 
