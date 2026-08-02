@@ -5,6 +5,9 @@ import type { RecordValues } from "./render";
 
 export type RelationFieldKind = "one2many" | "many2many";
 
+export type TrytonTimestamp = string | number;
+export type TrytonTimestampMap = Record<string, TrytonTimestamp>;
+
 /** Parent-owned relation edits that have not been written to trytond yet. */
 export interface RelationCommandQueue {
   kind: RelationFieldKind;
@@ -14,6 +17,8 @@ export interface RelationCommandQueue {
   baselineIds: number[];
   /** Ordered Tryton operations. Order is significant and is never compacted here. */
   commands: O2MCommand[];
+  /** Ephemeral optimistic-lock snapshots for persisted rows touched by this queue. */
+  timestamps?: TrytonTimestampMap;
 }
 
 /**
@@ -161,6 +166,7 @@ export function setScreenRelationQueue(
         ids: [...queue.ids],
         baselineIds: [...queue.baselineIds],
         commands: [...queue.commands],
+        ...(queue.timestamps ? { timestamps: { ...queue.timestamps } } : {}),
       },
     },
   };
@@ -207,6 +213,85 @@ export function idsFromRelationValue(value: unknown): number[] {
 export function createRelationQueue(kind: RelationFieldKind, value: unknown): RelationCommandQueue {
   const ids = idsFromRelationValue(value);
   return { kind, ids, baselineIds: [...ids], commands: [] };
+}
+
+/** Read Tryton's `_timestamp` pseudo-field from a collection of RPC records. */
+export function trytonTimestampsForRecords(
+  model: string,
+  records: readonly Readonly<Record<string, unknown>>[],
+): TrytonTimestampMap {
+  const timestamps: TrytonTimestampMap = {};
+  for (const record of records) {
+    const id = numericPersistentId(record.id);
+    const timestamp = normalizeTrytonTimestamp(record._timestamp);
+    if (id == null || timestamp == null) continue;
+    const key = `${model},${id}`;
+    const current = timestamps[key];
+    timestamps[key] = current == null ? timestamp : oldestTrytonTimestamp(current, timestamp);
+  }
+  return timestamps;
+}
+
+/**
+ * Merge optimistic-lock snapshots without ever refreshing a record silently.
+ * Keeping the oldest epoch is conservative and matches Tryton/Sao's edit
+ * lifecycle: a later list refresh must not hide that a form began from stale data.
+ */
+export function mergeTrytonTimestamps(
+  ...sources: Array<Readonly<Record<string, unknown>> | null | undefined>
+): TrytonTimestampMap {
+  const timestamps: TrytonTimestampMap = {};
+  for (const source of sources) {
+    if (!source) continue;
+    for (const [key, rawTimestamp] of Object.entries(source)) {
+      const timestamp = normalizeTrytonTimestamp(rawTimestamp);
+      if (timestamp == null) continue;
+      const current = timestamps[key];
+      timestamps[key] = current == null ? timestamp : oldestTrytonTimestamp(current, timestamp);
+    }
+  }
+  return timestamps;
+}
+
+/** Add Tryton's reserved concurrency map to an RPC context, never to business values. */
+export function withTrytonTimestampContext<T extends Record<string, unknown>>(
+  context: T,
+  ...sources: Array<Readonly<Record<string, unknown>> | null | undefined>
+): T {
+  const existing = timestampMapFromUnknown(context._timestamp);
+  const timestamps = mergeTrytonTimestamps(existing, ...sources);
+  if (!Object.keys(timestamps).length) return context;
+  return { ...context, _timestamp: timestamps };
+}
+
+/** Attach nested-row concurrency metadata to a parent-owned relation queue. */
+export function relationQueueWithTrytonTimestamps(
+  queue: RelationCommandQueue,
+  ...sources: Array<Readonly<Record<string, unknown>> | null | undefined>
+): RelationCommandQueue {
+  const timestamps = mergeTrytonTimestamps(queue.timestamps, ...sources);
+  const next: RelationCommandQueue = {
+    ...queue,
+    ids: [...queue.ids],
+    baselineIds: [...queue.baselineIds],
+    commands: [...queue.commands],
+  };
+  if (Object.keys(timestamps).length) next.timestamps = timestamps;
+  return next;
+}
+
+/** Collect the parent and recursively queued child snapshots for one mutation. */
+export function screenTrytonTimestamps(screen: ScreenState): TrytonTimestampMap {
+  const id = numericPersistentId(screen.values.id) ?? numericPersistentId(screen.recordId);
+  const identity = id == null ? {} : { id };
+  const own = trytonTimestampsForRecords(screen.model, [
+    { ...screen.baseline, ...identity },
+    { ...screen.values, ...identity },
+  ]);
+  return mergeTrytonTimestamps(
+    own,
+    ...Object.values(screen.relationQueues).map((queue) => queue.timestamps),
+  );
 }
 
 export function relationQueueHasChanges(queue: RelationCommandQueue): boolean {
@@ -383,6 +468,35 @@ function serialize(value: unknown): string {
 function numericId(value: unknown): number | null {
   const id = Number(value);
   return Number.isFinite(id) ? id : null;
+}
+
+function numericPersistentId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function normalizeTrytonTimestamp(value: unknown): TrytonTimestamp | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const timestamp = value.trim();
+  return timestamp ? timestamp : null;
+}
+
+function oldestTrytonTimestamp(
+  current: TrytonTimestamp,
+  candidate: TrytonTimestamp,
+): TrytonTimestamp {
+  const currentEpoch = Number(current);
+  const candidateEpoch = Number(candidate);
+  if (Number.isFinite(currentEpoch) && Number.isFinite(candidateEpoch)) {
+    return candidateEpoch < currentEpoch ? candidate : current;
+  }
+  return current;
+}
+
+function timestampMapFromUnknown(value: unknown): TrytonTimestampMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return mergeTrytonTimestamps(value as Readonly<Record<string, unknown>>);
 }
 
 function relationValueForOnChange(kind: RelationFieldKind, value: unknown): unknown[] {

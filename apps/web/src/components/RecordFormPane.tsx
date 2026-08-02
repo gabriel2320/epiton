@@ -1,7 +1,13 @@
 import type { JsonObject } from "@epiton/protocol";
 import { applyFieldChange } from "@epiton/protocol";
 import { Button, StateBlock } from "@epiton/ui";
-import { type RecordValues, parseFieldsViewGet, renderView } from "@epiton/view-engine";
+import {
+  type RecordValues,
+  parseFieldsViewGet,
+  renderView,
+  trytonTimestampsForRecords,
+  withTrytonTimestampContext,
+} from "@epiton/view-engine";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { invalidateModelProjections } from "../lib/backendTruth";
@@ -40,7 +46,7 @@ export function RecordFormPane(props: {
     queryFn: async () => {
       if (!client) return null;
       const fieldNames = [
-        ...new Set(["id", "rec_name", ...Object.keys(viewQuery.data?.fields ?? {})]),
+        ...new Set(["id", "rec_name", "_timestamp", ...Object.keys(viewQuery.data?.fields ?? {})]),
       ];
       const result = await client.model(
         props.model,
@@ -73,7 +79,11 @@ export function RecordFormPane(props: {
         if (Array.isArray(raw) && typeof raw[0] === "number") patch[key] = raw[0];
         else if (raw !== undefined) patch[key] = raw as JsonObject[string];
       }
-      await client.model(props.model, "write", [[props.recordId], patch], props.rpcContext);
+      const mutationContext = withTrytonTimestampContext(
+        props.rpcContext,
+        trytonTimestampsForRecords(props.model, [draft]),
+      ) as JsonObject;
+      await client.model(props.model, "write", [[props.recordId], patch], mutationContext);
     },
     onSuccess: async () => {
       setNotice("Saved");

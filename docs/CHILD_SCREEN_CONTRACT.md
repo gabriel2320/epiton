@@ -1,10 +1,10 @@
 # Child Screen contract
 
-Status: **L3.4 exit-integrity-qualified**, 2026-08-02. The pure L3.1 contract
-remains frozen, its L3.2 web integration is unchanged, and the relation
-boundary now has deterministic Many2Many browser evidence, a disposable
-Tryton 7 live receipt, and three-level dirty-exit protection. This document
-narrows the architecture
+Status: **L3.5 optimistic-lock-qualified**, 2026-08-02. The pure L3.1 command
+and lifecycle contract remains frozen, its L3.2 web integration is unchanged,
+and the relation boundary now adds native Tryton optimistic locking to its
+deterministic Many2Many browser evidence, disposable Tryton 7 live receipt,
+and three-level dirty-exit protection. This document narrows the architecture
 in [`THREE_LAYER_ARCHITECTURE.md`](THREE_LAYER_ARCHITECTURE.md); it does not
 raise the compatibility claim beyond [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
@@ -23,7 +23,9 @@ A child Screen is an editable, process-local snapshot. It never calls RPC,
 stores business data, or writes a related record independently. Accepting a
 line produces a `create` or `write` command in the parent-owned relation queue;
 removing a line produces `remove` or `delete`, according to server view policy.
-The parent Screen remains the single mutation boundary.
+The queue may also carry ephemeral `_timestamp` snapshots for persisted child
+records. They are concurrency metadata, not business values or independent RPC
+requests. The parent Screen remains the single mutation boundary.
 
 The implementation is
 [`packages/view-engine/src/childScreen.ts`](../packages/view-engine/src/childScreen.ts).
@@ -95,6 +97,8 @@ the baseline and current id sets. A `delete` does not also emit a duplicate
 
 The queue-to-wire mapping is deterministic and remains inside
 `@epiton/view-engine`; React components must not construct raw command tuples.
+Parent and nested snapshots are merged into the reserved RPC context when that
+single mutation executes. They never alter serialized x2many command tuples.
 
 ## Evidence and completion receipt
 
@@ -141,10 +145,23 @@ the pure child Screen API:
    line switch, proves the draft remains open, then queues it and emits the
    original single parent `write` with zero independent child mutations.
 
-These receipts qualify the stock Tryton 7 boundary and the deterministic mock
-shape. They do not claim that every relation-heavy third-party module or every
-supported series has completed equivalent deep qualification. The frozen
-ownership contract remains unchanged.
+L3.5 qualifies optimistic locking while preserving the same mutation boundary:
+
+1. reads of persisted child records request Tryton's `_timestamp`, and accepted
+   lines carry their ephemeral snapshots through nested parent queues;
+2. parent Save merges the oldest snapshot for every model/id recursively and
+   sends that map only in the reserved RPC context; business values and x2many
+   command tuples remain unchanged;
+3. focused Screen/child/save tests prove the projection, and the live Tryton 8
+   GNU Health gate opens one patient in two independent Spanish sessions,
+   accepts and refreshes the first write, rejects the stale second write, and
+   preserves the newest backend value.
+
+These receipts qualify the stock Tryton 7 relation boundary, the deterministic
+mock shape, and the exercised Tryton 8 GNU Health concurrency path. They do not
+claim that every relation-heavy third-party module or every supported series
+has completed equivalent deep qualification. The frozen ownership and command
+contract remains unchanged.
 
 The contract was independently translated from documented Tryton behavior. No
 Sao or GTK source code is copied into Epitón.

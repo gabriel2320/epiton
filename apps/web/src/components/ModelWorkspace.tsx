@@ -64,8 +64,11 @@ import {
   isScreenReadyToSave,
   screenForSelection,
   screenIsDirty,
+  screenTrytonTimestamps,
   setScreenRelationQueue,
+  trytonTimestampsForRecords,
   updateScreenValues,
+  withTrytonTimestampContext,
 } from "../lib/screen";
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
@@ -312,7 +315,11 @@ export function ModelWorkspace(props: {
       const actions = await getKeywords(client, keyword, props.model, recordId, rpcContext);
       const hit = actions[0];
       if (!hit) return false;
-      props.onOpenAction(hit.ref, source, buttonRpcContext(rpcContext, props.model, [recordId]));
+      props.onOpenAction(
+        hit.ref,
+        source,
+        buttonRpcContext(mutationContextForIds(rpcContext, [recordId]), props.model, [recordId]),
+      );
       props.onHistory?.(source);
       return true;
     } catch {
@@ -391,7 +398,13 @@ export function ModelWorkspace(props: {
     if (!ids.length) return;
     setNotice("Copying…");
     try {
-      const created = await copyRecords(client, props.model, ids, {}, rpcContext);
+      const created = await copyRecords(
+        client,
+        props.model,
+        ids,
+        {},
+        mutationContextForIds(rpcContext, ids),
+      );
       setNotice(`Copied → ${created.join(", ") || "ok"}`);
       props.onHistory?.("copy");
       await invalidateModelProjections(queryClient);
@@ -494,7 +507,9 @@ export function ModelWorkspace(props: {
       ]),
     ];
     const baseFields = merged.filter((field) => knownFields.has(field)).slice(0, 28);
-    return withMany2OneRecNames(baseFields, relationProjectionFields);
+    return [
+      ...new Set([...withMany2OneRecNames(baseFields, relationProjectionFields), "_timestamp"]),
+    ];
   }, [
     treeViewQuery.data,
     formViewQuery.data,
@@ -641,7 +656,7 @@ export function ModelWorkspace(props: {
         return await client.searchRead(
           props.model,
           [],
-          ["id", "rec_name"],
+          ["id", "rec_name", "_timestamp"],
           offset,
           pageSize,
           null,
@@ -687,6 +702,22 @@ export function ModelWorkspace(props: {
     expandedTreeIds,
     emptyTreeParents,
   ]);
+
+  function mutationContextForIds(context: JsonObject, ids: readonly number[]): JsonObject {
+    const requested = new Set(ids);
+    const visibleRows = mergeTreeRows(projectedListRows, lazyTreeRows).filter((row) =>
+      requested.has(Number(row.id)),
+    );
+    const visibleTimestamps = trytonTimestampsForRecords(props.model, visibleRows);
+    const currentScreen = screenRef.current;
+    const screenTimestamps =
+      currentScreen.model === props.model &&
+      currentScreen.recordId != null &&
+      requested.has(currentScreen.recordId)
+        ? screenTrytonTimestamps(currentScreen)
+        : {};
+    return withTrytonTimestampContext(context, visibleTimestamps, screenTimestamps) as JsonObject;
+  }
 
   useEffect(() => {
     if (!client || !session || !hierarchyMeta?.hierarchical || !listDomainResult.ok) return;
@@ -753,7 +784,9 @@ export function ModelWorkspace(props: {
           props.onOpenAction(
             hit.ref,
             "email",
-            buttonRpcContext(rpcContext, props.model, [selectedId]),
+            buttonRpcContext(mutationContextForIds(rpcContext, [selectedId]), props.model, [
+              selectedId,
+            ]),
           );
           props.onHistory?.("email:keyword");
           return;
@@ -786,7 +819,12 @@ export function ModelWorkspace(props: {
     setNotice("Reordering…");
     try {
       for (const { id, sequence } of sequenceWrites(ordered)) {
-        await client.model(props.model, "write", [[id], { [field]: sequence }], rpcContext);
+        await client.model(
+          props.model,
+          "write",
+          [[id], { [field]: sequence }],
+          mutationContextForIds(rpcContext, [id]),
+        );
       }
       setNotice(`Reordered ${ordered.length} sibling(s)`);
       props.onHistory?.("tree:reorder");
@@ -895,6 +933,8 @@ export function ModelWorkspace(props: {
     const baseFields = [
       ...new Set([
         ...Object.keys(formViewQuery.data?.fields ?? { name: true }),
+        "id",
+        "_timestamp",
         "create_date",
         "write_date",
         "create_uid",
@@ -1128,9 +1168,10 @@ export function ModelWorkspace(props: {
     mutationFn: async (ids: number[]) => {
       if (!client || !ids.length) throw new Error(t("workspace.nothingSelected"));
       if (!modelAccess.delete) throw new Error(t("workspace.accessDenied"));
+      const mutationContext = mutationContextForIds(rpcContext, ids);
       // Deleting abandons the edited lifecycle; no late field patch may revive it.
       bumpScreenGeneration();
-      await client.model(props.model, "delete", [ids], rpcContext);
+      await client.model(props.model, "delete", [ids], mutationContext);
       props.onHistory?.("delete");
     },
     onSuccess: async () => {
@@ -1260,7 +1301,7 @@ export function ModelWorkspace(props: {
       props.onOpenAction(
         name,
         `button:${name}`,
-        buttonRpcContext(rpcContext, props.model, activeIds),
+        buttonRpcContext(mutationContextForIds(rpcContext, ids), props.model, activeIds),
       );
       props.onHistory?.(`button:action:${name}`);
       return;
@@ -1271,7 +1312,7 @@ export function ModelWorkspace(props: {
         props.model,
         name,
         [ids],
-        buttonRpcContext(rpcContext, props.model, activeIds),
+        buttonRpcContext(mutationContextForIds(rpcContext, ids), props.model, activeIds),
       );
       props.onHistory?.(`button:${name}`);
       setNotice(t("workspace.buttonOk", { name, count: ids.length }));
@@ -1336,7 +1377,7 @@ export function ModelWorkspace(props: {
         props.model,
         "write",
         [[id], { [field]: value } as JsonObject],
-        rpcContext,
+        mutationContextForIds(rpcContext, [id]),
       );
       setNotice(`Updated #${id}.${field}`);
       props.onHistory?.(`tree:write:${field}`);
@@ -1356,7 +1397,7 @@ export function ModelWorkspace(props: {
       props.onOpenAction(
         action.name,
         `tree-button:${action.name}`,
-        buttonRpcContext(rpcContext, props.model, [id]),
+        buttonRpcContext(mutationContextForIds(rpcContext, [id]), props.model, [id]),
       );
       props.onHistory?.(`tree-button:action:${action.name}`);
       return;
@@ -1368,7 +1409,7 @@ export function ModelWorkspace(props: {
         props.model,
         action.name,
         [ids],
-        buttonRpcContext(rpcContext, props.model, ids),
+        buttonRpcContext(mutationContextForIds(rpcContext, ids), props.model, ids),
       );
       props.onHistory?.(`tree-button:${action.name}`);
       setNotice(`Button ${action.name} OK`);
@@ -1452,7 +1493,12 @@ export function ModelWorkspace(props: {
       values[endField] = endIso.includes("T") ? endIso.replace("T", " ").slice(0, 19) : endIso;
     }
     try {
-      await client.model(props.model, "write", [[id], values], rpcContext);
+      await client.model(
+        props.model,
+        "write",
+        [[id], values],
+        mutationContextForIds(rpcContext, [id]),
+      );
       props.onHistory?.("calendar:drop");
       setNotice(`Moved #${id}`);
       await invalidateModelProjections(queryClient);

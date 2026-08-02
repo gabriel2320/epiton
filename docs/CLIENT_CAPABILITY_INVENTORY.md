@@ -14,7 +14,7 @@ remain canonical, while unresolved depth is ordered in
 | Actions | act_window, wizard, report, URL, email, relate/print keywords | `@epiton/protocol`, shared Shell action host | compatibility tests, board/wizard/report E2E |
 | View metadata | `fields_view_get`, form/tree/list-form/calendar/graph/board XML | `@epiton/view-engine` | parser/render fixtures |
 | Dynamic behavior | PYSON states, domains, context, defaults, `on_change` | view engine + Screen + workspace hooks | unit tests and workspace E2E |
-| Record lifecycle | create/read/write/delete/copy/history, concurrency guards | protocol model calls + Screen/workspace | protocol tests, live CRUD, browser isolation proof |
+| Record lifecycle | create/read/write/delete/copy/history, concurrency guards | protocol model calls + Screen/workspace | protocol tests, `_timestamp` parent/nested unit proofs, live CRUD and a Tryton 8 GNU Health two-session stale-write rejection |
 | Fields and widgets | scalar, selection, date/time, binary, reference, dict, progress, URL/email | `@epiton/view-engine`, `@epiton/ui` | renderer and interaction tests |
 | Relations | M2O search/open, O2M/M2M command queues, nested record lifecycle | Screen, relation editors, protocol | relation unit tests and parent-write E2E |
 | Lists | search/order/count, editable/hierarchical tree, pagination, aggregates | view engine + pure workspace search policy + table hosts | unit tests and mock browser |

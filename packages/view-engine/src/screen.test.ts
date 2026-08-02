@@ -11,13 +11,17 @@ import {
   isScreenReadyToSave,
   relationQueueOnChangeValue,
   relationQueueWireValue,
+  relationQueueWithTrytonTimestamps,
   screenForSelection,
   screenIsDirty,
+  screenTrytonTimestamps,
   screenValuesForOnChange,
   screenValuesForSave,
   setScreenRelationQueue,
   shouldApplyNewDefaults,
+  trytonTimestampsForRecords,
   updateScreenValues,
+  withTrytonTimestampContext,
 } from "./screen";
 
 function field(name: string, type: ViewField["type"], readonly = false): ViewField {
@@ -48,6 +52,53 @@ describe("screen", () => {
     const queued = setScreenRelationQueue(base, "lines", lines);
     expect(screenIsDirty(queued)).toBe(true);
     expect(relationQueueWireValue(lines)).toEqual([["create", [{ product: 4, quantity: 2 }]]]);
+  });
+
+  it("keeps the oldest Tryton concurrency snapshot outside clinical values", () => {
+    const lines = relationQueueWithTrytonTimestamps(createRelationQueue("one2many", [8]), {
+      "sale.line,8": "15.000000",
+    });
+    lines.commands = [{ op: "write", id: 8, values: { quantity: 3 } }];
+    let screen = createScreen("sale.sale", 7, {
+      id: 7,
+      name: "S-7",
+      _timestamp: "20.000000",
+      lines: [8],
+    });
+    screen = setScreenRelationQueue(screen, "lines", lines);
+
+    expect(
+      trytonTimestampsForRecords("sale.sale", [
+        { id: 7, _timestamp: "20.000000" },
+        { id: 7, _timestamp: "25.000000" },
+      ]),
+    ).toEqual({ "sale.sale,7": "20.000000" });
+    expect(screenTrytonTimestamps(screen)).toEqual({
+      "sale.sale,7": "20.000000",
+      "sale.line,8": "15.000000",
+    });
+    expect(
+      withTrytonTimestampContext(
+        { language: "es", _timestamp: { "sale.sale,7": "25.000000" } },
+        screenTrytonTimestamps(screen),
+      ),
+    ).toEqual({
+      language: "es",
+      _timestamp: {
+        "sale.sale,7": "20.000000",
+        "sale.line,8": "15.000000",
+      },
+    });
+    expect(
+      screenValuesForSave(screen, {
+        name: field("name", "char"),
+        lines: field("lines", "one2many"),
+      }),
+    ).toEqual({
+      name: "S-7",
+      lines: [["write", [8], { quantity: 3 }]],
+    });
+    expect(relationQueueWireValue(lines)).toEqual([["write", [8], { quantity: 3 }]]);
   });
 
   it("encodes the existing Tryton values shape and skips readonly fields", () => {

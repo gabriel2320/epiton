@@ -22,6 +22,7 @@ names as proof that a clinical workflow is correct.
 | Appointment lifecycle slice | Verified | Synthetic appointment defaults, patient relation, create, `checked_in` transition and delete |
 | Protected core clinical lifecycles | Verified | Evaluation create/update with delete denied; prescription with nested line create/finalize; vaccination create/sign; final state, immutability and longitudinal events checked by the backend fixture |
 | Core patient report lifecycle | Verified | The Spanish `Carnet de Identidad` action executes `patient.card` with Tryton's native report contract; GNU Health owns the PDF format and filename and Epitón previews the returned binary payload |
+| Core optimistic concurrency | Verified | Two independent Spanish Epitón sessions load the same patient snapshot; the first write refreshes `_timestamp`, Tryton rejects the stale second write, and the newest value is retained |
 | Core effective role/ACL matrix | Verified | Tryton's ACL engine checks eight synthetic identities across patient, appointment, evaluation, prescription and vaccination, including negative permissions; Epitón then exercises all eight profiles in the browser against a disposable database clone, while upstream demo accounts remain forbidden |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
@@ -82,9 +83,14 @@ synthetic data it creates and updates a person/patient, exercises Chilean
 federation and Many2One behavior, creates an appointment from server defaults,
 persists `checked_in` and deletes it. It then creates and updates an evaluation,
 creates and finalizes a prescription with a nested medication line, and creates
-and signs a vaccination with lot and expiry data. Finally, it returns to the
-patient, opens the translated `Carnet de Identidad` print action and previews
-the real `patient.card` PDF. The assertion fixes the wire boundary to
+and signs a vaccination with lot and expiry data. Two independent authenticated
+pages also load the same patient snapshot: the first write succeeds and returns
+a fresh `_timestamp`, while Tryton rejects the second page's stale write and the
+newest backend value remains visible. Parent and nested timestamps travel only
+in Tryton's reserved RPC context, never in clinical values or x2many command
+tuples. Finally, the scenario returns to the patient, opens the translated
+`Carnet de Identidad` print action and previews the real `patient.card` PDF. The
+assertion fixes the wire boundary to
 `Report.execute(ids, data, context)`, accepts Tryton's encoded bytes envelope,
 and requires the backend-provided extension and filename instead of a
 client-selected format.

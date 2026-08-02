@@ -10,7 +10,9 @@ import {
   idsFromRelationValue,
   relationQueueHasChanges,
   relationQueueOnChangeValue,
+  relationQueueWithTrytonTimestamps,
   screenIsDirty,
+  screenTrytonTimestamps,
   screenValuesForSave,
   setScreenRelationQueue,
   updateScreenValues,
@@ -339,14 +341,18 @@ export function commitChildScreen(
   if (issues.length) return { ok: false, queue, reason: "validation", issues };
 
   const values = screenValuesForSave(child.screen, fields as Record<string, ViewField>);
+  const guardedQueue = relationQueueWithTrytonTimestamps(
+    queue,
+    screenTrytonTimestamps(child.screen),
+  );
   if (child.target.kind === "new") {
     const command = { op: "create", values } as const;
-    const commandIndex = queue.commands.length;
+    const commandIndex = guardedQueue.commands.length;
     return {
       ok: true,
       command,
       commandIndex,
-      queue: cloneQueue(queue, [...queue.commands, command]),
+      queue: cloneQueue(guardedQueue, [...guardedQueue.commands, command]),
     };
   }
   if (child.target.kind === "record") {
@@ -354,17 +360,17 @@ export function commitChildScreen(
       return { ok: false, queue, reason: "stale-target", issues: [] };
     }
     const command = { op: "write", id: child.target.id, values } as const;
-    const commandIndex = queue.commands.length;
+    const commandIndex = guardedQueue.commands.length;
     return {
       ok: true,
       command,
       commandIndex,
-      queue: cloneQueue(queue, [...queue.commands, command]),
+      queue: cloneQueue(guardedQueue, [...guardedQueue.commands, command]),
     };
   }
 
   const commandIndex = child.target.commandIndex;
-  const current = queue.commands[commandIndex];
+  const current = guardedQueue.commands[commandIndex];
   if (current?.op !== "create") {
     return { ok: false, queue, reason: "stale-target", issues: [] };
   }
@@ -374,8 +380,8 @@ export function commitChildScreen(
     command,
     commandIndex,
     queue: cloneQueue(
-      queue,
-      queue.commands.map((item, index) => (index === commandIndex ? command : item)),
+      guardedQueue,
+      guardedQueue.commands.map((item, index) => (index === commandIndex ? command : item)),
     ),
   };
 }
@@ -439,6 +445,7 @@ function cloneQueue(
     ids: [...queue.ids],
     baselineIds: [...queue.baselineIds],
     commands: [...commands],
+    ...(queue.timestamps ? { timestamps: { ...queue.timestamps } } : {}),
   };
 }
 

@@ -4,8 +4,10 @@ import {
   type ScreenState,
   createScreen,
   isScreenReadyToSave,
+  screenTrytonTimestamps,
   screenValuesForSave,
   shouldApplyNewDefaults,
+  withTrytonTimestampContext,
 } from "../../lib/screen";
 
 type RecordSaveClient = Pick<EpitonClient, "model">;
@@ -91,13 +93,17 @@ export async function saveRecord(options: SaveRecordOptions): Promise<SavedRecor
   bumpScreenGeneration();
   const values = screenValuesForSave(currentScreen, fieldMeta) as JsonObject;
   const savedValues = currentScreen.values;
+  const mutationContext = withTrytonTimestampContext(
+    context,
+    screenTrytonTimestamps(currentScreen),
+  ) as JsonObject;
   if (selectedId) {
-    await client.model(model, "write", [[selectedId], values], context);
+    await client.model(model, "write", [[selectedId], values], mutationContext);
     onHistory?.("write");
     return { id: selectedId, savedValues };
   }
 
-  const created = await client.model(model, "create", [[values]], context);
+  const created = await client.model(model, "create", [[values]], mutationContext);
   const id = Array.isArray(created) ? Number(created[0]) : Number(created);
   onHistory?.("create");
   return { id, savedValues };

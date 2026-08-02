@@ -14,7 +14,11 @@ import {
   validateChildScreen,
 } from "./childScreen";
 import type { ViewField } from "./parse";
-import { createRelationQueue, relationQueueWireValue } from "./screen";
+import {
+  createRelationQueue,
+  relationQueueWireValue,
+  relationQueueWithTrytonTimestamps,
+} from "./screen";
 
 function field(name: string, type: ViewField["type"], required = false): ViewField {
   return { name, type, required };
@@ -94,6 +98,50 @@ describe("child Screen contract", () => {
       reason: "stale-target",
       issues: [],
     });
+  });
+
+  it("bubbles persisted child snapshots without adding metadata to x2many tuples", () => {
+    const parent = createRelationQueue("one2many", [4]);
+    let child = createChildScreen(
+      "sale.line",
+      { kind: "record", id: 4 },
+      { quantity: 3, _timestamp: "20.000000", moves: [9] },
+    );
+    const moves = relationQueueWithTrytonTimestamps(createRelationQueue("one2many", [9]), {
+      "stock.move,9": "15.000000",
+    });
+    moves.commands = [{ op: "write", id: 9, values: { quantity: 2 } }];
+    child = setChildScreenRelationQueue(child, "moves", moves);
+
+    const result = commitChildScreen(parent, child, {
+      quantity: field("quantity", "integer"),
+      moves: field("moves", "one2many"),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.queue.timestamps).toEqual({
+      "sale.line,4": "20.000000",
+      "stock.move,9": "15.000000",
+    });
+    expect(result.command).toEqual({
+      op: "write",
+      id: 4,
+      values: {
+        quantity: 3,
+        moves: [["write", [9], { quantity: 2 }]],
+      },
+    });
+    expect(relationQueueWireValue(result.queue)).toEqual([
+      [
+        "write",
+        [4],
+        {
+          quantity: 3,
+          moves: [["write", [9], { quantity: 2 }]],
+        },
+      ],
+    ]);
   });
 
   it("removes persisted children and discards queued creates immutably", () => {

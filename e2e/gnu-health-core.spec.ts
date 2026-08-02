@@ -177,6 +177,8 @@ const syntheticFamilyName = process.env.EPITON_GH_SYNTHETIC_FAMILY_NAME ?? "Labo
 const syntheticClinicalNote =
   process.env.EPITON_GH_SYNTHETIC_CLINICAL_NOTE ??
   "Registro clínico sintético de validación Epiton";
+const syntheticConcurrentClinicalNote = `${syntheticClinicalNote} · edición vigente`;
+const syntheticStaleClinicalNote = `${syntheticClinicalNote} · edición obsoleta`;
 const syntheticAppointmentComment =
   process.env.EPITON_GH_SYNTHETIC_APPOINTMENT_COMMENT ??
   "Cita clínica sintética de validación Epiton";
@@ -569,6 +571,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   });
   expect(patientPayload.error).toBeUndefined();
   expect(patientRequest.params?.[4]).toContain("party.rec_name");
+  expect(patientRequest.params?.[4]).toContain("_timestamp");
   expect(patientPayload.result).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
@@ -589,14 +592,41 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   });
   const patientId = Number(patientRecord?.id);
   expect(patientId, "the generated patient must have a Tryton identifier").toBeGreaterThan(0);
+  const patientTimestamp = String(patientRecord?._timestamp ?? "");
+  expect(patientTimestamp, "the patient list must carry Tryton's concurrency timestamp").not.toBe(
+    "",
+  );
   const patientRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
   await expect(patientRow).toBeVisible();
   await patientRow.click();
   await expect(page.getByRole("heading", { name: /gnuhealth\.patient #\d+/ })).toBeVisible();
   await page.getByRole("button", { name: "Modo: lectura", exact: true }).click();
   await page.locator('textarea[name="general_info"]:visible').fill(syntheticClinicalNote);
+  const refreshedPatientRecord = page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as {
+        method?: unknown;
+        params?: unknown[];
+      };
+      return (
+        request.method === "model.gnuhealth.patient.read" &&
+        Array.isArray(request.params?.[0]) &&
+        request.params[0][0] === patientId
+      );
+    } catch {
+      return false;
+    }
+  });
   await page.getByRole("button", { name: "Guardar", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+  const refreshedPatientPayload = (await (await refreshedPatientRecord).json()) as {
+    error?: unknown;
+    result?: Array<Record<string, unknown>>;
+  };
+  expect(refreshedPatientPayload.error).toBeUndefined();
+  const stalePatientTimestamp = String(refreshedPatientPayload.result?.[0]?._timestamp ?? "");
+  expect(stalePatientTimestamp).not.toBe("");
+  expect(stalePatientTimestamp).not.toBe(patientTimestamp);
 
   await sidebar.getByRole("button", { name: "Citas", exact: true }).last().click();
   await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
@@ -607,6 +637,184 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(page.locator('textarea[name="general_info"]:visible')).toHaveValue(
     syntheticClinicalNote,
   );
+
+  const concurrentPage = await page.context().newPage();
+  try {
+    await concurrentPage.goto("/", { waitUntil: "networkidle" });
+    await concurrentPage.getByLabel("Language").selectOption("es");
+    await concurrentPage.getByLabel("Servidor", { exact: true }).fill(baseUrl);
+    await concurrentPage.getByLabel("Base de datos", { exact: true }).fill(database);
+    await concurrentPage.getByLabel("Usuario", { exact: true }).fill(username);
+    await concurrentPage.getByLabel("Contraseña", { exact: true }).fill(password);
+    await concurrentPage.getByRole("button", { name: "Entrar a Epiton", exact: true }).click();
+
+    const concurrentSidebar = concurrentPage.getByRole("complementary", {
+      name: "Menú",
+      exact: true,
+    });
+    await expect(concurrentSidebar).toBeVisible({ timeout: 30_000 });
+    await concurrentSidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+    await expect(
+      concurrentPage.getByRole("heading", { name: "gnuhealth.patient", exact: true }),
+    ).toBeVisible();
+    const concurrentPatientRow = concurrentPage
+      .getByRole("row")
+      .filter({ hasText: syntheticGivenName })
+      .first();
+    await expect(concurrentPatientRow).toBeVisible();
+    const concurrentRecordReadResponse = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as {
+          method?: unknown;
+          params?: unknown[];
+        };
+        return (
+          request.method === "model.gnuhealth.patient.read" &&
+          Array.isArray(request.params?.[0]) &&
+          request.params[0][0] === patientId
+        );
+      } catch {
+        return false;
+      }
+    });
+    await concurrentPatientRow.click();
+    await expect(
+      concurrentPage.getByRole("heading", {
+        name: new RegExp(`gnuhealth\\.patient #${patientId}`),
+      }),
+    ).toBeVisible();
+    await expect(concurrentPage.locator('textarea[name="general_info"]:visible')).toHaveValue(
+      syntheticClinicalNote,
+    );
+    const concurrentRecordReadPayload = (await (await concurrentRecordReadResponse).json()) as {
+      error?: unknown;
+      result?: Array<Record<string, unknown>>;
+    };
+    expect(concurrentRecordReadPayload.error).toBeUndefined();
+    const concurrentPatientTimestamp = String(
+      concurrentRecordReadPayload.result?.[0]?._timestamp ?? "",
+    );
+    expect(concurrentPatientTimestamp).toBe(stalePatientTimestamp);
+
+    await concurrentPage.getByRole("button", { name: "Modo: lectura", exact: true }).click();
+    await concurrentPage
+      .locator('textarea[name="general_info"]:visible')
+      .fill(syntheticConcurrentClinicalNote);
+    const concurrentWriteResponse = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as { method?: unknown };
+        return request.method === "model.gnuhealth.patient.write";
+      } catch {
+        return false;
+      }
+    });
+    const refreshedConcurrentRecord = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as {
+          method?: unknown;
+          params?: unknown[];
+        };
+        return (
+          request.method === "model.gnuhealth.patient.read" &&
+          Array.isArray(request.params?.[0]) &&
+          request.params[0][0] === patientId
+        );
+      } catch {
+        return false;
+      }
+    });
+    await concurrentPage.getByRole("button", { name: "Guardar", exact: true }).click();
+    const concurrentWrite = await concurrentWriteResponse;
+    const concurrentWriteRequest = concurrentWrite.request().postDataJSON() as {
+      params?: unknown[];
+    };
+    const concurrentWritePayload = (await concurrentWrite.json()) as { error?: unknown };
+    const concurrentWriteContext = concurrentWriteRequest.params?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(concurrentWriteRequest.params?.[0]).toEqual([patientId]);
+    expect(concurrentWriteRequest.params?.[1]).toMatchObject({
+      general_info: syntheticConcurrentClinicalNote,
+    });
+    expect(concurrentWriteContext?._timestamp).toMatchObject({
+      [`gnuhealth.patient,${patientId}`]: concurrentPatientTimestamp,
+    });
+    expect(concurrentWritePayload.error).toBeUndefined();
+    await expect(
+      concurrentPage.getByRole("status").filter({ hasText: /^Guardado$/ }),
+    ).toBeVisible();
+
+    const refreshedConcurrentResponse = await refreshedConcurrentRecord;
+    const refreshedConcurrentPayload = (await refreshedConcurrentResponse.json()) as {
+      error?: unknown;
+      result?: Array<Record<string, unknown>>;
+    };
+    expect(refreshedConcurrentPayload.error).toBeUndefined();
+    const currentPatientTimestamp = String(
+      refreshedConcurrentPayload.result?.[0]?._timestamp ?? "",
+    );
+    expect(currentPatientTimestamp).not.toBe("");
+    expect(currentPatientTimestamp).not.toBe(concurrentPatientTimestamp);
+
+    await page.getByRole("button", { name: "Modo: lectura", exact: true }).click();
+    await page.locator('textarea[name="general_info"]:visible').fill(syntheticStaleClinicalNote);
+    const staleWriteResponse = page.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as { method?: unknown };
+        return request.method === "model.gnuhealth.patient.write";
+      } catch {
+        return false;
+      }
+    });
+    await page.getByRole("button", { name: "Guardar", exact: true }).click();
+    const staleWrite = await staleWriteResponse;
+    const staleWriteRequest = staleWrite.request().postDataJSON() as { params?: unknown[] };
+    const staleWritePayload = (await staleWrite.json()) as {
+      error?: { message?: unknown } | unknown[];
+    };
+    const staleWriteContext = staleWriteRequest.params?.[2] as Record<string, unknown> | undefined;
+    expect(staleWriteRequest.params?.[0]).toEqual([patientId]);
+    expect(staleWriteRequest.params?.[1]).toMatchObject({
+      general_info: syntheticStaleClinicalNote,
+    });
+    expect(staleWriteContext?._timestamp).toMatchObject({
+      [`gnuhealth.patient,${patientId}`]: stalePatientTimestamp,
+    });
+    expect(staleWritePayload.error).toBeDefined();
+    await expect(page.getByRole("alert").last()).toBeVisible();
+    await expect(concurrentPage.locator('textarea[name="general_info"]:visible')).toHaveValue(
+      syntheticConcurrentClinicalNote,
+    );
+
+    await concurrentPage.getByRole("button", { name: "Modo: lectura", exact: true }).click();
+    await concurrentPage
+      .locator('textarea[name="general_info"]:visible')
+      .fill(syntheticClinicalNote);
+    const restoredWriteResponse = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as { method?: unknown };
+        return request.method === "model.gnuhealth.patient.write";
+      } catch {
+        return false;
+      }
+    });
+    await concurrentPage.getByRole("button", { name: "Guardar", exact: true }).click();
+    const restoredWrite = await restoredWriteResponse;
+    const restoredWriteRequest = restoredWrite.request().postDataJSON() as { params?: unknown[] };
+    const restoredWritePayload = (await restoredWrite.json()) as { error?: unknown };
+    const restoredWriteContext = restoredWriteRequest.params?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(restoredWriteContext?._timestamp).toMatchObject({
+      [`gnuhealth.patient,${patientId}`]: currentPatientTimestamp,
+    });
+    expect(restoredWritePayload.error).toBeUndefined();
+  } finally {
+    await concurrentPage.close();
+  }
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Modo: edición", exact: true }).click();
 
   const evaluationsAction = page.getByRole("button", {
     name: "Evaluaciones",
@@ -1278,6 +1486,9 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
     openedUnsavedPatientForm: true,
     patientLifecycle: {
       created: true,
+      concurrencyConflictRejected: true,
+      concurrencyLatestValuePreserved: true,
+      concurrencyTimestampRefreshed: true,
       read: true,
       updated: true,
       persistedClinicalNote: true,

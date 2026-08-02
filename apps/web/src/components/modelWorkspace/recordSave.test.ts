@@ -1,6 +1,13 @@
 import type { ViewField } from "@epiton/view-engine";
 import { describe, expect, it, vi } from "vitest";
-import { createScreen, screenIsDirty, updateScreenValues } from "../../lib/screen";
+import {
+  createRelationQueue,
+  createScreen,
+  relationQueueWithTrytonTimestamps,
+  screenIsDirty,
+  setScreenRelationQueue,
+  updateScreenValues,
+} from "../../lib/screen";
 import {
   type SaveRecordOptions,
   leaveWriteModeTransition,
@@ -103,6 +110,32 @@ describe("recordSave", () => {
     );
     expect(order).toEqual(["flush", "bump", "rpc", "history"]);
     expect(history).toEqual(["write"]);
+  });
+
+  it("writes parent and nested optimistic locks only through RPC context", async () => {
+    const client: SaveRecordOptions["client"] = {
+      model: vi.fn(async () => true),
+    };
+    let screen = createScreen(model, 7, {
+      id: 7,
+      name: "Ada",
+      _timestamp: "20.000000",
+    });
+    const lines = relationQueueWithTrytonTimestamps(createRelationQueue("one2many", [11]), {
+      "party.address,11": "15.000000",
+    });
+    screen = setScreenRelationQueue(screen, "addresses", lines);
+    const options = saveOptions({ client, getScreen: () => screen });
+
+    await saveRecord(options);
+
+    expect(client.model).toHaveBeenCalledWith(model, "write", [[7], { name: "Ada" }], {
+      language: "es",
+      _timestamp: {
+        "party.party,7": "20.000000",
+        "party.address,11": "15.000000",
+      },
+    });
   });
 
   it("cancels save after flush when the Screen generation changed", async () => {

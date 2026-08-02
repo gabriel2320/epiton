@@ -20,10 +20,12 @@ import {
   parseFieldsViewGet,
   relationQueueOnChangeValue,
   renderView,
+  screenTrytonTimestamps,
   screenValuesForOnChange,
   setChildScreenRelationQueue,
   updateChildScreenValues,
   validateChildScreen,
+  withTrytonTimestampContext,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -116,7 +118,9 @@ export function RelationLineForm(props: {
       if (!client || props.target.kind !== "record") {
         throw new Error(t("relationLine.noRecord"));
       }
-      const fields = [...new Set(["id", ...Object.keys(viewQuery.data?.fields ?? {})])];
+      const fields = [
+        ...new Set(["id", "_timestamp", ...Object.keys(viewQuery.data?.fields ?? {})]),
+      ];
       const rows = await client.searchRead(
         props.model,
         [["id", "=", props.target.id]],
@@ -437,12 +441,20 @@ export function RelationLineForm(props: {
     setNoticeIsError(false);
     setNotice(t("relationLine.running", { name }));
     try {
-      await client.model(props.model, name, [[props.target.id]], {
-        ...rpcContext,
-        active_id: props.target.id,
-        active_ids: [props.target.id],
-        active_model: props.model,
-      });
+      await client.model(
+        props.model,
+        name,
+        [[props.target.id]],
+        withTrytonTimestampContext(
+          {
+            ...rpcContext,
+            active_id: props.target.id,
+            active_ids: [props.target.id],
+            active_model: props.model,
+          },
+          screenTrytonTimestamps(childRef.current.screen),
+        ) as JsonObject,
+      );
       setNotice(t("relationLine.buttonOk", { name }));
       await recordQuery.refetch();
     } catch (error) {

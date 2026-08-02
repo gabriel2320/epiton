@@ -11,8 +11,10 @@ import {
   createRelationQueue,
   parseFieldsViewGet,
   relationQueueWireValue,
+  relationQueueWithTrytonTimestamps,
   removeChildScreen,
   treeColumns,
+  trytonTimestampsForRecords,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -105,14 +107,6 @@ export function RelationLinesEditor(props: {
     setLineForm(null);
   }
 
-  function updateQueue(update: (current: RelationCommandQueue) => RelationCommandQueue) {
-    if (isControlled) {
-      props.onQueueChange?.(update);
-      return;
-    }
-    setLocalQueue(update);
-  }
-
   const treeViewQuery = useQuery({
     queryKey: ["relation-lines-tree", relation],
     enabled: Boolean(client && relation),
@@ -144,7 +138,7 @@ export function RelationLinesEditor(props: {
   }, [treeViewQuery.data, t]);
 
   const fieldNames = useMemo(() => {
-    const names = new Set<string>(["id", "rec_name", "name"]);
+    const names = new Set<string>(["id", "rec_name", "name", "_timestamp"]);
     for (const c of columns) names.add(c.name);
     return [...names];
   }, [columns]);
@@ -183,6 +177,22 @@ export function RelationLinesEditor(props: {
       return ids.map((id) => byId.get(id) ?? { id, rec_name: `#${id}`, name: `#${id}` });
     },
   });
+
+  function updateQueue(update: (current: RelationCommandQueue) => RelationCommandQueue) {
+    const visibleTimestamps = relation
+      ? trytonTimestampsForRecords(relation, rowsQuery.data ?? [])
+      : {};
+    const guardedUpdate = (current: RelationCommandQueue) => {
+      const guarded = relationQueueWithTrytonTimestamps(current, visibleTimestamps);
+      const next = update(guarded);
+      return relationQueueWithTrytonTimestamps(next, guarded.timestamps);
+    };
+    if (isControlled) {
+      props.onQueueChange?.(guardedUpdate);
+      return;
+    }
+    setLocalQueue(guardedUpdate);
+  }
 
   const treeRows = useMemo(() => {
     const real = rowsQuery.data ?? [];
