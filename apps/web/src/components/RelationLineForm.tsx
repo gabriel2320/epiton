@@ -33,6 +33,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
+import { beginButtonFlight, finishButtonFlight } from "./modelWorkspace/buttonFlight";
 
 interface ChildOnChangeWork {
   promise: Promise<{ failed: boolean; error?: unknown }>;
@@ -85,6 +86,8 @@ export function RelationLineForm(props: {
   const [noticeIsError, setNoticeIsError] = useState(false);
   const [onChangePending, setOnChangePending] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [buttonFlight, setButtonFlight] = useState<string | null>(null);
+  const buttonFlightRef = useRef<string | null>(null);
   const [nestedExitDecision, setNestedExitDecision] = useState<ChildScreenExitDecision>({
     kind: "allow",
   });
@@ -438,6 +441,9 @@ export function RelationLineForm(props: {
       setNotice(t("relationLine.saveFirst"));
       return;
     }
+    const flightKey = `${props.model}:${name}:${props.target.id}`;
+    if (!beginButtonFlight(buttonFlightRef, flightKey)) return;
+    setButtonFlight(flightKey);
     setNoticeIsError(false);
     setNotice(t("relationLine.running", { name }));
     try {
@@ -460,6 +466,8 @@ export function RelationLineForm(props: {
     } catch (error) {
       setNoticeIsError(true);
       setNotice(error instanceof Error ? error.message : t("relationLine.buttonFailed"));
+    } finally {
+      if (finishButtonFlight(buttonFlightRef, flightKey)) setButtonFlight(null);
     }
   }
 
@@ -497,6 +505,7 @@ export function RelationLineForm(props: {
               model: props.model,
               onChange: handleChange,
               onButton: (name, meta) => void runButton(name, meta),
+              isButtonPending: () => buttonFlight !== null,
               onOpenRelation: openRelation,
             })
           : null}

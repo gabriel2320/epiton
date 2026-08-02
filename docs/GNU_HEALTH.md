@@ -20,7 +20,7 @@ names as proof that a clinical workflow is correct.
 | GNU Health core browser rendering | Verified | Spanish menus and live patient, appointment, evaluation, prescription and vaccination workspaces through gateway → trytond |
 | Core patient CRUD | Verified | Synthetic person/patient create, read, update and delete, including Chilean federation and Many2One behavior |
 | Appointment lifecycle slice | Verified | Synthetic appointment defaults, patient relation, create, `checked_in` transition and delete |
-| Protected core clinical lifecycles | Verified | Evaluation create/update with delete denied; prescription with nested line create/finalize; vaccination create/sign; final state, immutability and longitudinal events checked by the backend fixture |
+| Protected core clinical lifecycles | Verified | Evaluation create/update with delete denied; prescription with nested line create/finalize; vaccination create/sign; one in-flight button RPC in the client, terminal replay rejected by Tryton, and final state, immutability and unique longitudinal events checked by the backend fixture |
 | Core patient report lifecycle | Verified | The Spanish `Carnet de Identidad` action executes `patient.card` with Tryton's native report contract; GNU Health owns the PDF format and filename and Epitón previews the returned binary payload |
 | Core optimistic concurrency | Verified | Two independent Spanish Epitón sessions load the same patient snapshot; the first write refreshes `_timestamp`, Tryton rejects the stale second write, and the newest value is retained |
 | Core effective role/ACL matrix | Verified | Tryton's ACL engine checks eight synthetic identities across patient, appointment, evaluation, prescription and vaccination, including negative permissions; Epitón then exercises all eight profiles in the browser against a disposable database clone, while upstream demo accounts remain forbidden |
@@ -98,9 +98,16 @@ client-selected format.
 The scenario rejects page/console errors, duplicate IDs, inaccessible form
 controls, layout overlaps and unusable relations. It also observes the effective
 evaluation access returned by Tryton and requires the delete controls to remain
-disabled. The backend fixture verifies the final protected records, rejected
-mutations and one longitudinal event for each prescription and vaccination; it
-then takes a live PostgreSQL backup, restores it into an independent database,
+disabled. While prescription finalization is deliberately held at the network
+boundary, the initiating button remains disabled and busy and a second click
+does not emit another RPC. After completion, the backend fixture requires
+Tryton to reject public button replay on the terminal records and verifies the
+final protected records, rejected mutations and one longitudinal event for
+each prescription and vaccination. Native Tryton JSON-RPC has no durable
+idempotency-key contract, so this evidence is deliberately limited to client
+single-flight, server state-machine enforcement and optimistic concurrency.
+The gate then takes a live PostgreSQL backup, restores it into an independent
+database,
 and revalidates the module set, Chilean localization, protected records and
 immutability. Both databases are cleaned and required to have zero residual
 clinical fixture records. Before the browser phase, the same gate asks Tryton's

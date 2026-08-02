@@ -180,6 +180,7 @@ export function VirtualPartyTable(props: {
   selectedIds?: number[];
   editable?: boolean;
   rowActions?: TreeRowAction[];
+  rowActionsPending?: boolean;
   /** Hierarchy metadata aligned 1:1 with `rows` (after flatten). */
   rowMeta?: Array<{ depth: number; hasChildren: boolean; expanded?: boolean }>;
   onToggleExpand?: (id: number) => void;
@@ -335,6 +336,8 @@ export function VirtualPartyTable(props: {
                   key={action.name}
                   type="button"
                   className="epiton-button"
+                  disabled={props.rowActionsPending}
+                  aria-busy={props.rowActionsPending || undefined}
                   onClick={() => {
                     if (action.confirm && typeof globalThis.confirm === "function") {
                       if (!globalThis.confirm(action.confirm)) return;
@@ -361,6 +364,7 @@ export function VirtualPartyTable(props: {
     props.rowMeta,
     props.onToggleExpand,
     props.onRowAction,
+    props.rowActionsPending,
     rowActions,
     hierarchical,
     reorderable,

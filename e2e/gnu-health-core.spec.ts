@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, type Route, expect, test } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 
@@ -1215,15 +1215,44 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   ).toBeVisible();
   await expect(page.locator('select[name="state"]:visible')).toHaveValue("draft");
 
-  const finalizePrescriptionResponse = waitForModelResponse(
-    "model.gnuhealth.prescription.order.create_prescription",
-  );
+  const prescriptionFinalizeMethod = "model.gnuhealth.prescription.order.create_prescription";
+  let prescriptionFinalizeRequestCount = 0;
+  let releasePrescriptionFinalize = () => {};
+  const prescriptionFinalizeGate = new Promise<void>((resolve) => {
+    releasePrescriptionFinalize = resolve;
+  });
+  const holdPrescriptionFinalize = async (route: Route) => {
+    let method: unknown;
+    try {
+      method = (route.request().postDataJSON() as { method?: unknown }).method;
+    } catch {
+      await route.continue();
+      return;
+    }
+    if (method !== prescriptionFinalizeMethod) {
+      await route.continue();
+      return;
+    }
+    prescriptionFinalizeRequestCount += 1;
+    await prescriptionFinalizeGate;
+    await route.continue();
+  };
+  await page.route("**/*", holdPrescriptionFinalize);
+  const finalizePrescriptionResponse = waitForModelResponse(prescriptionFinalizeMethod);
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toBe("Crear prescripción?");
     await dialog.accept();
   });
-  await page.getByRole("button", { name: "Crear", exact: true }).click();
+  const createPrescriptionButton = page.getByRole("button", { name: "Crear", exact: true });
+  await createPrescriptionButton.click();
+  await expect.poll(() => prescriptionFinalizeRequestCount).toBe(1);
+  await expect(createPrescriptionButton).toBeDisabled();
+  await expect(createPrescriptionButton).toHaveAttribute("aria-busy", "true");
+  await createPrescriptionButton.evaluate((button) => (button as HTMLButtonElement).click());
+  expect(prescriptionFinalizeRequestCount).toBe(1);
+  releasePrescriptionFinalize();
   const prescriptionFinalized = await finalizePrescriptionResponse;
+  await page.unroute("**/*", holdPrescriptionFinalize);
   const prescriptionFinalizationRequest = prescriptionFinalized.request().postDataJSON() as {
     params?: unknown[];
   };

@@ -23,6 +23,7 @@ export interface RenderContext {
   widgets?: WidgetRegistry;
   onChange?: (name: string, value: unknown) => void;
   onButton?: (name: string, meta?: { type?: string }) => void;
+  isButtonPending?: (name: string) => boolean;
   onOpenRelation?: (field: ViewField, value: unknown, domain?: unknown[]) => void;
   onBinaryDownload?: (field: ViewField, value: unknown) => void;
   renderField?: (field: ViewField, value: unknown) => ReactNode;
@@ -869,6 +870,7 @@ function renderNode(
     const name = node.attrs.name ?? "";
     const buttonType = node.attrs.type;
     const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    const pending = ctx.isButtonPending?.(name) ?? false;
     if (states.invisible) return null;
     return createElement(
       "button",
@@ -876,7 +878,8 @@ function renderNode(
         type: "button",
         className: "epiton-button",
         "data-confirm": node.attrs.confirm,
-        disabled: states.readonly === true,
+        disabled: states.readonly === true || pending,
+        "aria-busy": pending || undefined,
         onClick: () => {
           if (node.attrs.confirm && typeof globalThis.confirm === "function") {
             if (!globalThis.confirm(node.attrs.confirm)) return;

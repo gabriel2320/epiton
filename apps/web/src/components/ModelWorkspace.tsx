@@ -92,6 +92,7 @@ import {
 } from "./modelWorkspace/WorkspaceSearchControls";
 import { actionDomainDefaults, hydrateDefaultMany2OneNames } from "./modelWorkspace/actionDefaults";
 import { buttonRpcContext, isActionButton } from "./modelWorkspace/actionToolbar";
+import { beginButtonFlight, finishButtonFlight } from "./modelWorkspace/buttonFlight";
 import {
   adjacentSelectedId,
   effectiveSelectedIds,
@@ -184,6 +185,7 @@ export function ModelWorkspace(props: {
   const [csvExportOpen, setCsvExportOpen] = useState(false);
   const [savedSearchDialog, setSavedSearchDialog] = useState<"save" | "delete" | null>(null);
   const [onChangePending, setOnChangePending] = useState(false);
+  const [buttonFlight, setButtonFlight] = useState<string | null>(null);
   const [newDefaultsGeneration, setNewDefaultsGeneration] = useState<number | null>(null);
   const [hiddenOptionalCols, setHiddenOptionalCols] = useState<Record<string, boolean>>({});
   const [treeM2O, setTreeM2O] = useState<{
@@ -198,6 +200,7 @@ export function ModelWorkspace(props: {
   const onChangeWorkRef = useRef<OnChangeWork | null>(null);
   const dirtyRef = useRef(false);
   const openRelationDraftRef = useRef(false);
+  const buttonFlightRef = useRef<string | null>(null);
   const keyHandlersRef = useRef<{
     startNew: () => Promise<void>;
     requestDelete: (ids: number[]) => void;
@@ -1306,6 +1309,9 @@ export function ModelWorkspace(props: {
       props.onHistory?.(`button:action:${name}`);
       return;
     }
+    const flightKey = `${props.model}:${name}:${ids.join(",")}`;
+    if (!beginButtonFlight(buttonFlightRef, flightKey)) return;
+    setButtonFlight(flightKey);
     setNotice(t("workspace.runningButton", { name }));
     try {
       await client.model(
@@ -1319,6 +1325,8 @@ export function ModelWorkspace(props: {
       await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t("workspace.buttonFailed"));
+    } finally {
+      if (finishButtonFlight(buttonFlightRef, flightKey)) setButtonFlight(null);
     }
   }
 
@@ -1402,6 +1410,9 @@ export function ModelWorkspace(props: {
       props.onHistory?.(`tree-button:action:${action.name}`);
       return;
     }
+    const flightKey = `${props.model}:${action.name}:${id}`;
+    if (!beginButtonFlight(buttonFlightRef, flightKey)) return;
+    setButtonFlight(flightKey);
     setNotice(`Running ${action.name} on #${id}…`);
     try {
       const ids: [number] = [id];
@@ -1416,6 +1427,8 @@ export function ModelWorkspace(props: {
       await invalidateModelProjections(queryClient);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Tree button failed");
+    } finally {
+      if (finishButtonFlight(buttonFlightRef, flightKey)) setButtonFlight(null);
     }
   }
 
@@ -1871,6 +1884,7 @@ export function ModelWorkspace(props: {
               selectedIds={selectedIds}
               editable={treeIsEditable}
               rowActions={treeRowActions}
+              rowActionsPending={buttonFlight !== null}
               addRowPlacement={treeIsEditable ? treeAddPlacement : null}
               onAddRow={treeIsEditable ? () => void addTreeRow() : undefined}
               onCellCommit={(id, field, value) => void commitTreeCell(id, field, value)}
@@ -2046,6 +2060,7 @@ export function ModelWorkspace(props: {
               model: props.model,
               onChange: handleFieldChange,
               onButton: (name, meta) => void runButton(name, meta),
+              isButtonPending: () => buttonFlight !== null,
               onOpenRelation: (field, value, domain) => {
                 if (
                   relationField &&
