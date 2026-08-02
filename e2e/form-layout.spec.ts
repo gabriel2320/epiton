@@ -8,6 +8,7 @@ test("dense form layout honors columns, notebook state and responsive paned flow
   await loginThroughBackendMenu(page);
   await page.getByRole("row").filter({ hasText: "Synthetic Alpha" }).click();
   await expect(page.getByRole("heading", { name: "party.party #1" })).toBeVisible();
+  await page.setViewportSize({ width: 1680, height: 1000 });
 
   const form = page.locator('.epiton-form[data-string="Party"]');
   const formGrid = form.locator(":scope > .epiton-layout-grid");
@@ -53,6 +54,13 @@ test("dense form layout honors columns, notebook state and responsive paned flow
   );
   expect(desktopColumns.split(" ")).toHaveLength(3);
   expect(Number.parseFloat(desktopColumns)).toBeCloseTo(280, 0);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect
+    .poll(() =>
+      formGrid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ")),
+    )
+    .toHaveLength(2);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
