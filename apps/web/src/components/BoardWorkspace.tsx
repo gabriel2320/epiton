@@ -8,6 +8,7 @@ import {
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { type BoardActionsCtx, BoardPane, type BoardSelection } from "./BoardPane";
 
@@ -19,6 +20,7 @@ export function BoardWorkspace(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
+  const sessionRpcScope = backendRpcContextKey(sessionContext);
   const [order, setOrder] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [activeSelection, setActiveSelection] = useState<BoardSelection | null>(null);
@@ -32,7 +34,7 @@ export function BoardWorkspace(props: {
   }, [props.model]);
 
   const boardQuery = useQuery({
-    queryKey: ["model", props.model, "board-view"],
+    queryKey: ["model", props.model, "board-view", sessionRpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {

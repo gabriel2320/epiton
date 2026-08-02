@@ -66,6 +66,7 @@ function parseViews(raw: unknown): Array<[number | null, string]> | undefined {
 async function loadActWindowDomains(
   client: EpitonClient,
   actWindowId: number,
+  context: JsonObject,
 ): Promise<ActWindowDomainTab[] | undefined> {
   try {
     const rows = await client.searchRead(
@@ -75,6 +76,7 @@ async function loadActWindowDomains(
       0,
       40,
       "sequence ASC",
+      context,
     );
     const tabs: ActWindowDomainTab[] = [];
     for (const row of rows) {
@@ -95,6 +97,7 @@ async function loadActWindowDomains(
 export async function resolveAction(
   client: EpitonClient,
   actionOrModel: string | null | undefined,
+  context: JsonObject = {},
 ): Promise<ResolvedAction> {
   if (!actionOrModel) {
     return { kind: "unsupported", ref: "", reason: "empty" };
@@ -116,6 +119,8 @@ export async function resolveAction(
           ["id", "wiz_name"],
           0,
           1,
+          null,
+          context,
         );
         if (wizards[0] && typeof wizards[0].wiz_name === "string") {
           return {
@@ -134,6 +139,8 @@ export async function resolveAction(
           ["id", "report_name"],
           0,
           1,
+          null,
+          context,
         );
         if (reports[0] && typeof reports[0].report_name === "string") {
           return {
@@ -164,11 +171,13 @@ export async function resolveAction(
         ["res_model", "name", "domain", "context", "views"],
         0,
         1,
+        null,
+        context,
       );
       const row = rows[0];
       const model = row?.res_model;
       if (typeof model === "string" && model.length > 0) {
-        const domains = await loadActWindowDomains(client, id);
+        const domains = await loadActWindowDomains(client, id, context);
         return {
           kind: "model",
           model,
@@ -194,6 +203,8 @@ export async function resolveAction(
         ["wiz_name"],
         0,
         1,
+        null,
+        context,
       );
       const wizard = rows[0]?.wiz_name;
       if (typeof wizard === "string" && wizard.length > 0) {
@@ -213,6 +224,8 @@ export async function resolveAction(
         ["report_name"],
         0,
         1,
+        null,
+        context,
       );
       const report = rows[0]?.report_name;
       if (typeof report === "string" && report.length > 0) {
@@ -232,6 +245,8 @@ export async function resolveAction(
         ["url", "name"],
         0,
         1,
+        null,
+        context,
       );
       const url = rows[0]?.url;
       if (typeof url === "string" && url.length > 0) {
@@ -251,10 +266,18 @@ export async function resolveAction(
   // Menus/modules often store polymorphic ir.action,{id}; resolve concrete type then recurse.
   if (type === "ir.action") {
     try {
-      const rows = await client.searchRead("ir.action", [["id", "=", id]], ["type"], 0, 1);
+      const rows = await client.searchRead(
+        "ir.action",
+        [["id", "=", id]],
+        ["type"],
+        0,
+        1,
+        null,
+        context,
+      );
       const concrete = rows[0]?.type;
       if (typeof concrete === "string" && concrete.length > 0 && concrete !== "ir.action") {
-        return resolveAction(client, `${concrete},${id}`);
+        return resolveAction(client, `${concrete},${id}`, context);
       }
       return { kind: "unsupported", ref: raw, reason: "ir.action missing concrete type" };
     } catch {
@@ -269,8 +292,9 @@ export async function resolveAction(
 export async function resolveWorkspaceModel(
   client: EpitonClient,
   actionOrModel: string | null | undefined,
+  context: JsonObject = {},
 ): Promise<string | null> {
-  const resolved = await resolveAction(client, actionOrModel);
+  const resolved = await resolveAction(client, actionOrModel, context);
   return resolved.kind === "model" ? resolved.model : null;
 }
 

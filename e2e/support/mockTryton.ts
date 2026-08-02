@@ -246,6 +246,26 @@ const calendarView = {
   fields: calendarFields,
 };
 
+const preferenceFields = {
+  company: {
+    name: "company",
+    string: "Company",
+    type: "many2one",
+    relation: "company.company",
+    required: true,
+  },
+};
+
+const preferenceForm = {
+  arch: '<form string="Preferences"><group><field name="company"/></group></form>',
+  fields: preferenceFields,
+};
+
+const companies = [
+  { id: 1, rec_name: "Hospital Norte", name: "Hospital Norte" },
+  { id: 2, rec_name: "Hospital Sur", name: "Hospital Sur" },
+];
+
 type Deferred = {
   promise: Promise<void>;
   resolve: () => void;
@@ -272,6 +292,10 @@ export type MockTrytonOptions = {
   includeMany2Many?: boolean;
   /** Use a deterministic dense form fixture for responsive layout evidence. */
   denseFormLayout?: boolean;
+  /** Expose a two-company res.user preferences contract. */
+  includeCompanyPreferences?: boolean;
+  /** Reject res.user.set_preferences to prove backend authority. */
+  rejectPreferenceWrite?: boolean;
 };
 
 export type MockTryton = {
@@ -466,6 +490,7 @@ export async function installMockTryton(
   let nextAddressId = 50;
   let nextAttachmentId = 100;
   let nextViewSearchId = 300;
+  let currentCompany = 1;
 
   function applyAddressCommands(currentIds: number[], value: unknown): number[] {
     if (!Array.isArray(value)) return currentIds;
@@ -539,7 +564,30 @@ export async function installMockTryton(
     if (method === "common.db.login") return [1, "synthetic-e2e-session"];
     if (method === "common.db.logout") return true;
     if (method === "model.res.user.get_preferences") {
+      if (options.includeCompanyPreferences) {
+        return {
+          language: "en",
+          language_direction: "ltr",
+          context: { language: "en", company: currentCompany },
+          company: currentCompany,
+          company_filter: "one",
+          companies: companies.map((company) => company.id),
+          groups: [],
+        };
+      }
       return { language: "en", context: { language: "en" }, groups: [] };
+    }
+    if (method === "model.res.user.fields_view_get" && options.includeCompanyPreferences) {
+      return preferenceForm;
+    }
+    if (method === "model.res.user.set_preferences" && options.includeCompanyPreferences) {
+      const values = valuesFrom(params[0]);
+      const company = Number(values.company);
+      if (companies.some((candidate) => candidate.id === company)) currentCompany = company;
+      return true;
+    }
+    if (method === "model.company.company.search_read" && options.includeCompanyPreferences) {
+      return projectRows(companies, params[4]);
     }
     if (method === "model.ir.translation.search_read") return [];
     if (method === "model.ir.ui.menu.search_read") {
@@ -971,6 +1019,17 @@ export async function installMockTryton(
         body: JSON.stringify({
           id: request.id,
           error: { code: 403, message: "Synthetic calendar write forbidden" },
+        }),
+      });
+      return;
+    }
+    if (options.rejectPreferenceWrite && request.method === "model.res.user.set_preferences") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: request.id,
+          error: { code: 403, message: "Company is not allowed" },
         }),
       });
       return;

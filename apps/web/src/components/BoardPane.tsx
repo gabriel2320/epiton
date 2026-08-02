@@ -15,6 +15,7 @@ import {
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { BoardTree } from "./BoardTree";
 import { GraphView } from "./GraphView";
@@ -51,16 +52,17 @@ export function BoardPane(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
+  const sessionRpcScope = backendRpcContextKey(sessionContext);
   const [mode, setMode] = useState<"tree" | "graph" | "form">("tree");
   const [localSelectedId, setLocalSelectedId] = useState<number | null>(null);
 
   const resolvedQuery = useQuery({
-    queryKey: ["board-pane", "resolve", props.actionName],
+    queryKey: ["board-pane", "resolve", props.actionName, sessionRpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<ResolvedAction> => {
       if (!client) return { kind: "unsupported", ref: props.actionName, reason: "no client" };
-      return resolveBoardAction(client, props.actionName);
+      return resolveBoardAction(client, props.actionName, sessionContext);
     },
   });
 
@@ -120,6 +122,7 @@ export function BoardPane(props: {
   }, [resolved, evalBag, foreignActive, model]);
 
   const rpcContext = useMemo(() => ({ ...evalBag }) as JsonObject, [evalBag]);
+  const rpcScope = backendRpcContextKey(rpcContext);
 
   const screenQuery = useQuery({
     queryKey: [
@@ -129,6 +132,7 @@ export function BoardPane(props: {
       JSON.stringify(domain),
       foreignActive?.id ?? null,
       foreignActive?.model ?? null,
+      rpcScope,
     ],
     enabled: Boolean(client && model),
     staleTime: 20_000,

@@ -6,20 +6,16 @@ import type { EpitonClient, JsonObject } from "./index";
 import {
   type SessionPreferences,
   buildSessionContext,
-  loadUserPreferences,
+  requireUserPreferences,
 } from "./session_context";
 
-/** Call res.user.set_preferences(values). Soft-fails false. */
+/** Call res.user.set_preferences(values), propagating Tryton rejections. */
 export async function saveUserPreferences(
   client: EpitonClient,
   values: JsonObject,
 ): Promise<boolean> {
-  try {
-    await client.model("res.user", "set_preferences", [values], {});
-    return true;
-  } catch {
-    return false;
-  }
+  await client.model("res.user", "set_preferences", [values], {});
+  return true;
 }
 
 /** Save prefs then reload get_preferences + session context. */
@@ -31,7 +27,7 @@ export async function reloadSessionPreferences(
   if (Object.keys(patch).length) {
     await saveUserPreferences(client, patch);
   }
-  const preferences = await loadUserPreferences(client);
+  const preferences = await requireUserPreferences(client);
   return {
     preferences,
     sessionContext: buildSessionContext(preferences, { user: userId }),

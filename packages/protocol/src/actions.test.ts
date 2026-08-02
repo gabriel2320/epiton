@@ -86,6 +86,32 @@ describe("resolveAction", () => {
     });
   });
 
+  it("uses the active Tryton session context for action metadata", async () => {
+    const requests: Array<{ method: string; params: unknown[] }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
+      requests.push(body);
+      if (body.method === "model.ir.action.act_window.domain.search_read") {
+        return rpcResult(init, []);
+      }
+      return rpcResult(init, [
+        { id: 12, res_model: "party.party", name: "Parties", domain: "[]", views: [] },
+      ]);
+    });
+    const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
+
+    await resolveAction(client, "ir.action.act_window,12", {
+      user: 7,
+      company: 2,
+      employee: 9,
+    });
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.params.at(-1)).toEqual({ user: 7, company: 2, employee: 9 });
+    }
+  });
+
   it("resolves url actions", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       return rpcResult(init, [{ id: 5, url: "https://example.test/docs", name: "Docs" }]);

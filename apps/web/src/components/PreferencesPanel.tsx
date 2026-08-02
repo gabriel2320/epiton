@@ -6,29 +6,38 @@ import {
   parseFieldsViewGet,
   renderView,
 } from "@epiton/view-engine";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  backendRpcContextKey,
+  backendSessionBoundaryChanged,
+  discardBackendProjection,
+} from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { applyClientLanguage } from "../lib/translations";
 import { RelationSearch } from "./RelationSearch";
 
 /** Preferences form from res.user fields_view_get (preferences context). */
-export function PreferencesPanel() {
+export function PreferencesPanel(props: { onSessionBoundary?: () => void }) {
+  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const session = useAppStore((s) => s.session);
   const preferences = useAppStore((s) => s.preferences);
   const sessionContext = useAppStore((s) => s.sessionContext);
   const density = useAppStore((s) => s.density);
   const setPreferences = useAppStore((s) => s.setPreferences);
+  const queryClient = useQueryClient();
+  const sessionRpcScope = backendRpcContextKey(sessionContext);
 
   const [draft, setDraft] = useState<RecordValues>({ ...preferences });
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
-  const [message, setMessage] = useState("Load preferences form from server");
+  const [message, setMessage] = useState(() => t("preferences.loadPrompt"));
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [viewError, setViewError] = useState<string | null>(null);
 
   const viewQuery = useQuery({
-    queryKey: ["res.user", "preferences-view"],
+    queryKey: ["res.user", "preferences-view", sessionRpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -42,7 +51,7 @@ export function PreferencesPanel() {
           }),
         );
       } catch (err) {
-        setViewError(err instanceof Error ? err.message : "preferences view failed");
+        setViewError(err instanceof Error ? err.message : t("preferences.viewFailed"));
         return null;
       }
     },
@@ -55,7 +64,7 @@ export function PreferencesPanel() {
   async function save() {
     if (!client || !session) return;
     setStatus("loading");
-    setMessage("Saving preferences…");
+    setMessage(t("preferences.saving"));
     const patch: JsonObject = {};
     const fields = viewQuery.data?.fields ?? {};
     const keys = Object.keys(fields).length
@@ -70,8 +79,24 @@ export function PreferencesPanel() {
         patch[key] = raw as JsonObject[string];
       }
     }
+    const requestedContext = buildSessionContext(
+      { ...preferences, ...patch },
+      { ...sessionContext, ...patch, user: session.userId },
+    );
+    if (
+      backendSessionBoundaryChanged(sessionContext, requestedContext) &&
+      !globalThis.confirm(t("preferences.sessionBoundaryConfirm"))
+    ) {
+      setStatus("idle");
+      setMessage(t("preferences.cancelled"));
+      return;
+    }
     try {
       const next = await reloadSessionPreferences(client, session.userId, patch);
+      if (backendSessionBoundaryChanged(sessionContext, next.sessionContext)) {
+        discardBackendProjection(queryClient);
+        props.onSessionBoundary?.();
+      }
       setPreferences(next.preferences, next.sessionContext);
       setDraft({ ...next.preferences });
       const lang =
@@ -82,10 +107,10 @@ export function PreferencesPanel() {
             : "";
       if (lang) await applyClientLanguage(client, lang);
       setStatus("data");
-      setMessage("Preferences saved");
+      setMessage(t("preferences.saved"));
     } catch (err) {
       setStatus("error");
-      setMessage(err instanceof Error ? err.message : "Save failed");
+      setMessage(err instanceof Error ? err.message : t("preferences.saveFailed"));
     }
   }
 
@@ -94,13 +119,17 @@ export function PreferencesPanel() {
     setStatus("loading");
     try {
       const next = await reloadSessionPreferences(client, session.userId);
+      if (backendSessionBoundaryChanged(sessionContext, next.sessionContext)) {
+        discardBackendProjection(queryClient);
+        props.onSessionBoundary?.();
+      }
       setPreferences(next.preferences, next.sessionContext);
       setDraft({ ...next.preferences });
       setStatus("data");
-      setMessage("Preferences reloaded");
+      setMessage(t("preferences.reloaded"));
     } catch (err) {
       setStatus("error");
-      setMessage(err instanceof Error ? err.message : "Reload failed");
+      setMessage(err instanceof Error ? err.message : t("preferences.reloadFailed"));
     }
   }
 
@@ -116,7 +145,7 @@ export function PreferencesPanel() {
       : status;
 
   return (
-    <Panel title="Preferences">
+    <Panel title={t("preferences.title")}>
       <StateBlock state={blockState} message={viewError ?? message}>
         {viewQuery.data ? (
           renderView(viewQuery.data, {
@@ -129,15 +158,14 @@ export function PreferencesPanel() {
           })
         ) : (
           <p className="text-sm text-[var(--epiton-muted)]" role="status">
-            {viewError
-              ? "Preferences form unavailable — use Reload after fixing ACL/view."
-              : "Waiting for preferences form…"}
+            {viewError ? t("preferences.formUnavailable") : t("preferences.waiting")}
           </p>
         )}
         {relationField ? (
           <RelationSearch
             field={relationField}
             recordValues={draft}
+            context={sessionContext}
             mode="write"
             onCancel={() => setRelationField(null)}
             onPick={(id, recName) => {
@@ -147,13 +175,15 @@ export function PreferencesPanel() {
           />
         ) : null}
         <div className="epiton-toolbar">
-          <Button variant="primary" onClick={() => void save()}>
-            Save
+          <Button variant="primary" disabled={status === "loading"} onClick={() => void save()}>
+            {t("preferences.save")}
           </Button>
-          <Button onClick={() => void reload()}>Reload</Button>
+          <Button disabled={status === "loading"} onClick={() => void reload()}>
+            {t("preferences.reload")}
+          </Button>
         </div>
         <p className="text-sm text-[var(--epiton-muted)]">
-          Session context keys:{" "}
+          {t("preferences.contextKeys")}:{" "}
           {Object.keys(buildSessionContext(preferences)).slice(0, 8).join(", ") || "—"}
         </p>
       </StateBlock>

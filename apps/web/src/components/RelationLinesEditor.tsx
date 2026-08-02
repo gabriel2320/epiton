@@ -19,6 +19,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { BoardTree } from "./BoardTree";
 import { RelationLineForm } from "./RelationLineForm";
@@ -45,6 +46,11 @@ export function RelationLinesEditor(props: {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
+  const rpcContext = useMemo(
+    () => ({ ...sessionContext, ...(props.context ?? {}) }),
+    [sessionContext, props.context],
+  );
+  const rpcScope = backendRpcContextKey(rpcContext);
   const relation = props.field.relation;
   const relationKind = props.field.type === "many2many" ? "many2many" : "one2many";
   const initialQueue = useMemo(
@@ -108,18 +114,13 @@ export function RelationLinesEditor(props: {
   }
 
   const treeViewQuery = useQuery({
-    queryKey: ["relation-lines-tree", relation],
+    queryKey: ["relation-lines-tree", relation, rpcScope],
     enabled: Boolean(client && relation),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<ParsedView | null> => {
       if (!client || !relation) return null;
       try {
-        return parseFieldsViewGet(
-          await client.fieldsViewGet(relation, null, "tree", {
-            ...sessionContext,
-            ...(props.context ?? {}),
-          }),
-        );
+        return parseFieldsViewGet(await client.fieldsViewGet(relation, null, "tree", rpcContext));
       } catch {
         return null;
       }
@@ -156,7 +157,7 @@ export function RelationLinesEditor(props: {
   }, [commands]);
 
   const rowsQuery = useQuery({
-    queryKey: ["relation-lines-rows", relation, ids, fieldNames.join(",")],
+    queryKey: ["relation-lines-rows", relation, ids, fieldNames.join(","), rpcScope],
     enabled: Boolean(client && relation && ids.length),
     queryFn: async (): Promise<Array<Record<string, unknown>>> => {
       if (!client || !relation || !ids.length) return [];
@@ -167,7 +168,7 @@ export function RelationLinesEditor(props: {
         0,
         ids.length,
         null,
-        { ...sessionContext, ...(props.context ?? {}) },
+        rpcContext,
       );
       const byId = new Map<number, Record<string, unknown>>();
       for (const row of rows) {
@@ -418,6 +419,7 @@ export function RelationLinesEditor(props: {
           field={props.field}
           recordValues={props.recordValues ?? {}}
           domain={props.domain}
+          context={rpcContext}
           mode={props.mode}
           onCancel={() => setSearchOpen(false)}
           onPick={(id) => {

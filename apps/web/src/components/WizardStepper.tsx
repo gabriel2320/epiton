@@ -356,6 +356,7 @@ export function WizardStepper(props: {
             field={relationField}
             recordValues={runtime.values}
             domain={relationDomain}
+            context={runtime.context}
             mode="write"
             onCancel={() => {
               setRelationField(null);

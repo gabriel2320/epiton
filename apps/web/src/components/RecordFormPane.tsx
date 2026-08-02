@@ -10,7 +10,7 @@ import {
 } from "@epiton/view-engine";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { invalidateModelProjections } from "../lib/backendTruth";
+import { backendRpcContextKey, invalidateModelProjections } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 
 /** Compact in-pane form for board embedding (subset of ModelWorkspace form). */
@@ -27,9 +27,10 @@ export function RecordFormPane(props: {
   const [mode, setMode] = useState<"read" | "write">("read");
   const [notice, setNotice] = useState<string | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rpcScope = backendRpcContextKey(props.rpcContext);
 
   const viewQuery = useQuery({
-    queryKey: ["board-form-view", props.model],
+    queryKey: ["board-form-view", props.model, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -41,7 +42,7 @@ export function RecordFormPane(props: {
   });
 
   const recordQuery = useQuery({
-    queryKey: ["board-form-record", props.model, props.recordId, viewQuery.dataUpdatedAt],
+    queryKey: ["board-form-record", props.model, props.recordId, viewQuery.dataUpdatedAt, rpcScope],
     enabled: Boolean(client && props.recordId && viewQuery.isSuccess),
     queryFn: async () => {
       if (!client) return null;

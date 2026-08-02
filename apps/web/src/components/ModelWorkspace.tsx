@@ -53,7 +53,7 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invalidateModelProjections } from "../lib/backendTruth";
+import { backendRpcContextKey, invalidateModelProjections } from "../lib/backendTruth";
 import { guessMime } from "../lib/mime";
 import {
   type RelationCommandQueue,
@@ -238,9 +238,10 @@ export function ModelWorkspace(props: {
     () => ({ ...sessionContext, ...actionCtxOverlay }) as JsonObject,
     [sessionContext, actionCtxOverlay],
   );
+  const rpcScope = backendRpcContextKey(rpcContext);
 
   const viewSearchesQuery = useQuery({
-    queryKey: ["view-search", props.model, session?.userId],
+    queryKey: ["view-search", props.model, session?.userId, rpcScope],
     enabled: Boolean(client && session?.userId),
     staleTime: 60_000,
     queryFn: async () => {
@@ -421,7 +422,7 @@ export function ModelWorkspace(props: {
   }
 
   const formViewQuery = useQuery({
-    queryKey: ["model", props.model, "form-view", formViewId],
+    queryKey: ["model", props.model, "form-view", formViewId, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -433,7 +434,7 @@ export function ModelWorkspace(props: {
   });
 
   const treeViewQuery = useQuery({
-    queryKey: ["model", props.model, "tree-view", treeViewId],
+    queryKey: ["model", props.model, "tree-view", treeViewId, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -445,7 +446,7 @@ export function ModelWorkspace(props: {
   });
 
   const calendarViewQuery = useQuery({
-    queryKey: ["model", props.model, "calendar-view", calendarViewId],
+    queryKey: ["model", props.model, "calendar-view", calendarViewId, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -522,7 +523,7 @@ export function ModelWorkspace(props: {
     relationProjectionFields,
   ]);
   const listFormViewQuery = useQuery({
-    queryKey: ["model", props.model, "list-form-view", listFormViewId],
+    queryKey: ["model", props.model, "list-form-view", listFormViewId, rpcScope],
     enabled: Boolean(client && viewMode === "list-form"),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -538,7 +539,7 @@ export function ModelWorkspace(props: {
   });
 
   const graphViewQuery = useQuery({
-    queryKey: ["model", props.model, "graph-view", graphViewId],
+    queryKey: ["model", props.model, "graph-view", graphViewId, rpcScope],
     enabled: Boolean(client && viewMode === "graph"),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -640,6 +641,7 @@ export function ModelWorkspace(props: {
       offset,
       pageSize,
       order ?? "",
+      rpcScope,
     ],
     enabled: Boolean(client && treeViewQuery.isSuccess && listDomainResult.ok),
     placeholderData: keepPreviousData,
@@ -875,7 +877,7 @@ export function ModelWorkspace(props: {
   }
 
   const countQuery = useQuery({
-    queryKey: ["model", props.model, "count", JSON.stringify(listDomain)],
+    queryKey: ["model", props.model, "count", JSON.stringify(listDomain), rpcScope],
     enabled: Boolean(client && treeViewQuery.isSuccess && listDomainResult.ok),
     staleTime: 30_000,
     queryFn: async () => {
@@ -901,6 +903,7 @@ export function ModelWorkspace(props: {
       "domain-tab-counts",
       JSON.stringify(resolvedActionDomain),
       JSON.stringify(domainTabs),
+      rpcScope,
     ],
     enabled: Boolean(client && domainTabs.some((tab) => tab.count)),
     staleTime: 30_000,
@@ -949,7 +952,7 @@ export function ModelWorkspace(props: {
   }, [formViewQuery.data]);
 
   const recordQuery = useQuery({
-    queryKey: ["model", props.model, selectedId, "fields", recordReadFields.join(",")],
+    queryKey: ["model", props.model, selectedId, "fields", recordReadFields.join(","), rpcScope],
     enabled: Boolean(client && selectedId && formViewQuery.isSuccess),
     queryFn: async (): Promise<{ recordId: number; values: RecordValues } | null> => {
       const requestedId = selectedId;
@@ -1006,7 +1009,7 @@ export function ModelWorkspace(props: {
   }, [recordLifecycleRefs]);
 
   const aclRowsQuery = useQuery({
-    queryKey: ["model", props.model, "acl-rows"],
+    queryKey: ["model", props.model, "acl-rows", rpcScope],
     enabled: Boolean(client),
     staleTime: 60_000,
     queryFn: async () => {
@@ -1016,7 +1019,7 @@ export function ModelWorkspace(props: {
   });
 
   const modelAccessQuery = useQuery({
-    queryKey: ["model", props.model, "access", session?.userId],
+    queryKey: ["model", props.model, "access", session?.userId, rpcScope],
     enabled: Boolean(client && session),
     staleTime: 60_000,
     retry: false,
@@ -2128,6 +2131,7 @@ export function ModelWorkspace(props: {
           <RelationSearch
             field={treeM2O.field}
             recordValues={{}}
+            context={rpcContext}
             mode="write"
             onCancel={() => setTreeM2O(null)}
             onPick={(id, recName) => {
@@ -2141,6 +2145,7 @@ export function ModelWorkspace(props: {
             field={relationField}
             recordValues={draft}
             domain={relationDomain}
+            context={rpcContext}
             mode={mode}
             onCancel={() => {
               setRelationField(null);

@@ -1,8 +1,10 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import { type ViewField, evalDomain } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 
 /** Domain-aware many2one / many2many search picker. */
@@ -10,12 +12,14 @@ export function RelationSearch(props: {
   field: ViewField;
   recordValues: Record<string, unknown>;
   domain?: unknown[];
+  context?: JsonObject;
   mode: "read" | "write";
   onPick: (id: number, recName: string) => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
+  const sessionContext = useAppStore((s) => s.sessionContext);
   const [q, setQ] = useState("");
   const domain = useMemo(() => {
     if (props.domain) return props.domain;
@@ -30,8 +34,13 @@ export function RelationSearch(props: {
   }, [domain, q]);
 
   const relation = props.field.relation ?? "";
+  const rpcContext = useMemo(
+    () => ({ ...sessionContext, ...(props.context ?? {}) }),
+    [sessionContext, props.context],
+  );
+  const rpcScope = backendRpcContextKey(rpcContext);
   const listQuery = useQuery({
-    queryKey: ["relation-search", relation, JSON.stringify(searchDomain)],
+    queryKey: ["relation-search", relation, JSON.stringify(searchDomain), rpcScope],
     enabled: Boolean(client && relation),
     queryFn: async () => {
       if (!client || !relation) return [];
@@ -43,9 +52,10 @@ export function RelationSearch(props: {
           0,
           40,
           null,
+          rpcContext,
         );
       } catch {
-        return await client.searchRead(relation, [], ["id", "rec_name"], 0, 40, null);
+        return await client.searchRead(relation, [], ["id", "rec_name"], 0, 40, null, rpcContext);
       }
     },
   });

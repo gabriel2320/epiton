@@ -2,6 +2,7 @@ import { type JsonObject, type KeywordAction, getRecordKeywords } from "@epiton/
 import { Button, Panel } from "@epiton/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { buttonRpcContext } from "./modelWorkspace/actionToolbar";
 
@@ -18,9 +19,10 @@ export function RecordActionsMenu(props: {
     props.recordId == null
       ? props.context
       : buttonRpcContext(props.context, props.model, [props.recordId]);
+  const rpcScope = backendRpcContextKey(actionContext);
 
   const keywordsQuery = useQuery({
-    queryKey: ["keywords", props.model, props.recordId, actionContext],
+    queryKey: ["keywords", props.model, props.recordId, rpcScope],
     enabled: Boolean(client && props.model),
     staleTime: 60_000,
     queryFn: async () => {

@@ -10,6 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { GraphView } from "./GraphView";
 import { PdfPreview } from "./PdfPreview";
@@ -89,6 +90,7 @@ export function ReportDownload(props: {
     () => ({ ...sessionContext, ...(props.initialContext ?? {}) }),
     [sessionContext, props.initialContext],
   );
+  const sessionRpcScope = backendRpcContextKey(sessionContext);
 
   useEffect(() => {
     if (props.initialReport) setReportName(props.initialReport);
@@ -109,7 +111,7 @@ export function ReportDownload(props: {
   }, [previewUrl]);
 
   const reportsQuery = useQuery({
-    queryKey: ["ir.action.report", modelName],
+    queryKey: ["ir.action.report", modelName, sessionRpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<ReportRow[]> => {

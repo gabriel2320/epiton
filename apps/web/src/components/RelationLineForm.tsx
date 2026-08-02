@@ -30,6 +30,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
@@ -70,6 +71,7 @@ export function RelationLineForm(props: {
     () => ({ ...sessionContext, ...(props.context ?? {}) }),
     [sessionContext, props.context],
   );
+  const rpcScope = backendRpcContextKey(rpcContext);
   const [child, setChild] = useState<ChildScreenState>(() =>
     createChildScreen(
       props.model,
@@ -99,7 +101,7 @@ export function RelationLineForm(props: {
   }, []);
 
   const viewQuery = useQuery({
-    queryKey: ["relation-line-form", props.model, "form", JSON.stringify(rpcContext)],
+    queryKey: ["relation-line-form", props.model, "form", rpcScope],
     enabled: Boolean(client && props.model),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<ParsedView> => {
@@ -114,7 +116,7 @@ export function RelationLineForm(props: {
       props.model,
       props.target.kind === "record" ? props.target.id : null,
       viewQuery.dataUpdatedAt,
-      JSON.stringify(rpcContext),
+      rpcScope,
     ],
     enabled: Boolean(client && editing && viewQuery.data),
     queryFn: async (): Promise<RecordValues> => {
@@ -147,7 +149,7 @@ export function RelationLineForm(props: {
       props.model,
       "defaults",
       Object.keys(viewQuery.data?.fields ?? {}).join(","),
-      JSON.stringify(rpcContext),
+      rpcScope,
     ],
     enabled: Boolean(client && props.target.kind === "new" && viewQuery.data),
     queryFn: async (): Promise<RecordValues> => {
@@ -514,6 +516,7 @@ export function RelationLineForm(props: {
             field={relationField}
             recordValues={child.screen.values}
             domain={relationDomain}
+            context={rpcContext}
             mode="write"
             onCancel={() => {
               setRelationField(null);

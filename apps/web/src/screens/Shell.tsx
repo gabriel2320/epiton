@@ -21,6 +21,7 @@ import { MenuTree } from "../components/MenuTree";
 import { PreferencesPanel } from "../components/PreferencesPanel";
 import { ToolDrawer } from "../components/ToolDrawer";
 import { workspaceHostForViews } from "../components/modelWorkspace/workspaceNavigation";
+import { backendRpcContextKey, backendSessionScopeKey } from "../lib/backendTruth";
 import { applyShellDataset, setShellTitle } from "../lib/nativeShell";
 import { clearSecureSession } from "../lib/secureSessionBridge";
 import { clearClientAuthentication } from "../lib/sessionBoundary";
@@ -113,6 +114,8 @@ export function Shell() {
   const setCommandOpen = useAppStore((s) => s.setCommandOpen);
   const connection = useAppStore((s) => s.connection);
   const queryClient = useQueryClient();
+  const sessionScope = backendSessionScopeKey(sessionContext);
+  const sessionRpcScope = backendRpcContextKey(sessionContext);
 
   useEffect(() => {
     applyShellDataset();
@@ -149,6 +152,23 @@ export function Shell() {
   const [attachOpen, setAttachOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  function resetWorkspaceForSessionBoundary() {
+    const tab = makeTab();
+    setTabState({ tabs: [tab], activeTabId: tab.id });
+    setActiveWizard(null);
+    setWizardActionId(null);
+    setWizardInvocationContext(null);
+    setActiveReport(null);
+    setReportInvocationContext(null);
+    setWorkspaceNotice(null);
+    setHistory([]);
+    setWizardOpen(false);
+    setReportOpen(false);
+    setAttachOpen(false);
+    setPrefsOpen(false);
+    setSelectedIds([]);
+  }
 
   const wizardUsesInvocationSelection = wizardInvocationContext !== null;
   const wizardInheritedId = contextNumber(wizardInvocationContext, "active_id");
@@ -235,7 +255,7 @@ export function Shell() {
   );
 
   const menusQuery = useQuery({
-    queryKey: ["menus", session?.userId],
+    queryKey: ["menus", session?.userId, sessionRpcScope],
     enabled: Boolean(client),
     staleTime: 60_000,
     queryFn: async () => {
@@ -293,17 +313,19 @@ export function Shell() {
   async function prefetchModel(actionOrModel: string) {
     if (!client) return;
     try {
-      const resolved = await resolveAction(client, actionOrModel);
+      const resolved = await resolveAction(client, actionOrModel, sessionContext);
       if (resolved.kind !== "model") return;
       const model = resolved.model;
       await queryClient.prefetchQuery({
-        queryKey: ["model", model, "tree-view"],
+        queryKey: ["model", model, "tree-view", null, sessionRpcScope],
         staleTime: 5 * 60_000,
-        queryFn: async () => parseFieldsViewGet(await client.fieldsViewGet(model, null, "tree")),
+        queryFn: async () =>
+          parseFieldsViewGet(await client.fieldsViewGet(model, null, "tree", sessionContext)),
       });
       await queryClient.prefetchQuery({
-        queryKey: ["model", model, "list", "id,rec_name,name,code,active"],
-        queryFn: async () => client.searchRead(model, [], ["id", "rec_name", "name"], 0, 40, null),
+        queryKey: ["model", model, "list", "id,rec_name,name,code,active", sessionRpcScope],
+        queryFn: async () =>
+          client.searchRead(model, [], ["id", "rec_name", "name"], 0, 40, null, sessionContext),
       });
     } catch (error) {
       setWorkspaceNotice(`Backend prefetch failed: ${errorMessage(error, "unknown error")}`);
@@ -399,10 +421,12 @@ export function Shell() {
       return;
     }
     setWorkspaceNotice(null);
-    const resolved = await resolveAction(client, actionOrModel).catch((error: unknown) => {
-      setWorkspaceNotice(`Backend action failed: ${errorMessage(error, "unknown error")}`);
-      return null;
-    });
+    const resolved = await resolveAction(client, actionOrModel, sessionContext).catch(
+      (error: unknown) => {
+        setWorkspaceNotice(`Backend action failed: ${errorMessage(error, "unknown error")}`);
+        return null;
+      },
+    );
     if (!resolved) return;
     if (resolved.kind === "model") {
       setActiveWizard(null);
@@ -582,7 +606,7 @@ export function Shell() {
               title={t("shell.prefs")}
               triggerLabel={t("shell.prefs")}
             >
-              <PreferencesPanel />
+              <PreferencesPanel onSessionBoundary={resetWorkspaceForSessionBoundary} />
             </ToolDrawer>
             <ToolDrawer
               open={wizardOpen}
@@ -722,7 +746,7 @@ export function Shell() {
           />
         ) : active && workspaceHost === "board" ? (
           <BoardWorkspace
-            key={`${active}:${activeTab?.id}:board`}
+            key={`${active}:${activeTab?.id}:board:${sessionScope}`}
             model={active}
             onOpen={(ref, context) => void openWorkspace(ref, "board", false, context)}
             onOpenRecord={(model, id) => {
@@ -738,7 +762,7 @@ export function Shell() {
         ) : active ? (
           <Suspense fallback={<p role="status">Loading workspace…</p>}>
             <ModelWorkspace
-              key={`${active}:${activeTab?.id}:${stack.length}`}
+              key={`${active}:${activeTab?.id}:${stack.length}:${sessionScope}`}
               model={active}
               initialSelectedId={selectedId}
               actionDomain={topFrame?.domain}
