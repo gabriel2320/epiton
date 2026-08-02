@@ -169,7 +169,15 @@ export {
   type PysonContext,
   type PysonNode,
 } from "./pyson";
-export { formatTrytonDate, parseTrytonDateInput } from "./dates";
+export {
+  formatTrytonDate,
+  formatTrytonTime,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+  type TrytonDateTimeValue,
+  type TrytonDateValue,
+  type TrytonTimeValue,
+} from "./dates";
 
 export interface WizardButton {
   state: string;

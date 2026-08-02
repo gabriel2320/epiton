@@ -16,6 +16,9 @@ const syntheticFamilyName = process.env.EPITON_GH_SYNTHETIC_FAMILY_NAME ?? "Labo
 const syntheticClinicalNote =
   process.env.EPITON_GH_SYNTHETIC_CLINICAL_NOTE ??
   "Registro clínico sintético de validación Epiton";
+const syntheticAppointmentComment =
+  process.env.EPITON_GH_SYNTHETIC_APPOINTMENT_COMMENT ??
+  "Cita clínica sintética de validación Epiton";
 
 test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async ({
   page,
@@ -359,6 +362,16 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
       }),
     ]),
   );
+  const patientRecord = patientPayload.result?.find((record) => {
+    const party = record["party."];
+    return (
+      typeof party === "object" &&
+      party !== null &&
+      String((party as Record<string, unknown>).rec_name ?? "").includes(syntheticGivenName)
+    );
+  });
+  const patientId = Number(patientRecord?.id);
+  expect(patientId, "the generated patient must have a Tryton identifier").toBeGreaterThan(0);
   const patientRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
   await expect(patientRow).toBeVisible();
   await patientRow.click();
@@ -376,6 +389,113 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(page.locator('textarea[name="general_info"]:visible')).toHaveValue(
     syntheticClinicalNote,
   );
+
+  await sidebar.getByRole("button", { name: "Citas", exact: true }).last().click();
+  await expect(
+    page.getByRole("heading", { name: "gnuhealth.appointment", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: /^gnuhealth\.appointment form/ })).toBeVisible();
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("confirmed");
+  await expect(page.locator('select[name="urgency"]:visible')).toHaveValue("a");
+  await expect(page.locator('select[name="appointment_type"]:visible')).toHaveValue("outpatient");
+  await expect(page.locator('select[name="visit_type"]:visible')).toHaveValue("new");
+  await expect(page.locator('input[name="appointment_date"]:visible')).not.toHaveValue("");
+
+  const appointmentPatient = page.locator('input[name="patient"]:visible');
+  await appointmentPatient
+    .locator("..")
+    .getByRole("button", { name: "Buscar", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: /^Buscar Paciente$/ })).toBeVisible();
+  const relationSearch = page.getByRole("textbox", { name: "Buscar relación", exact: true });
+  await relationSearch.fill(syntheticGivenName);
+  const relationResult = page
+    .locator(".epiton-menu-list")
+    .getByRole("button")
+    .filter({ hasText: syntheticGivenName })
+    .first();
+  await expect(relationResult).toBeVisible();
+  await relationResult.click();
+  await waitForOnChange();
+  await expect(appointmentPatient).toHaveValue(new RegExp(syntheticGivenName));
+  await page.locator('textarea[name="comments"]:visible').fill(syntheticAppointmentComment);
+
+  const appointmentCreateResponse = page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as { method?: unknown };
+      return request.method === "model.gnuhealth.appointment.create";
+    } catch {
+      return false;
+    }
+  });
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const appointmentCreated = await appointmentCreateResponse;
+  const appointmentCreateRequest = appointmentCreated.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const appointmentCreateValues = Array.isArray(appointmentCreateRequest.params?.[0])
+    ? appointmentCreateRequest.params[0][0]
+    : undefined;
+  const appointmentCreatePayload = (await appointmentCreated.json()) as {
+    error?: unknown;
+    result?: unknown;
+  };
+  expect(appointmentCreateValues).toMatchObject({
+    appointment_type: "outpatient",
+    comments: syntheticAppointmentComment,
+    patient: patientId,
+    state: "confirmed",
+    urgency: "a",
+    visit_type: "new",
+  });
+  expect(appointmentCreatePayload.error).toBeUndefined();
+  expect(appointmentCreatePayload.result).toEqual([expect.any(Number)]);
+  const appointmentId = Number(
+    Array.isArray(appointmentCreatePayload.result) ? appointmentCreatePayload.result[0] : undefined,
+  );
+  expect(appointmentId, "the generated appointment must have a Tryton identifier").toBeGreaterThan(
+    0,
+  );
+  await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: new RegExp(`gnuhealth\\.appointment #${appointmentId}`) }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Modo: lectura", exact: true }).click();
+  await page.locator('select[name="state"]:visible').selectOption("checked_in");
+  const appointmentWriteResponse = page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as { method?: unknown };
+      return request.method === "model.gnuhealth.appointment.write";
+    } catch {
+      return false;
+    }
+  });
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const appointmentWritten = await appointmentWriteResponse;
+  const appointmentWriteRequest = appointmentWritten.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const appointmentWritePayload = (await appointmentWritten.json()) as {
+    error?: unknown;
+    result?: unknown;
+  };
+  expect(appointmentWriteRequest.params?.[0]).toEqual([appointmentId]);
+  expect(appointmentWriteRequest.params?.[1]).toMatchObject({ state: "checked_in" });
+  expect(appointmentWritePayload.error).toBeUndefined();
+  await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("checked_in");
+  await deleteSelectedRecord("gnuhealth.appointment");
+
+  await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  const patientAfterAppointment = page
+    .getByRole("row")
+    .filter({ hasText: syntheticGivenName })
+    .first();
+  await expect(patientAfterAppointment).toBeVisible();
+  await patientAfterAppointment.click();
   await deleteSelectedRecord("gnuhealth.patient");
   await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
 
@@ -402,6 +522,14 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
       deleted: true,
       partyDeleted: true,
       persistedClinicalNote: true,
+    },
+    appointmentLifecycle: {
+      appointmentId,
+      created: true,
+      defaultState: "confirmed",
+      patientLinked: patientId,
+      checkedIn: true,
+      deleted: true,
     },
     writesPerformed: true,
     syntheticOnly: true,

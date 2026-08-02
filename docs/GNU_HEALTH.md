@@ -17,8 +17,10 @@ names as proof that a clinical workflow is correct.
 | Generic browser CRUD | Verified | Browser → gateway → trytond → browser on both tiers |
 | GNU Health namespace discovery | Implemented | Reads `ir.model` metadata for `gnuhealth.*` only |
 | Chilean `health` core RPC profile | Verified | Pinned Tryton 8/PostgreSQL synthetic lab; Spanish session, exact activated modules and five critical view contracts |
-| GNU Health core browser rendering | Verified | Spanish menus, four empty clinical workspaces, and an unsaved patient form through gateway → trytond |
-| Clinical CRUD and workflows | Not yet verified | Navigation/render evidence performs no writes and is not a workflow certification |
+| GNU Health core browser rendering | Verified | Spanish menus and live patient, appointment, prescription and evaluation workspaces through gateway → trytond |
+| Core patient CRUD | Verified | Synthetic person/patient create, read, update and delete, including Chilean federation and Many2One behavior |
+| Appointment lifecycle slice | Verified | Synthetic appointment defaults, patient relation, create, `checked_in` transition and delete |
+| Remaining clinical workflows | Not yet verified | Evaluation, prescription and vaccination lifecycles remain separate acceptance gates |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
 The stock Docker lab contains party/company modules only. Therefore
@@ -71,15 +73,19 @@ EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
 
 The gate starts a temporary trytond HTTP listener and the Epitón gateway, then
 runs `e2e/gnu-health-core.spec.ts` against an isolated web port. It proves that
-the authenticated Spanish menu can open patient, appointment, prescription,
-and evaluation workspaces and render a new-patient form from live Tryton view
-metadata. It also rejects page/console errors, duplicate IDs, inaccessible form
-controls, layout overlaps, and narrow relation inputs, and records a synthetic
-screenshot.
+the authenticated Spanish menu can open patient, appointment, prescription and
+evaluation workspaces from live Tryton view metadata. With synthetic data it
+then creates a person and patient, exercises Chilean federation and Many2One
+behavior, persists and reloads a patient update, and deletes both records. It
+also creates an appointment for that patient from server defaults, persists the
+`checked_in` transition and deletes the appointment.
 
-This scenario deliberately leaves the form unsaved. It is a client rendering
-gate, not evidence for patient CRUD, clinical workflows, ACL correctness,
-auditing, PHI handling, or production readiness.
+The scenario rejects page/console errors, duplicate IDs, inaccessible form
+controls, layout overlaps and unusable relations. The PostgreSQL harness then
+requires zero remaining synthetic parties, patients and appointments. This is
+evidence for the stated patient CRUD and appointment slice only; it does not
+certify evaluation, prescription or vaccination workflows, ACL correctness,
+auditing, PHI handling or production readiness.
 
 ## Deployment transport controls
 
@@ -104,7 +110,7 @@ lab must still:
 2. use a disposable database and synthetic fixtures only;
 3. route the browser through the Epitón gateway;
 4. run the verified core profile before model-specific browser scenarios;
-5. pass the browser rendering gate;
+5. pass the synthetic browser lifecycle gate;
 6. clean up all synthetic writes and publish only redacted receipts;
 7. add evidence to `COMPATIBILITY.md` before changing any support claim.
 

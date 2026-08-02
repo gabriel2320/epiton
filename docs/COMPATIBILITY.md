@@ -67,7 +67,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Series 9.x | Future official artifacts + capability probes | Future canary, not claimed | Scheduled official-source canary is `waiting` as of 2026-08-01; do not infer support from 7/8 receipts |
 | Sao coexistence | Same trytond | Supported | Shared backend authority; Epitón does not share or persist client state |
 | Proteus / XML-RPC | Server-side reference client | Lab oracle only | Exact 7/8 pins; synthetic CRUD; redacted receipt; never runtime/UI |
-| GNU Health | `gnuhealth.*` models | Core render profile verified | The pinned Tryton 8/PostgreSQL Chilean `health` core proves Spanish context, the exact eight-module activation set, translated menus and five critical view contracts. A live gateway/browser gate additionally renders four empty clinical workspaces and an unsaved patient form against an empty synthetic database, performing no writes. CRUD, workflows, PHI readiness and production compliance remain separate gates |
+| GNU Health | `gnuhealth.*` models | Core patient + appointment slice verified | The pinned Tryton 8/PostgreSQL Chilean `health` core proves Spanish context, the exact eight-module activation set, translated menus and five critical view contracts. A live gateway/browser gate performs synthetic person/patient CRUD and an appointment create → `checked_in` → delete lifecycle, then proves zero residual records. Evaluation, prescription, vaccination, PHI readiness and production compliance remain separate gates |
 
 ## Tryton 8 lab profile
 

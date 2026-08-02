@@ -63,7 +63,7 @@ pnpm lab:oracle:8
 pnpm test:e2e:mock
 EPITON_E2E_LAB=disposable pnpm test:e2e:live
 
-# GNU Health core metadata + browser render boundary (from GPL backend tree)
+# GNU Health core metadata + synthetic patient/appointment boundary (from GPL backend tree)
 EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
 ```
 
@@ -123,8 +123,9 @@ Evening re-audit: [`AUDIT.md`](AUDIT.md#epitón-audit-delta--2026-07-31-evening)
 3. ~~Editable tree (`editable` arch).~~
 4. ~~Hierarchical trees, saved searches, notebook tabs, translation wiring.~~
 5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
-6. GNU Health module depth — pinned `health` metadata and live browser rendering
-   are attached; synthetic CRUD and clinical workflow evidence remain open.
+6. GNU Health module depth — pinned `health` metadata, synthetic person/patient
+   CRUD and the appointment create → `checked_in` → delete slice are attached;
+   evaluation, prescription and vaccination lifecycles remain open.
 7. Full nested Screen lifecycle: the parent command queue is improved, while
    child validation/navigation/cancel bubbling remains incomplete (**G-01**).
 8. Dense form layout (`paned`/`colspan`/expansion) and a multi-clause domain

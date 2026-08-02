@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseCalendarArch, rowsToCalendarEvents } from "./calendar";
-import { formatTrytonDate } from "./dates";
+import {
+  formatTrytonDate,
+  formatTrytonTime,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+} from "./dates";
 import { inferGraphFields, rowsToGraphData } from "./graph";
 import { parseXml } from "./parse";
 import { evalPyson, resolveStatesAttr } from "./pyson";
@@ -69,7 +74,78 @@ describe("calendar/graph helpers", () => {
 });
 
 describe("dates", () => {
-  it("formats tryton dates for inputs", () => {
+  it("formats legacy date strings for inputs", () => {
     expect(formatTrytonDate("2026-07-01")).toBe("2026-07-01");
+  });
+
+  it("formats Tryton 8 typed temporal values for HTML inputs", () => {
+    expect(formatTrytonDate({ __class__: "date", year: 2026, month: 8, day: 2 })).toBe(
+      "2026-08-02",
+    );
+    expect(
+      formatTrytonDate(
+        {
+          __class__: "datetime",
+          year: 2026,
+          month: 8,
+          day: 2,
+          hour: 9,
+          minute: 7,
+          second: 31,
+          microsecond: 456000,
+        },
+        true,
+      ),
+    ).toBe("2026-08-02T09:07");
+  });
+
+  it("encodes HTML input values as Tryton 8 typed temporal values", () => {
+    expect(parseTrytonDateInput("2026-08-02")).toEqual({
+      __class__: "date",
+      year: 2026,
+      month: 8,
+      day: 2,
+    });
+    expect(parseTrytonDateInput("2026-08-02T09:07", true)).toEqual({
+      __class__: "datetime",
+      year: 2026,
+      month: 8,
+      day: 2,
+      hour: 9,
+      minute: 7,
+      second: 0,
+      microsecond: 0,
+    });
+  });
+
+  it("rejects invalid typed dates instead of sending malformed RPC values", () => {
+    expect(parseTrytonDateInput("2026-02-30")).toBeNull();
+    expect(formatTrytonDate({ __class__: "date", year: 2026, month: 2, day: 30 })).toBe("");
+  });
+
+  it("edits split date/time widgets without discarding the other datetime component", () => {
+    const appointment = {
+      __class__: "datetime" as const,
+      year: 2026,
+      month: 8,
+      day: 2,
+      hour: 9,
+      minute: 7,
+      second: 31,
+      microsecond: 456000,
+    };
+
+    expect(formatTrytonTime(appointment)).toBe("09:07");
+    expect(parseTrytonDateInput("2026-08-03", false, appointment)).toEqual({
+      ...appointment,
+      day: 3,
+    });
+    expect(parseTrytonTimeInput("10:45", appointment)).toEqual({
+      ...appointment,
+      hour: 10,
+      minute: 45,
+      second: 0,
+      microsecond: 0,
+    });
   });
 });

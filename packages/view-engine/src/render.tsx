@@ -1,6 +1,11 @@
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { createElement, useId, useState } from "react";
-import { formatTrytonDate, parseTrytonDateInput } from "./dates";
+import {
+  formatTrytonDate,
+  formatTrytonTime,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+} from "./dates";
 import { t } from "./i18n";
 import { parseViewLayoutAttributes } from "./layout";
 import type { ParsedView, ViewField, ViewNode } from "./parse";
@@ -290,7 +295,11 @@ function renderPanedNode(node: ViewNode, view: ParsedView, ctx: RenderContext): 
     {
       className: `epiton-paned epiton-paned-${horizontal ? "horizontal" : "vertical"}`,
       role: "group",
-      "aria-label": node.attrs.string ?? (horizontal ? "Horizontal split" : "Vertical split"),
+      "aria-label":
+        node.attrs.string ??
+        (horizontal
+          ? t("epiton.horizontalSplit", "Horizontal split")
+          : t("epiton.verticalSplit", "Vertical split")),
       "data-position": layout.position ?? undefined,
       style,
     },
@@ -423,7 +432,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
                 );
               },
             },
-            "Open",
+            t("epiton.open", "Open"),
           )
         : null,
     );
@@ -518,7 +527,11 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
       createElement(
         "span",
         null,
-        hasData ? (fileLabel ? `File: ${fileLabel}` : "Binary attached") : "No file",
+        hasData
+          ? fileLabel
+            ? `${t("epiton.file", "File")}: ${fileLabel}`
+            : t("epiton.binaryAttached", "Binary attached")
+          : t("epiton.noFile", "No file"),
       ),
       createElement(
         "button",
@@ -530,7 +543,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
             ctx.onBinaryDownload?.(field, value);
           },
         },
-        "Download",
+        t("epiton.download", "Download"),
       ),
       ctx.mode === "write"
         ? createElement("input", {
@@ -561,14 +574,18 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     return createElement(
       "div",
       { className: "epiton-o2m", "data-relation": field.relation ?? "" },
-      createElement("div", { className: "epiton-o2m-count" }, `${count} record(s)`),
+      createElement(
+        "div",
+        { className: "epiton-o2m-count" },
+        `${count} ${t("epiton.records", "record(s)")}`,
+      ),
       createElement(
         "button",
         {
           type: "button",
           onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
-        "Open lines",
+        t("epiton.openLines", "Open lines"),
       ),
     );
   }
@@ -592,7 +609,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
           disabled: ctx.mode === "read",
           onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
-        "Search",
+        t("epiton.search", "Search"),
       ),
       createElement(
         "button",
@@ -601,19 +618,30 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
           disabled: value == null,
           onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
-        "Open",
+        t("epiton.open", "Open"),
       ),
     );
   }
 
-  if (field.type === "date" || field.type === "datetime") {
-    const withTime = field.type === "datetime";
+  const temporalWidget =
+    field.widget === "date" || field.widget === "time" ? field.widget : undefined;
+  if (temporalWidget || field.type === "date" || field.type === "datetime") {
+    const inputKind = temporalWidget ?? (field.type === "date" ? "date" : "datetime");
+    const display =
+      inputKind === "time"
+        ? formatTrytonTime(value)
+        : formatTrytonDate(value, inputKind === "datetime");
     return createElement("input", {
       ...common,
-      type: withTime ? "datetime-local" : "date",
-      value: formatTrytonDate(value, withTime),
-      onChange: (e: { target: { value: string } }) =>
-        ctx.onChange?.(field.name, parseTrytonDateInput(e.target.value, withTime)),
+      type: inputKind === "datetime" ? "datetime-local" : inputKind,
+      value: display,
+      onChange: (e: { target: { value: string } }) => {
+        const next =
+          inputKind === "time"
+            ? parseTrytonTimeInput(e.target.value, value)
+            : parseTrytonDateInput(e.target.value, inputKind === "datetime", value);
+        ctx.onChange?.(field.name, next);
+      },
     });
   }
 
@@ -624,7 +652,9 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   }
   if (effectiveType === "url" && ctx.mode === "read" && value) {
     const href = String(value);
-    if (href.startsWith("javascript:")) return "(blocked javascript: URL)";
+    if (href.startsWith("javascript:")) {
+      return `(${t("epiton.blockedJavascriptUrl", "blocked javascript: URL")})`;
+    }
     return createElement(
       "a",
       {
@@ -655,12 +685,16 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         },
       }),
       blocked
-        ? createElement("span", { className: "epiton-field-label" }, "javascript: blocked")
+        ? createElement(
+            "span",
+            { className: "epiton-field-label" },
+            t("epiton.blockedJavascriptUrl", "javascript: blocked"),
+          )
         : href
           ? createElement(
               "a",
               { href, target: "_blank", rel: "noopener noreferrer", className: "epiton-url" },
-              "Open",
+              t("epiton.open", "Open"),
             )
           : null,
     );
@@ -888,9 +922,12 @@ export function renderView(view: ParsedView, ctx: RenderContext): ReactNode {
 }
 
 export interface TreeColumn {
+  /** Stable per-occurrence key because Tryton may render one field more than once. */
+  key: string;
   name: string;
   string: string;
   type?: string;
+  widget?: string;
   readonly?: boolean;
   selection?: Array<[string, string]>;
   /** Sao `optional="1"` — hidden by default, user can toggle. */
@@ -913,13 +950,18 @@ export function treeEditable(view: ParsedView): boolean {
 
 export function treeColumns(view: ParsedView): TreeColumn[] {
   const cols: TreeColumn[] = [];
+  const occurrences = new Map<string, number>();
   const walk = (n: ViewNode) => {
     if (n.tag === "field" && n.attrs.name) {
       const meta = view.fields[n.attrs.name];
+      const occurrence = occurrences.get(n.attrs.name) ?? 0;
+      occurrences.set(n.attrs.name, occurrence + 1);
       cols.push({
+        key: `${n.attrs.name}:${occurrence}`,
         name: n.attrs.name,
         string: t(meta?.string ?? n.attrs.string ?? n.attrs.name),
         type: meta?.type,
+        widget: n.attrs.widget ?? meta?.widget,
         readonly: Boolean(meta?.readonly) || n.attrs.readonly === "1",
         selection: meta?.selection,
         optional: n.attrs.optional === "1" || n.attrs.optional === "true",

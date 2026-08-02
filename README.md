@@ -22,7 +22,7 @@ safer, adaptive UI. **trytond remains the system of record.**
 | [`docs/CLIENT_CAPABILITY_INVENTORY.md`](docs/CLIENT_CAPABILITY_INVENTORY.md) | Tryton client capability ownership/evidence inventory |
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Library allow/deny (SQLAlchemy, shadcn, …) |
 | [`docs/INTELLIGENCE.md`](docs/INTELLIGENCE.md) | On-device search/suggestions (no auto-writes) |
-| [`docs/GNU_HEALTH.md`](docs/GNU_HEALTH.md) | GNU Health metadata-only discovery contract |
+| [`docs/GNU_HEALTH.md`](docs/GNU_HEALTH.md) | GNU Health compatibility and synthetic browser acceptance contract |
 | [`docs/BRAND.md`](docs/BRAND.md) | Brand brief |
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Point-in-time audit (2026-07-31) |
 | [`docs/TRYTON_COMPARE.md`](docs/TRYTON_COMPARE.md) | Tryton vs Epitón + live compat evidence |

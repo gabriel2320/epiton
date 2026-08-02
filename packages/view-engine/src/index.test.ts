@@ -42,6 +42,20 @@ describe("view-engine", () => {
     expect(cols.find((c) => c.name === "qty")?.aggregate).toBe("average");
   });
 
+  it("keeps repeated fields as distinct columns with their XML widgets", () => {
+    const parsed = parseFieldsViewGet({
+      arch: `<tree><field name="appointment_date" widget="date"/><field name="appointment_date" widget="time"/></tree>`,
+      fields: {
+        appointment_date: { type: "datetime", string: "Appointment date" },
+      },
+    });
+
+    expect(treeColumns(parsed)).toMatchObject([
+      { key: "appointment_date:0", name: "appointment_date", widget: "date" },
+      { key: "appointment_date:1", name: "appointment_date", widget: "time" },
+    ]);
+  });
+
   it("parses form with o2m/m2o", () => {
     const parsed = parseFieldsViewGet({
       arch: `<form><group string="Main"><field name="party"/><field name="lines"/></group></form>`,

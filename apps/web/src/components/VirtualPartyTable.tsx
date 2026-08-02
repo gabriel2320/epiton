@@ -1,3 +1,9 @@
+import {
+  formatTrytonDate,
+  formatTrytonTime,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+} from "@epiton/view-engine";
 import type { ColumnDef, SortingState, Updater } from "@tanstack/react-table";
 import {
   flexRender,
@@ -10,9 +16,11 @@ import { useMemo, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 
 type TreeCol = {
+  key?: string;
   name: string;
   string: string;
   type?: string;
+  widget?: string;
   readonly?: boolean;
   relation?: string;
   selection?: Array<[string, string]>;
@@ -26,9 +34,14 @@ export type TreeRowAction = {
   confirm?: string;
 };
 
-function cellDisplay(value: unknown): string {
+function cellDisplay(value: unknown, field?: TreeCol): string {
   if (value == null) return "";
   if (Array.isArray(value)) return String(value[1] ?? value[0] ?? "");
+  if (field?.widget === "time" || field?.type === "time") return formatTrytonTime(value);
+  if (field?.widget === "date" || field?.type === "date") return formatTrytonDate(value);
+  if (field?.type === "datetime" || field?.type === "timestamp") {
+    return formatTrytonDate(value, true).replace("T", " ");
+  }
   return String(value);
 }
 
@@ -53,13 +66,13 @@ function EditableCell(props: {
           props.onEditRelation?.(props.id, props.field, props.value);
         }}
       >
-        {cellDisplay(props.value) || "Select…"}
+        {cellDisplay(props.value, props.field) || "Select…"}
       </button>
     );
   }
 
   if (readonly || type === "many2one" || type === "one2many" || type === "many2many") {
-    return <span>{cellDisplay(props.value)}</span>;
+    return <span>{cellDisplay(props.value, props.field)}</span>;
   }
 
   if (type === "boolean") {
@@ -97,19 +110,34 @@ function EditableCell(props: {
     );
   }
 
-  if (type === "date" || type === "datetime" || type === "timestamp") {
-    const withTime = type !== "date";
-    const display = formatTreeDate(props.value, withTime);
+  const temporalWidget =
+    props.field.widget === "date" || props.field.widget === "time" ? props.field.widget : undefined;
+  if (
+    temporalWidget ||
+    type === "date" ||
+    type === "datetime" ||
+    type === "timestamp" ||
+    type === "time"
+  ) {
+    const inputKind =
+      temporalWidget ?? (type === "date" ? "date" : type === "time" ? "time" : "datetime");
+    const display =
+      inputKind === "time"
+        ? formatTrytonTime(props.value)
+        : formatTrytonDate(props.value, inputKind === "datetime");
     return (
       <input
         className="epiton-tree-edit"
-        type={withTime ? "datetime-local" : "date"}
+        type={inputKind === "datetime" ? "datetime-local" : inputKind}
         defaultValue={display}
         aria-label={props.field.string}
         onClick={(e) => e.stopPropagation()}
         onBlur={(e) => {
-          const next = parseTreeDate(e.target.value, withTime);
-          if (String(props.value ?? "") === String(next ?? "")) return;
+          if (display === e.target.value) return;
+          const next =
+            inputKind === "time"
+              ? parseTrytonTimeInput(e.target.value, props.value)
+              : parseTrytonDateInput(e.target.value, inputKind === "datetime", props.value);
           props.onCommit(props.id, props.field.name, next);
         }}
         onKeyDown={(e) => {
@@ -125,7 +153,7 @@ function EditableCell(props: {
     <input
       className="epiton-tree-edit"
       type={inputType}
-      defaultValue={cellDisplay(props.value)}
+      defaultValue={cellDisplay(props.value, props.field)}
       aria-label={props.field.string}
       onClick={(e) => e.stopPropagation()}
       onBlur={(e) => {
@@ -143,20 +171,6 @@ function EditableCell(props: {
       }}
     />
   );
-}
-
-function formatTreeDate(value: unknown, withTime: boolean): string {
-  if (value == null || value === "") return "";
-  const raw = String(value);
-  if (!withTime) return raw.slice(0, 10);
-  return raw.slice(0, 16).replace(" ", "T");
-}
-
-function parseTreeDate(value: string, withTime: boolean): string | null {
-  if (!value) return null;
-  if (withTime)
-    return value.length === 16 ? `${value.replace("T", " ")}:00` : value.replace("T", " ");
-  return value.slice(0, 10);
 }
 
 export function VirtualPartyTable(props: {
@@ -194,7 +208,12 @@ export function VirtualPartyTable(props: {
   function handleSortingChange(updater: Updater<SortingState>) {
     setSorting((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      props.onSortChange?.(next.map((s) => ({ id: s.id, desc: Boolean(s.desc) })));
+      props.onSortChange?.(
+        next.map((s) => ({
+          id: props.columns.find((column) => (column.key ?? column.name) === s.id)?.name ?? s.id,
+          desc: Boolean(s.desc),
+        })),
+      );
       return next;
     });
   }
@@ -282,7 +301,8 @@ export function VirtualPartyTable(props: {
     }
     for (const c of props.columns) {
       cols.push({
-        accessorKey: c.name,
+        id: c.key ?? c.name,
+        accessorFn: (row) => row[c.name],
         header: c.string,
         cell: (info) => {
           const id = Number(info.row.original.id);
@@ -297,7 +317,7 @@ export function VirtualPartyTable(props: {
               />
             );
           }
-          return cellDisplay(info.getValue());
+          return cellDisplay(info.getValue(), c);
         },
       });
     }
@@ -392,7 +412,7 @@ export function VirtualPartyTable(props: {
       if (!count) continue;
       const value = col.aggregate === "average" ? sum / count : sum;
       const label = col.aggregate === "average" ? "avg" : "sum";
-      map.set(col.name, `${label} ${formatAgg(value)}`);
+      map.set(col.key ?? col.name, `${label} ${formatAgg(value)}`);
     }
     return map;
   }, [props.columns, props.rows]);
