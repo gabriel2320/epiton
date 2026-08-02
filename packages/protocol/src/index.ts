@@ -25,6 +25,11 @@ export {
   type WizardSession,
 } from "./wizards";
 export {
+  executeReport,
+  type ReportExecutionOptions,
+  type ReportExecutionResult,
+} from "./reports";
+export {
   applyFieldChange,
   buildOnChangeArgs,
   preValidateRecord,

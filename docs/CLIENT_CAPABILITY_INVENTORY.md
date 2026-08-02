@@ -19,7 +19,7 @@ remain canonical, while unresolved depth is ordered in
 | Relations | M2O search/open, O2M/M2M command queues, nested record lifecycle | Screen, relation editors, protocol | relation unit tests and parent-write E2E |
 | Lists | search/order/count, editable/hierarchical tree, pagination, aggregates | view engine + pure workspace search policy + table hosts | unit tests and mock browser |
 | Workflows | buttons, validation, wizard state machine, shared context | protocol wizard/action helpers + Shell | unit tests and wizard E2E |
-| Documents | reports, attachments, MIME handling, PDF preview, CSV import/export | protocol + web document components | unit tests and mock browser |
+| Documents | native Tryton reports, attachments, MIME handling, PDF preview, CSV import/export | protocol + web document components | unit/mock browser plus live GNU Health `patient.card` PDF |
 | Rich views | calendar, graph, board, cross-filter, list-form | view engine + ordered workspace navigation policy + shared Shell host | focused unit tests and E2E |
 | Personalization | translations, saved searches, server favorites, domain tabs | protocol + typed controls + in-memory UI projection | protocol/web tests |
 | Realtime | authenticated bus channels, notices, action payloads, 401 invalidation | protocol bus + Shell | protocol/web tests |

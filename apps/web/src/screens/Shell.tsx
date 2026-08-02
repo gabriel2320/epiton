@@ -445,7 +445,7 @@ export function Shell() {
           ? inheritedId == null && inheritedIds.length === 0
           : selectedId == null && selectedIds.length === 0
       ) {
-        setWorkspaceNotice("Select a record before running a report");
+        setWorkspaceNotice(t("report.selectRecord"));
         setActiveReport(resolved.report);
         setReportOpen(true);
         setHistory((h) => [...h, { model: resolved.report, action: `report:${source}:no-id` }]);
@@ -621,7 +621,7 @@ export function Shell() {
               title={t("shell.reports")}
               triggerLabel={t("shell.reports")}
             >
-              <Suspense fallback={<p role="status">Loading reports…</p>}>
+              <Suspense fallback={<p role="status">{t("report.loading")}</p>}>
                 <ReportDownload
                   initialReport={activeReport}
                   initialContext={reportInvocationContext}

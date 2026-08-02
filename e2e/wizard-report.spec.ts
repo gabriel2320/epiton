@@ -86,13 +86,39 @@ test("board wizard and report use shared Shell hosts with foreign selection cont
       const report = mock.calls.find(
         (call) => call.method === "report.synthetic.board_report.execute",
       );
-      const envelope = report?.params[0];
-      if (!Array.isArray(envelope)) return false;
-      const context = envelope[3] as JsonObject | undefined;
+      const ids = report?.params[0];
+      const data = report?.params[1] as JsonObject | undefined;
+      const context = report?.params[2] as JsonObject | undefined;
       return (
-        JSON.stringify(envelope[0]) === "[1]" &&
+        JSON.stringify(ids) === "[1]" &&
+        data?.action_id === 912 &&
+        data.model === "party.party" &&
         Boolean(context && hasForeignSelection(context, 912))
       );
     })
     .toBe(true);
+  await expect(reportDialog.getByRole("status")).toContainText("Preview 35 bytes (html)");
+  await expect(reportDialog.getByTitle("Report preview")).toBeVisible();
+
+  await reportDialog
+    .getByLabel("Pick registered report")
+    .selectOption("synthetic.alternate_report");
+  await reportDialog.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect
+    .poll(() => {
+      const report = mock.calls.find(
+        (call) => call.method === "report.synthetic.alternate_report.execute",
+      );
+      const ids = report?.params[0];
+      const data = report?.params[1] as JsonObject | undefined;
+      const context = report?.params[2] as JsonObject | undefined;
+      return (
+        JSON.stringify(ids) === "[1]" &&
+        data?.action_id === 913 &&
+        data.model === "party.party" &&
+        Boolean(context && hasForeignSelection(context, 913))
+      );
+    })
+    .toBe(true);
+  await expect(reportDialog.getByRole("status")).toContainText("Preview 35 bytes (html)");
 });

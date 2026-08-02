@@ -1187,6 +1187,85 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(page.locator('textarea[name="observations"]:visible')).toBeDisabled();
   await expect(page.getByRole("button", { name: "Firmar", exact: true })).toHaveCount(0);
 
+  await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
+  const patientForReport = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
+  await expect(patientForReport).toBeVisible();
+  await patientForReport.click();
+  await expect(
+    page.getByRole("heading", {
+      name: new RegExp(`gnuhealth\\.patient #${patientId}`),
+    }),
+  ).toBeVisible();
+
+  const printActions = page.getByRole("heading", { name: "Imprimir", exact: true }).locator("..");
+  const patientCardAction = printActions.getByRole("button", {
+    name: "Carnet de Identidad",
+    exact: true,
+  });
+  await expect(patientCardAction).toBeVisible();
+  await patientCardAction.click();
+
+  const reportDialog = page.getByRole("dialog", { name: "Informes", exact: true });
+  await expect(reportDialog).toBeVisible();
+  await expect(reportDialog.getByLabel("Nombre del informe", { exact: true })).toHaveValue(
+    "patient.card",
+  );
+  await expect(
+    reportDialog.getByLabel("Identificadores de registros", { exact: true }),
+  ).toHaveValue(String(patientId));
+  await expect(reportDialog.getByLabel("Modelo para análisis", { exact: true })).toHaveValue(
+    "gnuhealth.patient",
+  );
+
+  const patientCardResponse = waitForModelResponse("report.patient.card.execute");
+  await reportDialog.getByRole("button", { name: "Vista previa", exact: true }).click();
+  const patientCardExecuted = await patientCardResponse;
+  const patientCardRequest = patientCardExecuted.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const patientCardPayload = (await patientCardExecuted.json()) as {
+    error?: unknown;
+    result?: unknown[];
+  };
+  const patientCardData = patientCardRequest.params?.[1] as Record<string, unknown> | undefined;
+  const patientCardContext = patientCardRequest.params?.[2] as Record<string, unknown> | undefined;
+  expect(patientCardRequest.params?.[0]).toEqual([patientId]);
+  expect(patientCardData).toMatchObject({
+    action_id: expect.any(Number),
+    model: "gnuhealth.patient",
+  });
+  expect(patientCardContext).toMatchObject({
+    action_id: patientCardData?.action_id,
+    active_id: patientId,
+    active_ids: [patientId],
+    active_model: "gnuhealth.patient",
+    language: "es",
+  });
+  expect(patientCardPayload.error).toBeUndefined();
+  expect(patientCardPayload.result?.[0]).toBe("pdf");
+  expect(patientCardPayload.result?.[1]).toMatchObject({
+    __class__: "bytes",
+    base64: expect.any(String),
+  });
+  expect(patientCardPayload.result?.[2]).toEqual(expect.any(Boolean));
+  expect(patientCardPayload.result?.[3]).toEqual(expect.any(String));
+  const patientCardBytes = Buffer.from(
+    String((patientCardPayload.result?.[1] as Record<string, unknown> | undefined)?.base64 ?? ""),
+    "base64",
+  ).byteLength;
+  expect(patientCardBytes, "GNU Health must return a non-empty patient card PDF").toBeGreaterThan(
+    100,
+  );
+  await expect(
+    reportDialog.getByRole("status").filter({
+      hasText: `Vista previa de ${patientCardBytes} bytes (pdf)`,
+    }),
+  ).toBeVisible();
+  await expect(reportDialog.getByLabel("Vista previa del informe", { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+
   const evidence = {
     environmentKind: "synthetic-gnu-health",
     language: "es",
@@ -1235,6 +1314,16 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
       immutable: true,
       pageOfLifeDelegatedToFixture: true,
       retainedForFixtureCleanup: true,
+    },
+    patientReportLifecycle: {
+      report: "patient.card",
+      actionId: patientCardData?.action_id,
+      recordId: patientId,
+      outputExtension: patientCardPayload.result?.[0],
+      outputBytes: patientCardBytes,
+      backendFilename: patientCardPayload.result?.[3],
+      backendOwnedFormat: true,
+      previewed: true,
     },
     evaluationLifecycle: {
       actionContextPatient: patientId,

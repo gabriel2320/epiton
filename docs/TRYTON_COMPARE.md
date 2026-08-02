@@ -14,7 +14,7 @@ Authority: [`CANON.md`](CANON.md) · Matrix: [`COMPATIBILITY.md`](COMPATIBILITY.
 | Source license | GPL trytond / Sao | Apache-2.0 Epitón (no Sao copy) |
 | Views | `fields_view_get` XML arch | `view-engine` parse + hosts |
 | Actions | `ir.action.*` + keywords | `resolveAction` / keywords / URL guard |
-| Reports | `report.*.execute` | Download/preview + visual companion |
+| Reports | `report.*.execute(ids, data, context)` | Backend-owned download/preview + visual companion |
 | Boards | Embedded act_window panes | Interactive panes + native DnD analytics |
 
 Epitón aims for **wire + UX parity**, not a GPL reimplementation.
@@ -63,7 +63,7 @@ pnpm lab:oracle:8
 pnpm test:e2e:mock
 EPITON_E2E_LAB=disposable pnpm test:e2e:live
 
-# GNU Health core metadata + synthetic patient/appointment boundary (from GPL backend tree)
+# GNU Health core metadata + synthetic clinical/report boundary (from GPL backend tree)
 EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
 ```
 
@@ -123,16 +123,19 @@ Evening re-audit: [`AUDIT.md`](AUDIT.md#epitón-audit-delta--2026-07-31-evening)
 3. ~~Editable tree (`editable` arch).~~
 4. ~~Hierarchical trees, saved searches, notebook tabs, translation wiring.~~
 5. ~~Wizard final-execute/validate; bus → open/invalidate; richer reports.~~
-6. GNU Health module depth — pinned `health` metadata, synthetic person/patient
-   CRUD and the appointment create → `checked_in` → delete slice are attached;
-   evaluation, prescription and vaccination lifecycles remain open.
+6. GNU Health module depth — the pinned `health` slice now attaches synthetic
+   person/patient CRUD, appointment create → `checked_in` → delete, protected
+   evaluation/prescription/vaccination lifecycles, eight effective role journeys,
+   live backup/restore and the backend-owned `patient.card` PDF preview; the
+   remaining backend acceptance criteria still prevent a production claim.
 7. Full nested Screen lifecycle: the parent command queue is improved, while
    child validation/navigation/cancel bubbling remains incomplete (**G-01**).
 8. Dense form layout (`paned`/`colspan`/expansion) and a multi-clause domain
    builder beyond field-aware search plus saved filters (**G-05 / G-06**).
-9. Targeted browser evidence: ~~relation-heavy forms~~ (L1.1) and ~~board Open~~
-   (L1.2) closed; **wizard/report hosts (L1.3)** and **calendar mutations (L1.4)**
-   remain open. Mock suite now includes `board.spec.ts`.
+9. Targeted browser evidence: ~~relation-heavy forms~~ (L1.1), ~~board Open~~
+   (L1.2) and ~~wizard/report hosts~~ (L1.3) closed; **calendar mutations (L1.4)**
+   remain open. Reports have both deterministic mock coverage and a live GNU
+   Health PDF lifecycle.
 
 ## Conclusion
 

@@ -189,6 +189,13 @@ const syntheticReportAction = {
   model: "party.party",
 };
 
+const syntheticAlternateReportAction = {
+  id: 913,
+  name: "Alternate Synthetic Report",
+  report_name: "synthetic.alternate_report",
+  model: "party.party",
+};
+
 const addressFields = {
   street: { name: "street", string: "Street", type: "char", required: true },
   city: { name: "city", string: "City", type: "char", on_change: ["street"] },
@@ -644,16 +651,12 @@ export async function installMockTryton(
 
     if (method === "model.ir.action.report.search_read" && options.includeWizardReportBoard) {
       const requestedIds = domainIds(params[0]);
-      const requestedName = domainEquals(
-        params[0],
-        "report_name",
-        syntheticReportAction.report_name,
+      const rows = [syntheticReportAction, syntheticAlternateReportAction].filter(
+        (action) =>
+          (requestedIds == null || requestedIds.includes(action.id)) &&
+          domainEquals(params[0], "report_name", action.report_name) !== false &&
+          domainEquals(params[0], "model", action.model) !== false,
       );
-      const rows =
-        (requestedIds == null || requestedIds.includes(syntheticReportAction.id)) &&
-        requestedName !== false
-          ? [syntheticReportAction]
-          : [];
       return projectRows(rows, params[4]);
     }
 
@@ -915,7 +918,28 @@ export async function installMockTryton(
     }
     if (method === "wizard.synthetic.board_wizard.execute") return { state: "end" };
     if (method === "wizard.synthetic.board_wizard.delete") return true;
-    if (method === "report.synthetic.board_report.execute") return [];
+    if (method === "report.synthetic.board_report.execute") {
+      return [
+        "html",
+        {
+          __class__: "bytes",
+          base64: "PGh0bWw+PGJvZHk+U3ludGhldGljPC9ib2R5PjwvaHRtbD4=",
+        },
+        false,
+        "Synthetic Report",
+      ];
+    }
+    if (method === "report.synthetic.alternate_report.execute") {
+      return [
+        "html",
+        {
+          __class__: "bytes",
+          base64: "PGh0bWw+PGJvZHk+QWx0ZXJuYXRlPC9ib2R5PjwvaHRtbD4=",
+        },
+        false,
+        "Alternate Synthetic Report",
+      ];
+    }
 
     if (method.endsWith(".search_read")) return [];
     if (method.endsWith(".search_count")) return 0;
