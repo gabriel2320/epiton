@@ -21,7 +21,7 @@ names as proof that a clinical workflow is correct.
 | Core patient CRUD | Verified | Synthetic person/patient create, read, update and delete, including Chilean federation and Many2One behavior |
 | Appointment lifecycle slice | Verified | Synthetic appointment defaults, patient relation, create, `checked_in` transition and delete |
 | Protected core clinical lifecycles | Verified | Evaluation create/update with delete denied; prescription with nested line create/finalize; vaccination create/sign; final state, immutability and longitudinal events checked by the backend fixture |
-| Core effective role/ACL matrix | Verified | Tryton's ACL engine checks eight synthetic identities across patient, appointment, evaluation, prescription and vaccination, including negative permissions; users are transactionally rolled back and upstream demo accounts are forbidden |
+| Core effective role/ACL matrix | Verified | Tryton's ACL engine checks eight synthetic identities across patient, appointment, evaluation, prescription and vaccination, including negative permissions; Epitón then exercises all eight profiles in the browser against a disposable database clone, while upstream demo accounts remain forbidden |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
 The stock Docker lab contains party/company modules only. Therefore
@@ -94,10 +94,16 @@ immutability. Both databases are cleaned and required to have zero residual
 clinical fixture records. Before the browser phase, the same gate asks Tryton's
 ACL engine for the effective permissions of administration, nursing
 administration, nursing, front desk, doctor, social work, back office and an
-unprivileged identity on five protected core models. The temporary users are
-rolled back and the gate rejects the former persistent demo accounts. Browser
-journeys for every role, auditing, PHI handling, observability, rollback and
-production readiness remain separate acceptance gates.
+unprivileged identity on five protected core models. The engine-only identities
+are rolled back and the gate rejects the former persistent demo accounts. It
+then clones the configured database into a disposable role database and runs
+all eight profiles through the Epitón UI, checking translated menu visibility,
+model access responses and create controls. The seven non-administrative users
+remain confined to that disposable database because Tryton correctly forbids
+deleting auditable users; the database is destroyed with the temporary cluster
+and is excluded from the operational backup. Auditing, PHI handling,
+observability, rollback and production readiness remain separate acceptance
+gates.
 
 ## Deployment transport controls
 

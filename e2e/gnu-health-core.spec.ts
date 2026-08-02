@@ -1,4 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
+
+test.describe.configure({ mode: "serial" });
 
 const syntheticCoreLab =
   process.env.EPITON_E2E_GNU_HEALTH === "synthetic-core" &&
@@ -9,6 +11,165 @@ const clinicalWorkspaces = [
   ["Citas", "gnuhealth.appointment"],
   ["Prescripciones", "gnuhealth.prescription.order"],
 ] as const;
+
+type RoleAccess = {
+  read: 0 | 1;
+  write: 0 | 1;
+  create: 0 | 1;
+  delete: 0 | 1;
+};
+
+type RoleWorkspace = {
+  access: RoleAccess;
+  menu: string;
+  model: string;
+  parent?: string;
+};
+
+type RoleProfile = {
+  expandBeforeHidden?: string[];
+  key: string;
+  login: string;
+  visibleMenus: string[];
+  hiddenMenus: string[];
+  workspaces: RoleWorkspace[];
+};
+
+const fullAccess: RoleAccess = { read: 1, write: 1, create: 1, delete: 1 };
+const clinicalAccess: RoleAccess = { read: 1, write: 1, create: 1, delete: 0 };
+const readOnlyAccess: RoleAccess = { read: 1, write: 0, create: 0, delete: 0 };
+
+const patientWorkspace = (access: RoleAccess): RoleWorkspace => ({
+  access,
+  menu: "Pacientes",
+  model: "gnuhealth.patient",
+});
+
+const appointmentWorkspace = (access: RoleAccess): RoleWorkspace => ({
+  access,
+  menu: "Citas",
+  model: "gnuhealth.appointment",
+});
+
+const roleProfiles: RoleProfile[] = [
+  {
+    key: "admin",
+    login: process.env.EPITON_USER ?? "admin",
+    visibleMenus: ["Pacientes", "Citas", "Prescripciones", "Reportes", "Enfermería"],
+    hiddenMenus: [],
+    workspaces: [
+      patientWorkspace(fullAccess),
+      appointmentWorkspace(fullAccess),
+      {
+        access: fullAccess,
+        menu: "Prescripciones",
+        model: "gnuhealth.prescription.order",
+      },
+      {
+        access: clinicalAccess,
+        menu: "Evaluaciones del paciente [solo lectura]",
+        model: "gnuhealth.patient.evaluation",
+        parent: "Reportes",
+      },
+    ],
+  },
+  {
+    key: "nursing-admin",
+    login: "epiton_health_role_nursing_admin",
+    visibleMenus: [],
+    hiddenMenus: [
+      "Pacientes",
+      "Citas",
+      "Prescripciones",
+      "Reportes",
+      "Enfermería",
+      "Vacunación del Paciente",
+    ],
+    workspaces: [],
+  },
+  {
+    key: "nurse",
+    login: "epiton_health_role_nurse",
+    visibleMenus: ["Pacientes", "Enfermería"],
+    hiddenMenus: ["Citas", "Prescripciones", "Reportes"],
+    workspaces: [
+      patientWorkspace(readOnlyAccess),
+      {
+        access: clinicalAccess,
+        menu: "Vacunación del Paciente",
+        model: "gnuhealth.vaccination",
+        parent: "Enfermería",
+      },
+    ],
+  },
+  {
+    key: "frontdesk",
+    login: "epiton_health_role_frontdesk",
+    visibleMenus: ["Pacientes", "Citas"],
+    hiddenMenus: ["Prescripciones", "Reportes", "Enfermería"],
+    workspaces: [patientWorkspace(clinicalAccess), appointmentWorkspace(fullAccess)],
+  },
+  {
+    key: "doctor",
+    login: "epiton_health_role_doctor",
+    visibleMenus: ["Pacientes", "Citas", "Prescripciones", "Reportes"],
+    hiddenMenus: ["Enfermería"],
+    workspaces: [
+      patientWorkspace(clinicalAccess),
+      appointmentWorkspace(fullAccess),
+      {
+        access: clinicalAccess,
+        menu: "Prescripciones",
+        model: "gnuhealth.prescription.order",
+      },
+      {
+        access: clinicalAccess,
+        menu: "Evaluaciones del paciente [solo lectura]",
+        model: "gnuhealth.patient.evaluation",
+        parent: "Reportes",
+      },
+    ],
+  },
+  {
+    key: "social-worker",
+    login: "epiton_health_role_social_worker",
+    visibleMenus: ["Pacientes"],
+    hiddenMenus: ["Citas", "Prescripciones", "Reportes", "Enfermería"],
+    workspaces: [patientWorkspace(clinicalAccess)],
+  },
+  {
+    key: "back-office",
+    login: "epiton_health_role_back_office",
+    visibleMenus: ["Pacientes", "Citas"],
+    hiddenMenus: ["Prescripciones", "Reportes", "Enfermería"],
+    workspaces: [patientWorkspace(clinicalAccess), appointmentWorkspace(fullAccess)],
+  },
+  {
+    key: "no-role",
+    login: "epiton_health_role_no_role",
+    visibleMenus: [],
+    hiddenMenus: ["Pacientes", "Citas", "Prescripciones", "Reportes", "Enfermería"],
+    workspaces: [],
+  },
+];
+
+function isModelAccessResponse(page: Page, model: string) {
+  return page.waitForResponse((response) => {
+    try {
+      const request = response.request().postDataJSON() as {
+        method?: unknown;
+        params?: unknown[];
+      };
+      return (
+        request.method === "model.ir.model.access.get_access" &&
+        Array.isArray(request.params?.[0]) &&
+        request.params[0][0] === model
+      );
+    } catch {
+      return false;
+    }
+  });
+}
 
 const syntheticGivenName =
   process.env.EPITON_GH_SYNTHETIC_GIVEN_NAME ?? "Paciente Sintético Epiton";
@@ -1111,4 +1272,155 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   expect(pageErrors, "uncaught page errors").toEqual([]);
   expect(failedResponses, "HTTP responses with status >= 400").toEqual([]);
   expect(failedRequests, "browser requests that failed before a response").toEqual([]);
+});
+
+test("Epiton enforces the GNU Health core role journeys returned by Tryton", async ({
+  browser,
+}, testInfo) => {
+  test.skip(!syntheticCoreLab, "requires the disposable synthetic GNU Health core laboratory");
+  test.setTimeout(360_000);
+
+  const trytonBaseUrl = process.env.EPITON_BASE ?? "http://127.0.0.1:58001";
+  const database =
+    process.env.EPITON_GH_ROLE_DB ?? process.env.EPITON_DB ?? "epiton_health_core_roles";
+  const adminPassword = process.env.EPITON_PASSWORD ?? "epiton-health-synthetic-admin";
+  const rolePassword = process.env.EPITON_GH_ROLE_PASSWORD ?? "epiton-health-synthetic-role";
+  const webBaseUrl = testInfo.project.use.baseURL;
+  if (typeof webBaseUrl !== "string") {
+    throw new Error("the GNU Health browser gate requires Playwright use.baseURL");
+  }
+
+  for (const profile of roleProfiles) {
+    const context = await browser.newContext({ baseURL: webBaseUrl });
+    const page = await context.newPage();
+    const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    const failedResponses: string[] = [];
+    const failedRequests: string[] = [];
+    const verifiedWorkspaces: Array<{
+      access: RoleAccess;
+      menu: string;
+      model: string;
+    }> = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("response", (response) => {
+      if (response.status() >= 400) {
+        failedResponses.push(
+          `${response.status()} ${response.request().method()} ${response.url()}`,
+        );
+      }
+    });
+    page.on("requestfailed", (request) => {
+      failedRequests.push(
+        `${request.method()} ${request.url()} (${request.failure()?.errorText ?? "unknown error"})`,
+      );
+    });
+
+    try {
+      await page.goto("/", { waitUntil: "networkidle" });
+      await page.getByLabel("Language").selectOption("es");
+      await page.getByLabel("Servidor", { exact: true }).fill(trytonBaseUrl);
+      await page.getByLabel("Base de datos", { exact: true }).fill(database);
+      await page.getByLabel("Usuario", { exact: true }).fill(profile.login);
+      await page
+        .getByLabel("Contraseña", { exact: true })
+        .fill(profile.key === "admin" ? adminPassword : rolePassword);
+      await page.getByRole("button", { name: "Entrar a Epiton", exact: true }).click();
+
+      const sidebar = page.getByRole("complementary", { name: "Menú", exact: true });
+      await expect(sidebar).toBeVisible({ timeout: 30_000 });
+      const escapedLogin = profile.login.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await expect(sidebar.getByText(new RegExp(`^${escapedLogin} · layout \\S+$`))).toBeVisible();
+
+      for (const menu of profile.visibleMenus) {
+        await expect(sidebar.getByRole("button", { name: menu, exact: true }).last()).toBeVisible();
+      }
+      for (const menu of profile.expandBeforeHidden ?? []) {
+        await sidebar.getByRole("button", { name: menu, exact: true }).last().click();
+      }
+      for (const menu of profile.hiddenMenus) {
+        await expect(sidebar.getByRole("button", { name: menu, exact: true })).toHaveCount(0);
+      }
+
+      for (const workspace of profile.workspaces) {
+        if (workspace.parent) {
+          await sidebar.getByRole("button", { name: workspace.parent, exact: true }).last().click();
+        }
+        const accessResponsePromise = isModelAccessResponse(page, workspace.model);
+        await sidebar.getByRole("button", { name: workspace.menu, exact: true }).last().click();
+        const accessResponse = await accessResponsePromise;
+        const accessPayload = (await accessResponse.json()) as {
+          error?: unknown;
+          result?: Record<string, RoleAccess>;
+        };
+        expect(accessPayload.error).toBeUndefined();
+        expect(accessPayload.result?.[workspace.model]).toMatchObject(workspace.access);
+        await expect(
+          page.getByRole("heading", { name: workspace.model, exact: true }),
+        ).toBeVisible();
+
+        const newButton = page.getByRole("button", { name: "Nuevo", exact: true }).first();
+        const importButton = page
+          .getByRole("button", { name: "Importar CSV", exact: true })
+          .first();
+        if (workspace.access.create) {
+          await expect(newButton).toBeEnabled();
+          await expect(importButton).toBeEnabled();
+        } else {
+          await expect(newButton).toBeDisabled();
+          await expect(importButton).toBeDisabled();
+        }
+
+        verifiedWorkspaces.push({
+          access: workspace.access,
+          menu: workspace.menu,
+          model: workspace.model,
+        });
+      }
+
+      await testInfo.attach(`gnu-health-role-${profile.key}`, {
+        body: Buffer.from(
+          JSON.stringify(
+            {
+              environmentKind: "synthetic-gnu-health",
+              language: "es",
+              login: profile.login,
+              visibleMenus: profile.visibleMenus,
+              hiddenMenus: profile.hiddenMenus,
+              verifiedWorkspaces,
+              writesPerformed: false,
+              syntheticOnly: true,
+              containsPhi: false,
+              consoleErrors,
+              pageErrors,
+              failedResponses,
+              failedRequests,
+            },
+            null,
+            2,
+          ),
+        ),
+        contentType: "application/json",
+      });
+
+      expect(
+        consoleErrors,
+        `${profile.key}: browser console errors\nfailed responses:\n${failedResponses.join("\n")}\nfailed requests:\n${failedRequests.join("\n")}`,
+      ).toEqual([]);
+      expect(pageErrors, `${profile.key}: uncaught page errors`).toEqual([]);
+      expect(failedResponses, `${profile.key}: HTTP responses with status >= 400`).toEqual([]);
+      expect(failedRequests, `${profile.key}: requests that failed before a response`).toEqual([]);
+
+      await page.getByRole("button", { name: "Salir", exact: true }).click();
+      await expect(
+        page.getByRole("button", { name: "Entrar a Epiton", exact: true }),
+      ).toBeVisible();
+    } finally {
+      await context.close();
+    }
+  }
 });
