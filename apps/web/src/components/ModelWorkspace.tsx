@@ -20,6 +20,7 @@ import {
 } from "@epiton/protocol";
 import { Alert, Button, ConfirmDialog, MetaStrip, Panel, StateBlock } from "@epiton/ui";
 import {
+  type ChildScreenExitDecision,
   type RecordValues,
   type ViewField,
   aggregateGraphData,
@@ -50,7 +51,7 @@ import {
   withMany2OneRecNames,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invalidateModelProjections } from "../lib/backendTruth";
 import { guessMime } from "../lib/mime";
@@ -158,6 +159,7 @@ export function ModelWorkspace(props: {
   const draft = screen.values;
   const [relationField, setRelationField] = useState<ViewField | null>(null);
   const [relationDomain, setRelationDomain] = useState<unknown[] | undefined>(undefined);
+  const [hasOpenRelationDraft, setHasOpenRelationDraft] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<WorkspaceListViewMode>(() =>
     initialWorkspaceViewMode(props.actionViews),
@@ -192,6 +194,7 @@ export function ModelWorkspace(props: {
   const onChangeRevisionRef = useRef(0);
   const onChangeWorkRef = useRef<OnChangeWork | null>(null);
   const dirtyRef = useRef(false);
+  const openRelationDraftRef = useRef(false);
   const keyHandlersRef = useRef<{
     startNew: () => Promise<void>;
     requestDelete: (ids: number[]) => void;
@@ -256,21 +259,42 @@ export function ModelWorkspace(props: {
     setMode(transition.mode);
   }
 
+  const handleRelationExitDecision = useCallback((decision: ChildScreenExitDecision) => {
+    const next = decision.kind === "confirm-discard";
+    openRelationDraftRef.current = next;
+    setHasOpenRelationDraft((current) => (current === next ? current : next));
+  }, []);
+
+  const closeRelationEditor = useCallback(() => {
+    openRelationDraftRef.current = false;
+    setHasOpenRelationDraft(false);
+    setRelationField(null);
+    setRelationDomain(undefined);
+  }, []);
+
   function confirmDiscard(): boolean {
-    if (!dirtyRef.current) return true;
-    if (typeof globalThis.confirm !== "function") return true;
-    return globalThis.confirm(t("workspace.discardConfirm"));
+    if (!dirtyRef.current && !openRelationDraftRef.current) return true;
+    if (
+      typeof globalThis.confirm === "function" &&
+      !globalThis.confirm(t("workspace.discardConfirm"))
+    ) {
+      return false;
+    }
+    closeRelationEditor();
+    return true;
   }
 
-  function selectId(id: number | null, committed = false) {
+  function selectId(id: number | null, committed = false): boolean {
     const transition = listSelectionTransition(selectedId, id, committed);
-    if (transition.confirmDiscard && !confirmDiscard()) return;
+    if (transition.confirmDiscard && !confirmDiscard()) return false;
     if (transition.resetScreen) {
+      closeRelationEditor();
       bumpScreenGeneration();
       setScreen((current) => screenAfterListSelection(current, props.model, transition));
     }
     setSelectedId(id);
     props.onSelectedIdChange?.(id);
+    return true;
   }
 
   function setMultiSelect(ids: number[]) {
@@ -905,10 +929,11 @@ export function ModelWorkspace(props: {
   useEffect(() => {
     const nextId = props.initialSelectedId ?? null;
     bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
+    closeRelationEditor();
     setScreen((current) => screenForSelection(current, props.model, nextId));
     setSelectedId(nextId);
     setSelectedIds([]);
-  }, [props.model, props.initialSelectedId, recordLifecycleRefs]);
+  }, [props.model, props.initialSelectedId, recordLifecycleRefs, closeRelationEditor]);
 
   useEffect(() => {
     const payload = recordQuery.data;
@@ -918,7 +943,7 @@ export function ModelWorkspace(props: {
     );
   }, [recordQuery.data, props.model, selectedId]);
 
-  const isDirty = mode === "write" && screenIsDirty(screen);
+  const isDirty = mode === "write" && (screenIsDirty(screen) || hasOpenRelationDraft);
   dirtyRef.current = isDirty;
 
   useEffect(() => {
@@ -1001,6 +1026,7 @@ export function ModelWorkspace(props: {
   async function startNew() {
     if (!modelAccess.create) return;
     if (!confirmDiscard()) return;
+    closeRelationEditor();
     bumpScreenGeneration();
     const expected = {
       generation: screenGenerationRef.current,
@@ -1059,6 +1085,9 @@ export function ModelWorkspace(props: {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
+      if (openRelationDraftRef.current) {
+        throw new Error(t("relationLine.finishNested"));
+      }
       if (selectedId == null ? !modelAccess.create : !modelAccess.write) {
         throw new Error(t("workspace.accessDenied"));
       }
@@ -1089,7 +1118,11 @@ export function ModelWorkspace(props: {
 
   const canModifyCurrent = selectedId == null ? modelAccess.create : modelAccess.write;
   const canSave =
-    canModifyCurrent && !newDefaultsPending && isScreenReadyToSave(screen, selectedId);
+    canModifyCurrent &&
+    !newDefaultsPending &&
+    !hasOpenRelationDraft &&
+    !openRelationDraftRef.current &&
+    isScreenReadyToSave(screen, selectedId);
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
@@ -1120,13 +1153,14 @@ export function ModelWorkspace(props: {
       setNotice(t("workspace.nothingSelected"));
       return;
     }
+    if (!confirmDiscard()) return;
     setPendingDeleteIds(ids);
   }
 
   function selectAdjacent(delta: -1 | 1) {
     const next = adjacentSelectedId(projectedListRows, selectedId, delta);
     if (next == null) return;
-    selectId(next);
+    if (!selectId(next)) return;
     leaveWriteMode();
     props.onHistory?.("nav");
   }
@@ -1148,6 +1182,7 @@ export function ModelWorkspace(props: {
           mode === "write" &&
           (selectedId == null ? modelAccess.create : modelAccess.write) &&
           !newDefaultsPending &&
+          !openRelationDraftRef.current &&
           !saveMutation.isPending &&
           isScreenReadyToSave(screenRef.current, selectedId)
         ) {
@@ -1190,6 +1225,7 @@ export function ModelWorkspace(props: {
         bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
         const restored = screenAfterDiscard(props.model, selectedId, recordQuery.data?.values);
         if (restored) setScreen(restored);
+        closeRelationEditor();
         setMode("read");
       }
     };
@@ -1209,6 +1245,7 @@ export function ModelWorkspace(props: {
     modelAccess.create,
     modelAccess.write,
     modelAccess.delete,
+    closeRelationEditor,
   ]);
 
   async function runButton(name: string, meta?: { type?: string }) {
@@ -1314,7 +1351,7 @@ export function ModelWorkspace(props: {
     action: { name: string; type?: string; confirm?: string },
   ) {
     if (!client) return;
-    selectId(id);
+    if (!selectId(id)) return;
     if (isActionButton(action.name, action.type) && props.onOpenAction) {
       props.onOpenAction(
         action.name,
@@ -1722,7 +1759,7 @@ export function ModelWorkspace(props: {
               events={calendarEvents}
               editable={modelAccess.write}
               onSelect={(id) => {
-                selectId(id);
+                if (!selectId(id)) return;
                 leaveWriteMode();
                 props.onHistory?.("open");
               }}
@@ -1752,7 +1789,7 @@ export function ModelWorkspace(props: {
                 if (!hit) return;
                 const id = Number(hit.id);
                 if (!Number.isFinite(id)) return;
-                selectId(id);
+                if (!selectId(id)) return;
                 void openKeywordAction("graph_open", id, "graph_open").then((opened) => {
                   if (!opened) props.onHistory?.("graph:select");
                 });
@@ -1766,7 +1803,7 @@ export function ModelWorkspace(props: {
               density={density}
               selectedId={selectedId}
               onSelect={(id) => {
-                selectId(id);
+                if (!selectId(id)) return;
                 leaveWriteMode();
                 props.onHistory?.("open");
               }}
@@ -1821,7 +1858,7 @@ export function ModelWorkspace(props: {
                   : undefined
               }
               onOpen={(id) => {
-                selectId(id);
+                if (!selectId(id)) return;
                 leaveWriteMode();
                 void openKeywordAction("tree_open", id, "tree_open").then((opened) => {
                   if (!opened) props.onHistory?.("open");
@@ -1835,7 +1872,7 @@ export function ModelWorkspace(props: {
                 setMultiSelect(toggleSelectedId(selectedIds, id));
               }}
               onSelect={(id) => {
-                selectId(id);
+                if (!selectId(id)) return;
                 leaveWriteMode();
                 props.onHistory?.("open");
               }}
@@ -1894,6 +1931,7 @@ export function ModelWorkspace(props: {
             if (!canModifyCurrent) return;
             if (mode === "write" && !confirmDiscard()) return;
             if (mode === "write") {
+              closeRelationEditor();
               const restored = screenAfterDiscard(
                 props.model,
                 selectedId,
@@ -1963,6 +2001,19 @@ export function ModelWorkspace(props: {
               onChange: handleFieldChange,
               onButton: (name, meta) => void runButton(name, meta),
               onOpenRelation: (field, value, domain) => {
+                if (
+                  relationField &&
+                  relationField.name !== field.name &&
+                  openRelationDraftRef.current
+                ) {
+                  if (
+                    typeof globalThis.confirm === "function" &&
+                    !globalThis.confirm(t("relationLine.discardConfirm"))
+                  ) {
+                    return;
+                  }
+                  closeRelationEditor();
+                }
                 if (field.type === "one2many" || field.type === "many2many") {
                   const relationKind = field.type === "many2many" ? "many2many" : "one2many";
                   setScreen((current) => {
@@ -2045,6 +2096,7 @@ export function ModelWorkspace(props: {
           />
         ) : relationField && activeRelationQueue ? (
           <RelationLinesEditor
+            key={`${props.model}:${relationField.name}`}
             field={relationField}
             value={draft[relationField.name]}
             mode={mode}
@@ -2061,9 +2113,9 @@ export function ModelWorkspace(props: {
               });
             }}
             onOpenLine={(model, id) => props.onPushRelated?.(model, id)}
+            onExitDecisionChange={handleRelationExitDecision}
             onCommit={() => {
-              setRelationField(null);
-              setRelationDomain(undefined);
+              closeRelationEditor();
               setNotice(t("workspace.relationQueued"));
               props.onHistory?.(`relation:apply:${relationField.name}`);
             }}

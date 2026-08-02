@@ -147,6 +147,8 @@ const resources = {
       "relationLine.cannotQueue": "Line cannot be queued ({{reason}})",
       "relationLine.validationFailed": "Line validation failed",
       "relationLine.discardConfirm": "Discard unsaved line changes?",
+      "relationLine.finishNested":
+        "Accept or cancel the open nested line before queuing or saving its parent.",
       "relationLine.actionFromParent": "Action buttons open from the parent workspace ({{name}})",
       "relationLine.saveFirst": "Queue/save the line before running buttons",
       "relationLine.running": "Running {{name}}…",
@@ -317,6 +319,8 @@ const resources = {
       "relationLine.cannotQueue": "No se puede poner la línea en cola ({{reason}})",
       "relationLine.validationFailed": "Falló la validación de la línea",
       "relationLine.discardConfirm": "¿Descartar los cambios de la línea sin guardar?",
+      "relationLine.finishNested":
+        "Acepte o cancele la sublínea abierta antes de encolar o guardar su registro principal.",
       "relationLine.actionFromParent":
         "Los botones de acción se abren desde el espacio de trabajo principal ({{name}})",
       "relationLine.saveFirst": "Ponga en cola o guarde la línea antes de ejecutar botones",

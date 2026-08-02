@@ -128,14 +128,18 @@ Evening re-audit: [`AUDIT.md`](AUDIT.md#epitón-audit-delta--2026-07-31-evening)
    evaluation/prescription/vaccination lifecycles, eight effective role journeys,
    live backup/restore and the backend-owned `patient.card` PDF preview; the
    remaining backend acceptance criteria still prevent a production claim.
-7. Full nested Screen lifecycle: the parent command queue is improved, while
-   child validation/navigation/cancel bubbling remains incomplete (**G-01**).
-8. Dense form layout (`paned`/`colspan`/expansion) and a multi-clause domain
-   builder beyond field-aware search plus saved filters (**G-05 / G-06**).
-9. Targeted browser evidence: ~~relation-heavy forms~~ (L1.1), ~~board Open~~
-   (L1.2) and ~~wizard/report hosts~~ (L1.3) closed; **calendar mutations (L1.4)**
-   remain open. Reports have both deterministic mock coverage and a live GNU
-   Health PDF lifecycle.
+7. ~~Full nested Screen lifecycle.~~ The frozen child Screen contract now
+   covers validation, `on_change`, command bubbling and host-level dirty-exit
+   propagation; parent Save cannot bypass an open line draft (**G-01 closed by
+   L3.4**). Broad third-party and supported-series qualification remains an
+   evidence-expansion task, not a known ownership defect.
+8. ~~Dense form layout and multi-clause domain filtering.~~ Responsive
+   `paned`/`colspan`/expansion receipts close **G-05**; the strict typed flat
+   AND/OR builder plus raw nested-domain fallback closes **G-06**.
+9. ~~Targeted browser evidence.~~ Relation-heavy forms (L1.1), board Open
+   (L1.2), wizard/report hosts (L1.3), and calendar mutations (L1.4) all have
+   deterministic browser receipts. Reports additionally have a live GNU Health
+   PDF lifecycle.
 
 ## Conclusion
 

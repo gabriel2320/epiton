@@ -116,10 +116,22 @@ test("browser saves queued one2many create and edit through one parent write wit
   await expect(page.getByRole("heading", { name: "Edit party.address #10" })).toBeVisible();
   await expect(page.getByLabel("Street")).toHaveValue("Synthetic Road");
   await expect(page.getByLabel("City")).toHaveValue("Old City");
+  await page.getByLabel("Street").fill("Draft must remain open");
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  await Promise.all([
+    page.waitForEvent("dialog").then(async (dialog) => {
+      expect(dialog.message()).toBe("Discard unsaved line changes?");
+      await dialog.dismiss();
+    }),
+    page.getByRole("button", { name: "New line", exact: true }).click(),
+  ]);
+  await expect(page.getByRole("heading", { name: "Edit party.address #10" })).toBeVisible();
+  await expect(page.getByLabel("Street")).toHaveValue("Draft must remain open");
   await page.getByLabel("Street").fill("Synthetic Road Updated");
   await page.getByLabel("City").fill("Updated City");
   await page.getByRole("button", { name: "Queue write", exact: true }).click();
   await expect(page.getByText(/queued creates: 1 · pending ops: 2/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
 
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();

@@ -1,9 +1,10 @@
 # Child Screen contract
 
-Status: **L3.3 evidence-qualified**, 2026-08-01. The pure L3.1 contract remains
-frozen, its L3.2 web integration is unchanged, and the relation boundary now
-has deterministic Many2Many browser evidence plus a disposable Tryton 7 live
-receipt. This document narrows the architecture
+Status: **L3.4 exit-integrity-qualified**, 2026-08-02. The pure L3.1 contract
+remains frozen, its L3.2 web integration is unchanged, and the relation
+boundary now has deterministic Many2Many browser evidence, a disposable
+Tryton 7 live receipt, and three-level dirty-exit protection. This document
+narrows the architecture
 in [`THREE_LAYER_ARCHITECTURE.md`](THREE_LAYER_ARCHITECTURE.md); it does not
 raise the compatibility claim beyond [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
@@ -125,6 +126,20 @@ L3.3 then qualified that frozen implementation without changing its API:
    and its `code` / `type_address` dependents, and obtains server acceptance
    from metadata-requested `pre_validate` with `id = -1`;
 3. the resulting live compatibility protocol is 21/21.
+
+L3.4 closes the remaining host-level exit-integrity gap, again without changing
+the pure child Screen API:
+
+1. each relation editor publishes its dirty/allow decision to its parent, so a
+   nested line draft remains visible through three Screen levels;
+2. New/Edit/selection/search/open/remove/delete/apply/cancel transitions ask
+   before replacing a dirty child, and a rejected confirmation preserves the
+   same target and draft values;
+3. parent Save and Ctrl/Cmd+S stay blocked until the open relation line is
+   accepted into the parent queue or explicitly cancelled;
+4. the deterministic O2M browser receipt edits an existing address, rejects a
+   line switch, proves the draft remains open, then queues it and emits the
+   original single parent `write` with zero independent child mutations.
 
 These receipts qualify the stock Tryton 7 boundary and the deterministic mock
 shape. They do not claim that every relation-heavy third-party module or every

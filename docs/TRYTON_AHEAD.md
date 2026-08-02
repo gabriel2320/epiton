@@ -20,12 +20,15 @@ Tryton is still clearly ahead on:
 
 1. **Full GTK / device-native chrome** (print plugins, deep OS integration)
 2. SMTP pipeline depth when modules expose custom mail wizards not matched by keywords
-3. **Full nested Screen lifecycle:** Epitón's parent queue saves O2M/M2M without
-   Apply, but nested hosts still lack Sao's complete validation/navigation bubbling
+3. **Breadth of mature module evidence:** the nested Screen ownership and
+   dirty-exit lifecycle are implemented, but Sao/GTK has wider production use
+   across relation-heavy third-party modules and native workflows
 
-Recently improved (2026-07-31 cont. 8): saved-filter dialogs, email CC/BCC,
-binary MIME/filename, tree sum/average footers, and a parent-owned Screen queue
-with record-isolation guards; plus attachments depth, graph operators, ↑/↓ nav.
+Recently improved (2026-08-02): nested relation editors propagate dirty-exit
+state through three Screen levels, preserve rejected switches, and prevent
+parent Save/Ctrl+S from bypassing an unqueued line draft. This extends the
+parent-owned Screen queue and its record-isolation guards without changing the
+frozen pure contract.
 
 ## P0 — Workflow blockers vs Sao dashboards & lists
 
@@ -89,7 +92,9 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 13. ~~Report picker; dirty form; workspace i18n; optional= columns; field-aware search~~
 14. ~~Attachments depth; graph operators/title; ↑/↓ nav; drawer i18n~~
 15. ~~Saved-filter dialogs; email CC/BCC; binary MIME/filename; tree footers~~
-16. ~~Screen host + parent O2M/M2M command-queue~~ (view-engine `ScreenState` + ModelWorkspace); GTK-only plugins remain out of scope; live nested Sao Screens remain Medium polish
+16. ~~Screen host + parent O2M/M2M command-queue + dirty child exit bubbling~~
+    (view-engine `ScreenState` + ModelWorkspace); GTK-only plugins remain out
+    of scope and broader relation-heavy module evidence remains ongoing
 17. Lab smoke checklist in [`AUDIT.md`](AUDIT.md); REST Not probed; no PHI claims
 
 ## Prioritized client-depth batches — 2026-Q3/Q4
@@ -105,9 +110,9 @@ agent ownership in [`AGENT_BRIDGE.md`](AGENT_BRIDGE.md).
 - **Do not rebuild Screen or Board from zero.** Parent-owned relation commands,
   record-isolation guards, and tree/graph/form board panes are already
   `Improved`.
-- **Evidence comes first.** The 21/21 Tryton 7 and 21/21 Tryton 8 live receipts prove the wire, not deep
-  browser behavior. Relation queues, board actions, wizards, reports, and
-  calendars need deterministic browser scenarios.
+- **Evidence comes first.** The 21/21 Tryton 7 and 21/21 Tryton 8 live receipts
+  prove the wire; deterministic browser scenarios now protect relation queues,
+  board actions, wizards, reports, and calendars.
 - **Reduce the workspace hotspot before adding more UI state.**
   `ModelWorkspace.tsx` is now below 2,000 lines but still concentrates list,
   record, action, calendar, search, and relation behavior.
@@ -129,7 +134,7 @@ start with evidence for that behavior instead of reopening its implementation.
 |-----|-------------------|------------|-----------------|---------------|
 | **L1 — Browser depth evidence** | Keep deterministic coverage for relation queue + parent save and A→B stale-read/write isolation; add board action open, wizard/report shell paths, and calendar create/move. The mock gateway is the hard gate; extend live-lab scenarios only where stock Tryton 7/8 exposes the required metadata/model. | Current Screen baseline | The relation/isolation scenarios and each new scenario pass in `pnpm test:e2e:mock`; applicable live scenarios pass on each series that exposes the feature; an absent stock board/calendar is recorded as a lab limitation, not a failed client gate. | M / Medium |
 | **L2 — Decompose `ModelWorkspace`** | Extract record lifecycle/query, list selection/navigation, action toolbar, and search/view-mode concerns behind typed hooks/components without changing RPC shape or behavior. | Current Screen baseline; use L1 as regression net | No component created as another monolith; focused web tests plus unchanged L1 results; build and bundle stay within budget. | M–L / Medium |
-| **L3 — Nested Screen lifecycle** | Give O2M/M2M line forms an explicit child Screen contract: validation, on_change propagation, navigation/cancel semantics, and command bubbling into one parent create/write. Freeze that view-engine API before handing off the web wiring; align or retire duplicate relation paths such as `PartyWorkspace`. | L1; L2 strongly preferred | Unit tests cover create/update/remove/cancel and nested validation; the API handoff is recorded before relation components change; one relation-heavy browser flow proves a single parent mutation; Tryton 7/8 RPC evidence remains green; `COMPATIBILITY.md` records the exact supported depth. | L / High |
+| **L3 — Nested Screen lifecycle — DONE (L3.4)** | O2M/M2M line forms use the frozen child Screen contract for validation, `on_change`, navigation/cancel, dirty-exit propagation, and command bubbling into one parent create/write. `PartyWorkspace` remains a thin adapter. | L1; L2 | Unit receipts cover create/update/remove/cancel and nested validation; deterministic O2M/M2M browser flows prove one parent mutation with no child mutation; a rejected line switch preserves the draft and parent Save stays blocked until accept/cancel; live protocol evidence remains green. | Closed; broader module evidence remains |
 | **L4 — Dense form layout** | Implement Sao-shaped `colspan`, expansion/alignment, and basic paned layout while preserving existing group/notebook state behavior and exclusive loading/error/empty/data states. | L1; can proceed beside L2/L3 only with separate path ownership | XML parse/render fixtures, responsive and keyboard checks, and representative screenshots or Playwright assertions at desktop/mobile widths. | M / Medium |
 | **L5 — Domain filter builder** | Add typed AND/OR clauses, operators, values, validation, and round-trip to Tryton domains; keep raw JSON domain and saved filters interoperable. | L2 | Domain encode/decode unit tests; browser scenario builds, applies, saves, reloads, and deletes a filter; malformed clauses never issue an RPC. | M / Medium |
 | **L6 — Board/action polish** | Replace the wizard/report placeholder by reusing the normal shell action host, then verify active ids/context. Do not create an embedded duplicate action runtime; deeper list-form/calendar pane work is a separately justified follow-up. | L1 and L2; schedule after L5 unless a failing workflow raises its priority | One board Playwright scenario proves wizard/report open through the shared host and preserves selection/context; existing tree/form/graph and sibling `_actions` tests remain green. | S–M / Medium |
@@ -268,6 +273,9 @@ Highest product-depth risk. Sequence:
    membership as one parent write with zero child mutation; the disposable
    Tryton 7 lab discovers a relation child from metadata and accepts its
    transient `on_change_with` + `pre_validate` path (`compat:live` 21/21).
+6. **DONE (L3.4, 2026-08-02):** relation editors publish dirty-exit state
+   through three Screen levels; rejected switches preserve the draft, while
+   parent Save/Ctrl+S remains blocked until the line is queued or cancelled.
 
 Do not start L3 while **L1.3–L1.4** evidence is still open unless a production
 blocker appears; prefer finishing L1 evidence and L2 first to reduce merge
@@ -314,7 +322,7 @@ a **separately justified** follow-up, not a release blocker.
 | Live protocol | `pnpm compat:live` (7 and 8) | Wire parity |
 | Gateway | `cargo test` / `cargo check` in `apps/gateway` | Production-web edge |
 | Threat model + a11y/perf budgets | `pnpm test:e2e:release`, `config/client-release-budgets.json`, `THREAT_MODEL.md`, gateway production checklist | Reproducible client release baseline — **not** a pentest or WCAG certification |
-| GNU Health metadata lab | Optional pinned synthetic GH + `pnpm gh:check` | Module discovery only — **not** PHI and not a core-client blocker |
+| GNU Health clinical gate | Separate pinned synthetic `health` acceptance + `pnpm gh:check` + GNU Health Playwright | Metadata discovery plus the exact accepted core clinical/browser slice — **not** PHI or production authorization |
 | New dated audit | Append section to `AUDIT.md` | Point-in-time posture |
 
 The core-client release gate is closed. The standalone release browser receipt
@@ -361,7 +369,7 @@ memory-only authority boundary.
 M0  Wire + Screen + L1.1 + L1.2   ████ DONE
 M1  L1.3–L1.4 browser evidence    ████ DONE
 M2  L2 workspace decomposition    ████ DONE
-M3  L3 nested Screen API+wire     ████ DONE (L3.1 contract + L3.2 wire + L3.3 evidence)
+M3  L3 nested Screen API+wire     ████ DONE (L3.1 contract + L3.2 wire + L3.3 evidence + L3.4 exits)
 M4  L4 form density ‖ L5 filters  ████ DONE
 M5  L6 board polish (optional)    ████ DONE (shared Shell receipt)
 M6  L7 release candidate          ████ DONE

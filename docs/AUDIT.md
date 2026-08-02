@@ -467,3 +467,45 @@ browser fixture likewise follows the server-supplied Parties menu before CRUD.
 - GNU Health remains an optional metadata-only discovery track. No PHI,
   clinical workflow, certification, or HIS claim follows from this release
   candidate.
+
+---
+
+# Epitón audit delta — 2026-08-02 (nested Screen exit integrity)
+
+The remaining G-01 host-integrity gap is closed for the shared relation editor.
+This delta extends the frozen child Screen contract; it does not replace
+trytond validation, widen the supported module set, or authorize production
+PHI.
+
+## Closed finding
+
+| ID | Previous severity | Finding | Closure |
+|----|-------------------|---------|---------|
+| G-01 | High (data integrity) | A dirty relation-line form could be replaced by row navigation or a new line, and the parent Screen could save before the draft entered its relation queue. | Dirty-exit decisions now bubble through nested relation editors. Every replacing action confirms before discard, a rejected switch preserves the target and values, and parent Save/Ctrl+S stays blocked until the line is accepted or cancelled. The deterministic O2M receipt still emits exactly one parent `write` and no direct child mutation. |
+
+## Verification snapshot
+
+```text
+Base: e3090cb + nested Screen exit-integrity worktree
+Typecheck: PASS — 13/13 tasks
+Lint: PASS — 231 files
+Unit/contract tests: PASS — 242 tests (protocol 66, view-engine 89,
+  web 59, compat 19, intelligence 4, ui 5)
+Mock browser E2E: PASS — 16/16
+Next production E2E/CSP/PWA: PASS — 15/15
+Web production build: PASS — 1,675 modules; PWA 25 entries
+Bundle budget: PASS — largest JavaScript asset 468.1 KiB / 700 KiB
+GNU Health `health` PostgreSQL acceptance: PASS — client clinical/role
+  journeys 2/2; Tryton 8.0.7; PostgreSQL 18.4; Python 3.14.6
+Operational recovery: PASS — live custom-format backup restored with one
+  protected clinical record
+Fixture cleanup: PASS — zero synthetic clinical, role, product, or party rows
+git diff --check: PASS
+Push: not done
+```
+
+The clinical receipt remains synthetic and disposable. It proves the accepted
+Spanish `health` workflow, eight effective role journeys, backend-owned patient
+card PDF, protected-state immutability, backup/restore, and controlled cleanup;
+it is not a clinical certification, penetration test, production deployment,
+or PHI-handling authorization.

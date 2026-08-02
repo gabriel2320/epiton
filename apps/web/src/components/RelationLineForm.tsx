@@ -1,6 +1,7 @@
 import { type JsonObject, applyFieldChange, preValidateRecord } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
+  type ChildScreenExitDecision,
   type ChildScreenState,
   type ChildScreenTarget,
   type ParsedView,
@@ -56,6 +57,7 @@ export function RelationLineForm(props: {
   onCancel: () => void;
   onCommit: (queue: RelationCommandQueue) => void;
   onOpenRelated?: (model: string, id: number) => void;
+  onExitDecisionChange?: (decision: ChildScreenExitDecision) => void;
 }) {
   const { t } = useTranslation();
   const client = useAppStore((state) => state.client);
@@ -81,6 +83,9 @@ export function RelationLineForm(props: {
   const [noticeIsError, setNoticeIsError] = useState(false);
   const [onChangePending, setOnChangePending] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [nestedExitDecision, setNestedExitDecision] = useState<ChildScreenExitDecision>({
+    kind: "allow",
+  });
   const editing = props.target.kind === "record";
 
   const publishChild = useCallback((next: ChildScreenState) => {
@@ -169,9 +174,31 @@ export function RelationLineForm(props: {
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       workRef.current?.cancel();
+      childRef.current = cancelChildScreen(childRef.current);
     },
     [],
   );
+
+  const ownExitDecision = childScreenExitDecision(child);
+  const requiresExitConfirmation =
+    ownExitDecision.kind === "confirm-discard" || nestedExitDecision.kind === "confirm-discard";
+
+  useEffect(() => {
+    props.onExitDecisionChange?.(
+      requiresExitConfirmation
+        ? { kind: "confirm-discard", reason: "unsaved-child" }
+        : { kind: "allow" },
+    );
+  }, [props.onExitDecisionChange, requiresExitConfirmation]);
+
+  useEffect(
+    () => () => props.onExitDecisionChange?.({ kind: "allow" }),
+    [props.onExitDecisionChange],
+  );
+
+  const handleNestedExitDecision = useCallback((decision: ChildScreenExitDecision) => {
+    setNestedExitDecision((current) => (current.kind === decision.kind ? current : decision));
+  }, []);
 
   function scheduleOnChange(name: string) {
     if (!client || !viewQuery.data) return;
@@ -293,6 +320,19 @@ export function RelationLineForm(props: {
   }
 
   function openRelation(field: ViewField, value: unknown, domain?: unknown[]) {
+    if (
+      relationField &&
+      relationField.name !== field.name &&
+      nestedExitDecision.kind === "confirm-discard"
+    ) {
+      if (
+        typeof globalThis.confirm === "function" &&
+        !globalThis.confirm(t("relationLine.discardConfirm"))
+      ) {
+        return;
+      }
+      setNestedExitDecision({ kind: "allow" });
+    }
     if (field.type === "one2many" || field.type === "many2many") {
       const current = childRef.current;
       if (!current.screen.relationQueues[field.name]) {
@@ -321,6 +361,11 @@ export function RelationLineForm(props: {
     setNoticeIsError(false);
     try {
       await flushOnChange();
+      if (nestedExitDecision.kind === "confirm-discard") {
+        setNoticeIsError(true);
+        setNotice(t("relationLine.finishNested"));
+        return;
+      }
       const current = childRef.current;
       const issues = validateChildScreen(current, viewQuery.data.fields);
       if (issues.length) {
@@ -365,7 +410,9 @@ export function RelationLineForm(props: {
   function discardChild() {
     const current = childRef.current;
     if (
-      childScreenExitDecision(current).kind === "confirm-discard" &&
+      (childScreenExitDecision(current).kind === "confirm-discard" ||
+        nestedExitDecision.kind === "confirm-discard") &&
+      typeof globalThis.confirm === "function" &&
       !globalThis.confirm(t("relationLine.discardConfirm"))
     ) {
       return;
@@ -469,7 +516,9 @@ export function RelationLineForm(props: {
             queue={child.screen.relationQueues[relationField.name]}
             onQueueChange={(update) => handleRelationQueueChange(relationField, update)}
             onOpenLine={props.onOpenRelated}
+            onExitDecisionChange={handleNestedExitDecision}
             onCommit={() => {
+              setNestedExitDecision({ kind: "allow" });
               setRelationField(null);
               setRelationDomain(undefined);
             }}

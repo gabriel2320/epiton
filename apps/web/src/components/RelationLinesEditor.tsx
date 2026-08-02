@@ -1,6 +1,7 @@
 import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel } from "@epiton/ui";
 import {
+  type ChildScreenExitDecision,
   type ChildScreenTarget,
   type ParsedView,
   type RecordValues,
@@ -14,7 +15,7 @@ import {
   treeColumns,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
 import { BoardTree } from "./BoardTree";
@@ -36,6 +37,8 @@ export function RelationLinesEditor(props: {
   onCommit: (next: unknown) => void;
   /** Open nested related record (O2M/M2M line). */
   onOpenLine?: (model: string, id: number) => void;
+  /** Bubble an uncommitted child draft to the owning Screen. */
+  onExitDecisionChange?: (decision: ChildScreenExitDecision) => void;
 }) {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
@@ -54,13 +57,53 @@ export function RelationLinesEditor(props: {
   const [lineForm, setLineForm] = useState<ChildScreenTarget | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lineExitDecision, setLineExitDecision] = useState<ChildScreenExitDecision>({
+    kind: "allow",
+  });
+
+  const publishLineExitDecision = useCallback(
+    (decision: ChildScreenExitDecision) => {
+      setLineExitDecision((current) => (current.kind === decision.kind ? current : decision));
+      props.onExitDecisionChange?.(decision);
+    },
+    [props.onExitDecisionChange],
+  );
+
+  useEffect(
+    () => () => props.onExitDecisionChange?.({ kind: "allow" }),
+    [props.onExitDecisionChange],
+  );
 
   useEffect(() => {
     if (isControlled) return;
     setLocalQueue(initialQueue);
     setSelectedId(null);
     setLineForm(null);
-  }, [initialQueue, isControlled]);
+    publishLineExitDecision({ kind: "allow" });
+  }, [initialQueue, isControlled, publishLineExitDecision]);
+
+  function replaceLineForm(next: ChildScreenTarget | null): boolean {
+    const sameTarget =
+      lineForm != null &&
+      next != null &&
+      childScreenTargetKey(lineForm) === childScreenTargetKey(next);
+    if (sameTarget) return true;
+    if (
+      lineExitDecision.kind === "confirm-discard" &&
+      typeof globalThis.confirm === "function" &&
+      !globalThis.confirm(t("relationLine.discardConfirm"))
+    ) {
+      return false;
+    }
+    publishLineExitDecision({ kind: "allow" });
+    setLineForm(next);
+    return true;
+  }
+
+  function finishLineForm() {
+    publishLineExitDecision({ kind: "allow" });
+    setLineForm(null);
+  }
 
   function updateQueue(update: (current: RelationCommandQueue) => RelationCommandQueue) {
     if (isControlled) {
@@ -158,8 +201,8 @@ export function RelationLinesEditor(props: {
     return [...real, ...queued];
   }, [rowsQuery.data, pendingCreates, columns, t]);
 
-  function addId(id: number) {
-    if (!Number.isFinite(id)) return;
+  function addId(id: number): boolean {
+    if (!Number.isFinite(id) || !replaceLineForm(null)) return false;
     updateQueue((current) =>
       current.ids.includes(id)
         ? current
@@ -170,37 +213,39 @@ export function RelationLinesEditor(props: {
           },
     );
     setSelectedId(id);
+    return true;
   }
 
   function removeId(id: number) {
+    if (!replaceLineForm(null)) return;
     updateQueue((current) => {
       const result = removeChildScreen(current, { kind: "record", id }, "remove");
       return result.ok ? result.queue : current;
     });
     if (selectedId === id) setSelectedId(null);
-    if (lineForm?.kind === "record" && lineForm.id === id) setLineForm(null);
   }
 
   function deleteId(id: number) {
+    if (!replaceLineForm(null)) return;
     updateQueue((current) => {
       const result = removeChildScreen(current, { kind: "record", id }, "delete");
       return result.ok ? result.queue : current;
     });
     if (selectedId === id) setSelectedId(null);
-    if (lineForm?.kind === "record" && lineForm.id === id) setLineForm(null);
   }
 
   function discardQueued(commandIndex: number) {
+    if (!replaceLineForm(null)) return;
     updateQueue((current) => {
       const result = removeChildScreen(current, { kind: "queued-create", commandIndex });
       return result.ok ? result.queue : current;
     });
     setSelectedId(null);
-    setLineForm(null);
     setNotice(t("relationLines.discarded"));
   }
 
   function apply() {
+    if (!replaceLineForm(null)) return;
     props.onCommit(relationQueueWireValue(queue));
     if (!isControlled) {
       updateQueue((current) => ({
@@ -227,18 +272,24 @@ export function RelationLinesEditor(props: {
           ? t("relationLines.createUpdated")
           : t("relationLines.createQueued"),
     );
-    setLineForm(null);
+    finishLineForm();
   }
 
   function selectRow(id: number) {
-    setSelectedId(id);
-    if (props.mode !== "write" || props.field.type !== "one2many") return;
-    if (id < 0) {
+    let next: ChildScreenTarget | null = null;
+    if (props.mode === "write" && props.field.type === "one2many" && id < 0) {
       const entry = pendingCreates.find((e) => e.rowId === id);
-      if (entry) setLineForm({ kind: "queued-create", commandIndex: entry.commandIndex });
-      return;
+      if (entry) next = { kind: "queued-create", commandIndex: entry.commandIndex };
+    } else if (props.mode === "write" && props.field.type === "one2many") {
+      next = { kind: "record", id };
     }
-    setLineForm({ kind: "record", id });
+    if (!replaceLineForm(next)) return;
+    setSelectedId(id);
+  }
+
+  function openLine(id: number) {
+    if (!relation || !props.onOpenLine || !replaceLineForm(null)) return;
+    props.onOpenLine(relation, id);
   }
 
   const selectedQueued =
@@ -259,7 +310,7 @@ export function RelationLinesEditor(props: {
               onSelect={(id) => selectRow(id)}
               onOpen={(id) => {
                 if (id < 0) return;
-                if (relation && props.onOpenLine) props.onOpenLine(relation, id);
+                openLine(id);
               }}
             />
           ) : (
@@ -269,12 +320,17 @@ export function RelationLinesEditor(props: {
           )}
           {props.mode === "write" ? (
             <div className="epiton-toolbar">
-              <Button onClick={() => setSearchOpen(true)}>{t("relationLines.searchAdd")}</Button>
+              <Button
+                onClick={() => {
+                  if (replaceLineForm(null)) setSearchOpen(true);
+                }}
+              >
+                {t("relationLines.searchAdd")}
+              </Button>
               {props.field.type === "one2many" && relation && props.field.create !== false ? (
                 <Button
                   onClick={() => {
-                    setLineForm({ kind: "new" });
-                    setSelectedId(null);
+                    if (replaceLineForm({ kind: "new" })) setSelectedId(null);
                   }}
                 >
                   {t("relationLines.newLine")}
@@ -283,12 +339,12 @@ export function RelationLinesEditor(props: {
               {selectedQueued ? (
                 <>
                   <Button
-                    onClick={() =>
-                      setLineForm({
+                    onClick={() => {
+                      replaceLineForm({
                         kind: "queued-create",
                         commandIndex: selectedQueued.commandIndex,
-                      })
-                    }
+                      });
+                    }}
                   >
                     {t("relationLines.editQueued")}
                   </Button>
@@ -303,7 +359,7 @@ export function RelationLinesEditor(props: {
               {selectedId != null && selectedId > 0 ? (
                 <>
                   {props.field.type === "one2many" ? (
-                    <Button onClick={() => setLineForm({ kind: "record", id: selectedId })}>
+                    <Button onClick={() => replaceLineForm({ kind: "record", id: selectedId })}>
                       {t("relationLines.edit")}
                     </Button>
                   ) : null}
@@ -316,9 +372,7 @@ export function RelationLinesEditor(props: {
                     </Button>
                   ) : null}
                   {relation && props.onOpenLine ? (
-                    <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>
-                      {t("relationLines.open")}
-                    </Button>
+                    <Button onClick={() => openLine(selectedId)}>{t("relationLines.open")}</Button>
                   ) : null}
                 </>
               ) : null}
@@ -328,9 +382,7 @@ export function RelationLinesEditor(props: {
             </div>
           ) : selectedId != null && selectedId > 0 && relation && props.onOpenLine ? (
             <div className="epiton-toolbar">
-              <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>
-                {t("relationLines.open")}
-              </Button>
+              <Button onClick={() => openLine(selectedId)}>{t("relationLines.open")}</Button>
             </div>
           ) : null}
         </div>
@@ -343,9 +395,10 @@ export function RelationLinesEditor(props: {
               parentQueue={queue}
               context={props.context}
               preValidate={props.field.pre_validate}
-              onCancel={() => setLineForm(null)}
+              onCancel={finishLineForm}
               onCommit={queueLine}
               onOpenRelated={props.onOpenLine}
+              onExitDecisionChange={publishLineExitDecision}
             />
           </div>
         ) : null}
@@ -358,8 +411,7 @@ export function RelationLinesEditor(props: {
           mode={props.mode}
           onCancel={() => setSearchOpen(false)}
           onPick={(id) => {
-            addId(id);
-            setSearchOpen(false);
+            if (addId(id)) setSearchOpen(false);
           }}
         />
       ) : null}
