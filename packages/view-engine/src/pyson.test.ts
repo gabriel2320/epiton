@@ -69,6 +69,23 @@ describe("pyson JSON __class__", () => {
     expect(states.readonly).toBe(false);
   });
 
+  it("resolves decoded fields_view_get states", () => {
+    const states = resolveStatesAttr(
+      {
+        readonly: {
+          __class__: "Not",
+          v: {
+            __class__: "equal",
+            s1: { __class__: "Eval", v: "state" },
+            s2: "draft",
+          },
+        },
+      },
+      { state: "done" },
+    );
+    expect(states.readonly).toBe(true);
+  });
+
   it("keeps string Eval/Not fallback", () => {
     expect(evalPyson("Eval('active')", { active: 1 })).toBe(true);
     expect(evalPyson("Not(Eval('active'))", { active: false })).toBe(true);

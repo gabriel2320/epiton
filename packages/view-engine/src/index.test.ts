@@ -117,7 +117,17 @@ describe("view-engine", () => {
     expect(parseViewLayoutAttributes({ col: "0.5" }).columns).toBe(1);
   });
 
-  it("parses on_change and domain metadata", () => {
+  it("parses on_change, domain and dynamic states metadata", () => {
+    const states = {
+      readonly: {
+        __class__: "Not",
+        v: {
+          __class__: "equal",
+          s1: { __class__: "Eval", v: "state" },
+          s2: "draft",
+        },
+      },
+    };
     const parsed = parseFieldsViewGet({
       arch: `<form><field name="party"/></form>`,
       fields: {
@@ -127,12 +137,14 @@ describe("view-engine", () => {
           on_change: ["party"],
           on_change_with: ["company"],
           domain: [["active", "=", true]],
+          states,
         },
       },
     });
     expect(parsed.fields.party?.on_change).toEqual(["party"]);
     expect(parsed.fields.party?.on_change_with).toEqual(["company"]);
     expect(parsed.fields.party?.domain).toEqual([["active", "=", true]]);
+    expect(parsed.fields.party?.states).toEqual(states);
   });
 
   it("parses embedded relation create, delete and pre_validate policy", () => {

@@ -33,7 +33,7 @@ describe("screen", () => {
         ["write", [3], { name: "Three" }],
         ["remove", [2]],
         ["delete", [9]],
-        ["create", { name: "Pending" }],
+        ["create", [{ name: "Pending" }]],
       ]),
     ).toEqual([1, 3]);
   });
@@ -47,7 +47,7 @@ describe("screen", () => {
     lines.commands = [{ op: "create", values: { product: 4, quantity: 2 } }];
     const queued = setScreenRelationQueue(base, "lines", lines);
     expect(screenIsDirty(queued)).toBe(true);
-    expect(relationQueueWireValue(lines)).toEqual([["create", { product: 4, quantity: 2 }]]);
+    expect(relationQueueWireValue(lines)).toEqual([["create", [{ product: 4, quantity: 2 }]]]);
   });
 
   it("encodes the existing Tryton values shape and skips readonly fields", () => {
@@ -80,6 +80,61 @@ describe("screen", () => {
     });
   });
 
+  it("encodes numeric inputs and Tryton 8 temporal values for JSON-RPC", () => {
+    const fields: Record<string, ViewField> = {
+      dose: field("dose", "integer"),
+      amount: field("amount", "float"),
+      expiration: field("expiration", "date"),
+      administeredAt: field("administeredAt", "datetime"),
+      administeredTime: field("administeredTime", "time"),
+    };
+    const screen = createScreen("gnuhealth.vaccination", null, {
+      dose: "2",
+      amount: "0.5",
+      expiration: { __class__: "date", year: 2030, month: 12, day: 31 },
+      administeredAt: {
+        __class__: "datetime",
+        year: 2026,
+        month: 8,
+        day: 2,
+        hour: 9,
+        minute: 30,
+        second: 0,
+        microsecond: 0,
+      },
+      administeredTime: {
+        __class__: "time",
+        hour: 9,
+        minute: 30,
+        second: 0,
+        microsecond: 0,
+      },
+    });
+
+    expect(screenValuesForSave(screen, fields)).toEqual({
+      dose: 2,
+      amount: 0.5,
+      expiration: { __class__: "date", year: 2030, month: 12, day: 31 },
+      administeredAt: {
+        __class__: "datetime",
+        year: 2026,
+        month: 8,
+        day: 2,
+        hour: 9,
+        minute: 30,
+        second: 0,
+        microsecond: 0,
+      },
+      administeredTime: {
+        __class__: "time",
+        hour: 9,
+        minute: 30,
+        second: 0,
+        microsecond: 0,
+      },
+    });
+  });
+
   it("prefers queued O2M commands and M2M deltas over relation snapshots", () => {
     const fields: Record<string, ViewField> = {
       tags: field("tags", "many2many"),
@@ -103,7 +158,7 @@ describe("screen", () => {
       ],
       lines: [
         ["write", [8], { quantity: 3 }],
-        ["create", { quantity: 1 }],
+        ["create", [{ quantity: 1 }]],
       ],
     });
   });
@@ -153,7 +208,7 @@ describe("screen", () => {
     const screen = setScreenRelationQueue(createScreen("sale.sale", null), "lines", lines);
 
     expect(screenValuesForSave(screen, fields)).toEqual({
-      lines: [["create", { quantity: 1 }]],
+      lines: [["create", [{ quantity: 1 }]]],
     });
   });
 
@@ -220,7 +275,7 @@ describe("screen", () => {
     screen = setScreenRelationQueue(screen, "lines", lines);
     screen = setScreenRelationQueue(screen, "tags", tags);
     expect(screenValuesForSave(screen, fields)).toEqual({
-      lines: [["create", { quantity: 2 }]],
+      lines: [["create", [{ quantity: 2 }]]],
       tags: [["add", [2]]],
     });
   });
@@ -367,7 +422,7 @@ describe("screen", () => {
     lines.commands = [{ op: "create", values: { quantity: 2 } }];
     screen = setScreenRelationQueue(screen, "lines", lines);
     expect(screenValuesForSave(screen, fields)).toEqual({
-      lines: [["create", { quantity: 2 }]],
+      lines: [["create", [{ quantity: 2 }]]],
     });
   });
 });

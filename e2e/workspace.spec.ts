@@ -160,7 +160,7 @@ test("browser saves queued one2many create and edit through one parent write wit
   expect(parentWrites[0]?.params[0]).toEqual([1]);
   expect(parentWrites[0]?.params[1]).toMatchObject({
     addresses: [
-      ["create", { street: "Synthetic Avenue", city: "New City" }],
+      ["create", [{ street: "Synthetic Avenue", city: "New City" }]],
       ["write", [10], { street: "Synthetic Road Updated", city: "Updated City" }],
     ],
   });

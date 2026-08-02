@@ -45,7 +45,9 @@ describe("child Screen contract", () => {
     });
     expect(result.queue.commands).toEqual([result.command]);
     expect(parent.commands).toEqual([]);
-    expect(relationQueueWireValue(result.queue)).toEqual([["create", { product: 9, quantity: 2 }]]);
+    expect(relationQueueWireValue(result.queue)).toEqual([
+      ["create", [{ product: 9, quantity: 2 }]],
+    ]);
   });
 
   it("bubbles persisted and queued-create edits with stable target checks", () => {
@@ -269,7 +271,7 @@ describe("child Screen contract", () => {
 
     expect(relationQueueWireValue(tags)).toEqual([
       ["write", [2], { name: "Updated" }],
-      ["create", { name: "New" }],
+      ["create", [{ name: "New" }]],
       ["add", [3]],
       ["remove", [1]],
     ]);

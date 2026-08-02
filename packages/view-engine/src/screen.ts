@@ -350,10 +350,19 @@ export function screenValuesForSave(
       values[key] = isTrytonRelationCommands(raw)
         ? raw
         : idsFromRelationValue(raw).map((id) => ["add", [id]]);
+    } else if (meta.type === "integer") {
+      const number = typeof raw === "number" ? raw : Number(raw);
+      values[key] = Number.isInteger(number) ? number : raw;
+    } else if (meta.type === "float") {
+      const number = typeof raw === "number" ? raw : Number(raw);
+      values[key] = Number.isFinite(number) ? number : raw;
     } else if (
       meta.type === "reference" ||
       meta.type === "dict" ||
-      meta.type === "multiselection"
+      meta.type === "multiselection" ||
+      meta.type === "date" ||
+      meta.type === "datetime" ||
+      meta.type === "time"
     ) {
       values[key] = raw;
     } else if (typeof raw === "number" || typeof raw === "boolean" || typeof raw === "string") {

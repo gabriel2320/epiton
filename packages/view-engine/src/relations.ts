@@ -79,7 +79,10 @@ export function toTrytonO2M(commands: O2MCommand[]): unknown[][] {
   return commands.map((c) => {
     switch (c.op) {
       case "create":
-        return ["create", c.values];
+        // Tryton's x2many protocol batches child dictionaries for create.
+        // Even a single child must be wrapped in a list; passing the
+        // dictionary directly makes the server iterate its string keys.
+        return ["create", [c.values]];
       case "write":
         return ["write", [c.id], c.values];
       case "delete":

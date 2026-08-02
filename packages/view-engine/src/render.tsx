@@ -136,6 +136,14 @@ function layoutCellStyle(node: ViewNode, parent: ViewNode): CSSProperties {
   };
 }
 
+function fieldNodeIsInvisible(node: ViewNode, view: ParsedView, values: RecordValues): boolean {
+  const name = node.attrs.name ?? "";
+  return (
+    resolveStatesAttr(node.attrs.states, values).invisible === true ||
+    resolveStatesAttr(view.fields[name]?.states, values).invisible === true
+  );
+}
+
 function renderLayoutChildren(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode[] {
   return node.children.map((child, index) => {
     const previous = node.children[index - 1];
@@ -145,14 +153,15 @@ function renderLayoutChildren(node: ViewNode, view: ParsedView, ctx: RenderConte
       Boolean(child.attrs.name) &&
       previous?.tag === "label" &&
       previous.attrs.name === child.attrs.name &&
-      !resolveStatesAttr(previous.attrs.states, ctx.values).invisible;
+      !resolveStatesAttr(previous.attrs.states, ctx.values).invisible &&
+      !fieldNodeIsInvisible(child, view, ctx.values);
     const labelsFollowingField =
       child.tag === "label" &&
       Boolean(child.attrs.name) &&
       next?.tag === "field" &&
       next.attrs.name === child.attrs.name &&
       !resolveStatesAttr(child.attrs.states, ctx.values).invisible &&
-      !resolveStatesAttr(next.attrs.states, ctx.values).invisible;
+      !fieldNodeIsInvisible(next, view, ctx.values);
     const rendered = renderNode(child, view, ctx, { hideFieldLabel: hasExplicitLabel });
     if (rendered === null || rendered === undefined || rendered === false) return null;
     const layout = parseViewLayoutAttributes(child.attrs);
@@ -712,8 +721,17 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   return createElement("input", {
     ...common,
     type: inputType,
+    step: field.type === "integer" ? "1" : inputType === "number" ? "any" : undefined,
     value: value == null ? "" : String(value),
-    onChange: (e: { target: { value: string } }) => ctx.onChange?.(field.name, e.target.value),
+    onChange: (e: { target: { value: string } }) => {
+      const raw = e.target.value;
+      if (field.type === "integer" || field.type === "float") {
+        const number = Number(raw);
+        ctx.onChange?.(field.name, raw === "" ? null : Number.isFinite(number) ? number : raw);
+        return;
+      }
+      ctx.onChange?.(field.name, raw);
+    },
   });
 }
 
@@ -778,7 +796,13 @@ function renderNode(
       type: "char" as const,
       string: node.attrs.string ?? name,
     };
-    const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    const fieldStates = resolveStatesAttr(field.states, ctx.values);
+    const nodeStates = resolveStatesAttr(node.attrs.states, ctx.values);
+    const states = {
+      invisible: fieldStates.invisible || nodeStates.invisible,
+      readonly: fieldStates.readonly || nodeStates.readonly,
+      required: fieldStates.required || nodeStates.required,
+    };
     if (states.invisible) return null;
     const value = ctx.values[name];
     let domain = field.domain;
@@ -818,8 +842,9 @@ function renderNode(
 
   if (node.tag === "label") {
     const states = resolveStatesAttr(node.attrs.states, ctx.values);
-    if (states.invisible) return null;
     const name = node.attrs.name ?? "";
+    const fieldStates = resolveStatesAttr(view.fields[name]?.states, ctx.values);
+    if (states.invisible || fieldStates.invisible) return null;
     const label = node.attrs.string ?? fieldLabel(view.fields[name], name || node.text || "");
     return createElement(
       "label",
@@ -896,28 +921,6 @@ export function renderView(view: ParsedView, ctx: RenderContext): ReactNode {
     "div",
     { className: `epiton-view epiton-view-${view.type}`, "data-mode": ctx.mode },
     renderNode(view.arch, view, ctx),
-    view.buttons.length
-      ? createElement(
-          "footer",
-          { className: "epiton-view-actions" },
-          view.buttons.map((b) =>
-            createElement(
-              "button",
-              {
-                key: b.name,
-                type: "button",
-                onClick: () => {
-                  if (b.confirm && typeof globalThis.confirm === "function") {
-                    if (!globalThis.confirm(b.confirm)) return;
-                  }
-                  ctx.onButton?.(b.name, { type: b.type });
-                },
-              },
-              t(b.string ?? b.name, b.string ?? b.name),
-            ),
-          ),
-        )
-      : null,
   );
 }
 

@@ -53,6 +53,24 @@ const CHILE_CORE_VIEWS = [
     type: "form",
     fields: ["patient", "healthprof", "prescription_line", "state"],
   },
+  {
+    model: "gnuhealth.vaccination",
+    type: "form",
+    fields: [
+      "patient",
+      "vaccine",
+      "date",
+      "dose",
+      "amount",
+      "admin_route",
+      "admin_site",
+      "vaccine_lot",
+      "vaccine_expiration_date",
+      "healthprof",
+      "signed_by",
+      "state",
+    ],
+  },
 ];
 
 function technicalModel(row, field) {

@@ -1213,13 +1213,13 @@ export function ModelWorkspace(props: {
 
   async function runButton(name: string, meta?: { type?: string }) {
     if (!client || !selectedId) {
-      setNotice("Select a record before running a button");
+      setNotice(t("workspace.selectBeforeButton"));
       return;
     }
     const ids = effectiveSelectedIds(selectedIds, selectedId);
     const activeIds = ids as [number, ...number[]];
     if (isActionButton(name, meta?.type) && props.onOpenAction) {
-      setNotice(`Opening action ${name}…`);
+      setNotice(t("workspace.openingAction", { name }));
       props.onOpenAction(
         name,
         `button:${name}`,
@@ -1228,7 +1228,7 @@ export function ModelWorkspace(props: {
       props.onHistory?.(`button:action:${name}`);
       return;
     }
-    setNotice(`Running ${name}…`);
+    setNotice(t("workspace.runningButton", { name }));
     try {
       await client.model(
         props.model,
@@ -1237,10 +1237,10 @@ export function ModelWorkspace(props: {
         buttonRpcContext(rpcContext, props.model, activeIds),
       );
       props.onHistory?.(`button:${name}`);
-      setNotice(`Button ${name} OK (${ids.length})`);
+      setNotice(t("workspace.buttonOk", { name, count: ids.length }));
       await invalidateModelProjections(queryClient);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Button failed");
+      setNotice(err instanceof Error ? err.message : t("workspace.buttonFailed"));
     }
   }
 
@@ -2064,7 +2064,7 @@ export function ModelWorkspace(props: {
             onCommit={() => {
               setRelationField(null);
               setRelationDomain(undefined);
-              setNotice("Relation commands queued — Save parent to write");
+              setNotice(t("workspace.relationQueued"));
               props.onHistory?.(`relation:apply:${relationField.name}`);
             }}
           />

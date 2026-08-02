@@ -26,6 +26,7 @@ import {
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
@@ -56,6 +57,7 @@ export function RelationLineForm(props: {
   onCommit: (queue: RelationCommandQueue) => void;
   onOpenRelated?: (model: string, id: number) => void;
 }) {
+  const { t } = useTranslation();
   const client = useAppStore((state) => state.client);
   const density = useAppStore((state) => state.density);
   const sessionContext = useAppStore((state) => state.sessionContext);
@@ -91,7 +93,7 @@ export function RelationLineForm(props: {
     enabled: Boolean(client && props.model),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<ParsedView> => {
-      if (!client) throw new Error("No client");
+      if (!client) throw new Error(t("relationLine.noClient"));
       return parseFieldsViewGet(await client.fieldsViewGet(props.model, null, "form", rpcContext));
     },
   });
@@ -106,7 +108,9 @@ export function RelationLineForm(props: {
     ],
     enabled: Boolean(client && editing && viewQuery.data),
     queryFn: async (): Promise<RecordValues> => {
-      if (!client || props.target.kind !== "record") throw new Error("No relation record");
+      if (!client || props.target.kind !== "record") {
+        throw new Error(t("relationLine.noRecord"));
+      }
       const fields = [...new Set(["id", ...Object.keys(viewQuery.data?.fields ?? {})])];
       const rows = await client.searchRead(
         props.model,
@@ -118,7 +122,9 @@ export function RelationLineForm(props: {
         rpcContext,
       );
       const row = rows[0];
-      if (!row) throw new Error(`${props.model} #${props.target.id} was not found`);
+      if (!row) {
+        throw new Error(t("relationLine.notFound", { model: props.model, id: props.target.id }));
+      }
       return row as RecordValues;
     },
   });
@@ -133,7 +139,7 @@ export function RelationLineForm(props: {
     ],
     enabled: Boolean(client && props.target.kind === "new" && viewQuery.data),
     queryFn: async (): Promise<RecordValues> => {
-      if (!client) throw new Error("No client");
+      if (!client) throw new Error(t("relationLine.noClient"));
       const fields = Object.keys(viewQuery.data?.fields ?? {});
       const result = await client.model(
         props.model,
@@ -220,7 +226,7 @@ export function RelationLineForm(props: {
           if (acceptChildScreenOnChange(childRef.current, started.token)) {
             error = caught;
             setNoticeIsError(true);
-            setNotice(caught instanceof Error ? caught.message : "on_change failed");
+            setNotice(caught instanceof Error ? caught.message : t("relationLine.onChangeFailed"));
           }
         } finally {
           if (workRef.current === work) {
@@ -249,7 +255,9 @@ export function RelationLineForm(props: {
       work.start();
       const result = await work.promise;
       if (result.failed) {
-        throw result.error instanceof Error ? result.error : new Error("on_change failed");
+        throw result.error instanceof Error
+          ? result.error
+          : new Error(t("relationLine.onChangeFailed"));
       }
     }
   }
@@ -317,7 +325,11 @@ export function RelationLineForm(props: {
       const issues = validateChildScreen(current, viewQuery.data.fields);
       if (issues.length) {
         setNoticeIsError(true);
-        setNotice(`Required: ${issues.map((issue) => issue.path.join(".")).join(", ")}`);
+        setNotice(
+          t("relationLine.required", {
+            fields: issues.map((issue) => issue.path.join(".")).join(", "),
+          }),
+        );
         return;
       }
       if (props.preValidate) {
@@ -334,15 +346,17 @@ export function RelationLineForm(props: {
         setNoticeIsError(true);
         setNotice(
           result.issues.length
-            ? `Invalid: ${result.issues.map((issue) => issue.path.join(".")).join(", ")}`
-            : `Line cannot be queued (${result.reason})`,
+            ? t("relationLine.invalid", {
+                fields: result.issues.map((issue) => issue.path.join(".")).join(", "),
+              })
+            : t("relationLine.cannotQueue", { reason: result.reason }),
         );
         return;
       }
       props.onCommit(result.queue);
     } catch (error) {
       setNoticeIsError(true);
-      setNotice(error instanceof Error ? error.message : "Line validation failed");
+      setNotice(error instanceof Error ? error.message : t("relationLine.validationFailed"));
     } finally {
       setCommitting(false);
     }
@@ -352,7 +366,7 @@ export function RelationLineForm(props: {
     const current = childRef.current;
     if (
       childScreenExitDecision(current).kind === "confirm-discard" &&
-      !globalThis.confirm("Discard unsaved line changes?")
+      !globalThis.confirm(t("relationLine.discardConfirm"))
     ) {
       return;
     }
@@ -365,16 +379,16 @@ export function RelationLineForm(props: {
     if (!client) return;
     if ((meta?.type ?? "").toLowerCase() === "action") {
       setNoticeIsError(false);
-      setNotice(`Action buttons open from the parent workspace (${name})`);
+      setNotice(t("relationLine.actionFromParent", { name }));
       return;
     }
     if (props.target.kind !== "record") {
       setNoticeIsError(false);
-      setNotice("Queue/save the line before running buttons");
+      setNotice(t("relationLine.saveFirst"));
       return;
     }
     setNoticeIsError(false);
-    setNotice(`Running ${name}…`);
+    setNotice(t("relationLine.running", { name }));
     try {
       await client.model(props.model, name, [[props.target.id]], {
         ...rpcContext,
@@ -382,11 +396,11 @@ export function RelationLineForm(props: {
         active_ids: [props.target.id],
         active_model: props.model,
       });
-      setNotice(`Button ${name} OK`);
+      setNotice(t("relationLine.buttonOk", { name }));
       await recordQuery.refetch();
     } catch (error) {
       setNoticeIsError(true);
-      setNotice(error instanceof Error ? error.message : "Button failed");
+      setNotice(error instanceof Error ? error.message : t("relationLine.buttonFailed"));
     }
   }
 
@@ -404,14 +418,14 @@ export function RelationLineForm(props: {
     (viewQuery.error instanceof Error && viewQuery.error.message) ||
     (recordQuery.error instanceof Error && recordQuery.error.message) ||
     (defaultsQuery.error instanceof Error && defaultsQuery.error.message) ||
-    "Loading…";
+    t("relationLine.loading");
   const nestedLines = relationField?.type === "one2many" || relationField?.type === "many2many";
   const title =
     props.target.kind === "record"
-      ? `Edit ${props.model} #${props.target.id}`
+      ? t("relationLine.editTitle", { model: props.model, id: props.target.id })
       : props.target.kind === "queued-create"
-        ? `Edit queued ${props.model} line`
-        : `New ${props.model} line`;
+        ? t("relationLine.editQueuedTitle", { model: props.model })
+        : t("relationLine.newTitle", { model: props.model });
 
   return (
     <Panel title={title}>
@@ -461,7 +475,7 @@ export function RelationLineForm(props: {
             }}
           />
         ) : null}
-        {onChangePending ? <p role="status">Applying on_change…</p> : null}
+        {onChangePending ? <p role="status">{t("relationLine.applyingOnChange")}</p> : null}
         {notice ? <p role={noticeIsError ? "alert" : "status"}>{notice}</p> : null}
         <div className="epiton-toolbar">
           <Button
@@ -469,9 +483,11 @@ export function RelationLineForm(props: {
             disabled={!viewQuery.data || !child.screen.hydrated || committing}
             onClick={() => void acceptChild()}
           >
-            Queue {props.target.kind === "record" ? "write" : "create"}
+            {props.target.kind === "record"
+              ? t("relationLine.queueWrite")
+              : t("relationLine.queueCreate")}
           </Button>
-          <Button onClick={discardChild}>Cancel</Button>
+          <Button onClick={discardChild}>{t("relationLine.cancel")}</Button>
         </div>
       </StateBlock>
     </Panel>

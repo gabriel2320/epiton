@@ -48,6 +48,8 @@ export interface ViewField {
   filename?: string;
   /** Static or PYSON-encoded domain from fields_view_get. */
   domain?: unknown;
+  /** Dynamic readonly/required/invisible flags from fields_view_get. */
+  states?: unknown;
   on_change?: string[];
   on_change_with?: string[];
   /** View policy: run Model.pre_validate before accepting an embedded record. */
@@ -212,6 +214,7 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
         ? (meta.selection as Array<[string, string]>)
         : undefined,
       domain: meta.domain,
+      states: meta.states,
       on_change: Array.isArray(meta.on_change) ? meta.on_change.map(String) : undefined,
       on_change_with: Array.isArray(meta.on_change_with)
         ? meta.on_change_with.map(String)

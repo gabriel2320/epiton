@@ -23,12 +23,25 @@ const syntheticEvaluationComplaint =
   process.env.EPITON_GH_SYNTHETIC_EVALUATION_COMPLAINT ??
   "Motivo clínico sintético de validación Epiton";
 const syntheticEvaluationComplaintUpdated = `${syntheticEvaluationComplaint} actualizado`;
+const syntheticPrescriptionNote =
+  process.env.EPITON_GH_SYNTHETIC_PRESCRIPTION_NOTE ??
+  "Prescripción sintética de validación Epiton";
+const syntheticMedicamentName =
+  process.env.EPITON_GH_SYNTHETIC_MEDICAMENT_NAME ?? "Paracetamol sintético Epiton 500 mg";
+const syntheticVaccinationObservation =
+  process.env.EPITON_GH_SYNTHETIC_VACCINATION_OBSERVATION ??
+  "Vacunación sintética de validación Epiton";
+const syntheticVaccineName =
+  process.env.EPITON_GH_SYNTHETIC_VACCINE_NAME ?? "Vacuna influenza sintética Epiton";
+const syntheticVaccineLot = process.env.EPITON_GH_SYNTHETIC_VACCINE_LOT ?? "EPITON-LOTE-VAC-001";
+const syntheticVaccineExpirationDate =
+  process.env.EPITON_GH_SYNTHETIC_VACCINE_EXPIRATION_DATE ?? "2030-12-31";
 
 test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async ({
   page,
 }, testInfo) => {
   test.skip(!syntheticCoreLab, "requires the disposable synthetic GNU Health core laboratory");
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
 
   const baseUrl = process.env.EPITON_BASE ?? "http://127.0.0.1:58001";
   const database = process.env.EPITON_DB ?? "epiton_health_core";
@@ -289,7 +302,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
     const deletePayload = (await deleted.json()) as { error?: unknown; result?: unknown };
     expect(deleteRequest.params?.[0]).toEqual([expect.any(Number)]);
     expect(deletePayload.error).toBeUndefined();
-    expect(deletePayload.result).toBe(true);
+    expect(deletePayload.result).toBeNull();
     await expect(page.getByRole("status").filter({ hasText: /^Eliminado$/ })).toBeVisible();
   };
 
@@ -426,6 +439,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
 
   await sidebar.getByRole("button", { name: "Citas", exact: true }).last().click();
   await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
   const persistedPatientRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
   await expect(persistedPatientRow).toBeVisible();
   await persistedPatientRow.click();
@@ -673,6 +687,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await deleteSelectedRecord("gnuhealth.appointment");
 
   await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
   const patientAfterAppointment = page
     .getByRole("row")
     .filter({ hasText: syntheticGivenName })
@@ -683,12 +698,341 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
     syntheticClinicalNote,
   );
 
+  const prescriptionsAction = page.getByRole("button", {
+    name: "Recetas",
+    exact: true,
+  });
+  await expect(prescriptionsAction).toBeVisible();
+  await prescriptionsAction.click();
+  await expect(
+    page.getByRole("heading", { name: "gnuhealth.prescription.order", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+
+  const prescriptionDefaultsResponse = waitForModelResponse(
+    "model.gnuhealth.prescription.order.default_get",
+  );
+  await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
+  const prescriptionDefaults = await prescriptionDefaultsResponse;
+  const prescriptionDefaultsRequest = prescriptionDefaults.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const prescriptionDefaultsPayload = (await prescriptionDefaults.json()) as {
+    error?: unknown;
+    result?: Record<string, unknown>;
+  };
+  expect(prescriptionDefaultsRequest.params?.at(-1)).toMatchObject({
+    active_id: patientId,
+    active_ids: [patientId],
+    active_model: "gnuhealth.patient",
+  });
+  expect(prescriptionDefaultsPayload.error).toBeUndefined();
+  expect(prescriptionDefaultsPayload.result).toMatchObject({
+    healthprof: expect.any(Number),
+    state: "draft",
+  });
+  await expect(
+    page.getByRole("heading", { name: /^gnuhealth\.prescription\.order form/ }),
+  ).toBeVisible();
+  await expect(page.locator('input[name="patient"]:visible')).toHaveValue(
+    new RegExp(syntheticGivenName),
+  );
+  await expect(page.locator('input[name="healthprof"]:visible')).toHaveValue(
+    /Profesional Sintético Epiton/,
+  );
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("draft");
+  await expect(page.locator('input[name="prescription_date"]:visible')).not.toHaveValue("");
+  await page.locator('textarea[name="notes"]:visible').fill(syntheticPrescriptionNote);
+  await page.locator('input[name="prescription_warning_ack"]:visible').check();
+
+  const prescriptionLines = page.locator('.epiton-field[data-field-name="prescription_line"]');
+  await prescriptionLines.getByRole("button", { name: "Abrir líneas", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Items de la receta (one2many)", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Nueva línea", exact: true }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Nueva línea de gnuhealth.prescription.line",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const medicamentInput = page.locator('input[name="medicament"]:visible');
+  await medicamentInput.locator("..").getByRole("button", { name: "Buscar", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Buscar Medicamento", exact: true }),
+  ).toBeVisible();
+  const prescriptionRelationSearch = page.getByRole("textbox", {
+    name: "Buscar relación",
+    exact: true,
+  });
+  await prescriptionRelationSearch.fill(syntheticMedicamentName);
+  const medicamentResult = page
+    .locator(".epiton-menu-list")
+    .getByRole("button")
+    .filter({ hasText: syntheticMedicamentName })
+    .first();
+  await expect(medicamentResult).toBeVisible();
+  const medicamentOnChangeResponse = waitForModelResponse(
+    "model.gnuhealth.prescription.line.on_change_medicament",
+  );
+  await medicamentResult.click();
+  const medicamentOnChange = await medicamentOnChangeResponse;
+  const medicamentOnChangePayload = (await medicamentOnChange.json()) as { error?: unknown };
+  expect(medicamentOnChangePayload.error).toBeUndefined();
+  await expect(medicamentInput).toHaveValue(new RegExp(syntheticMedicamentName));
+  await page.getByRole("button", { name: "Encolar creación", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({
+      hasText: /^Creación en cola — Guarde el registro principal para escribir$/,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Aplicar cambios de relación", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({
+      hasText: /^Cambios de relación en cola — Guarde el registro principal para escribir$/,
+    }),
+  ).toBeVisible();
+
+  const prescriptionCreateResponse = waitForModelResponse(
+    "model.gnuhealth.prescription.order.create",
+  );
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const prescriptionCreated = await prescriptionCreateResponse;
+  const prescriptionCreateRequest = prescriptionCreated.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const prescriptionCreateValues = Array.isArray(prescriptionCreateRequest.params?.[0])
+    ? prescriptionCreateRequest.params[0][0]
+    : undefined;
+  const prescriptionCreatePayload = (await prescriptionCreated.json()) as {
+    error?: unknown;
+    result?: unknown;
+  };
+  expect(prescriptionCreateValues).toMatchObject({
+    notes: syntheticPrescriptionNote,
+    patient: patientId,
+    prescription_warning_ack: true,
+    prescription_line: [
+      [
+        "create",
+        [
+          expect.objectContaining({
+            medicament: expect.any(Number),
+            qty: 1,
+            quantity: 1,
+          }),
+        ],
+      ],
+    ],
+  });
+  expect(prescriptionCreatePayload.error).toBeUndefined();
+  expect(prescriptionCreatePayload.result).toEqual([expect.any(Number)]);
+  const prescriptionId = Number(
+    Array.isArray(prescriptionCreatePayload.result)
+      ? prescriptionCreatePayload.result[0]
+      : undefined,
+  );
+  expect(
+    prescriptionId,
+    "the generated prescription must have a Tryton identifier",
+  ).toBeGreaterThan(0);
+  await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: new RegExp(`gnuhealth\\.prescription\\.order #${prescriptionId}`),
+    }),
+  ).toBeVisible();
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("draft");
+
+  const finalizePrescriptionResponse = waitForModelResponse(
+    "model.gnuhealth.prescription.order.create_prescription",
+  );
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toBe("Crear prescripción?");
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "Crear", exact: true }).click();
+  const prescriptionFinalized = await finalizePrescriptionResponse;
+  const prescriptionFinalizationRequest = prescriptionFinalized.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const prescriptionFinalizationPayload = (await prescriptionFinalized.json()) as {
+    error?: unknown;
+  };
+  expect(prescriptionFinalizationRequest.params?.[0]).toEqual([prescriptionId]);
+  expect(prescriptionFinalizationPayload.error).toBeUndefined();
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("done");
+  await expect(page.locator('textarea[name="notes"]:visible')).toBeDisabled();
+  await expect(page.locator('input[name="prescription_warning_ack"]:visible')).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Crear", exact: true })).toHaveCount(0);
+
+  await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
+  const patientAfterPrescription = page
+    .getByRole("row")
+    .filter({ hasText: syntheticGivenName })
+    .first();
+  await expect(patientAfterPrescription).toBeVisible();
+  await patientAfterPrescription.click();
+  await expect(
+    page.getByRole("heading", {
+      name: new RegExp(`gnuhealth\\.patient #${patientId}`),
+    }),
+  ).toBeVisible();
+  await expect(page.locator('textarea[name="general_info"]:visible')).toHaveValue(
+    syntheticClinicalNote,
+  );
+
+  const relatedActions = page
+    .getByRole("heading", { name: "Relacionadas", exact: true })
+    .locator("..");
+  const vaccinationsAction = relatedActions.getByRole("button", {
+    name: "Vacunaciones",
+    exact: true,
+  });
+  await expect(vaccinationsAction).toBeVisible();
+  await vaccinationsAction.click();
+  await expect(
+    page.getByRole("heading", { name: "gnuhealth.vaccination", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+
+  const vaccinationDefaultsResponse = waitForModelResponse(
+    "model.gnuhealth.vaccination.default_get",
+  );
+  await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
+  const vaccinationDefaults = await vaccinationDefaultsResponse;
+  const vaccinationDefaultsRequest = vaccinationDefaults.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const vaccinationDefaultsPayload = (await vaccinationDefaults.json()) as {
+    error?: unknown;
+    result?: Record<string, unknown>;
+  };
+  expect(vaccinationDefaultsRequest.params?.at(-1)).toMatchObject({
+    active_id: patientId,
+    active_ids: [patientId],
+    active_model: "gnuhealth.patient",
+  });
+  expect(vaccinationDefaultsPayload.error).toBeUndefined();
+  expect(vaccinationDefaultsPayload.result).toMatchObject({
+    dose: 1,
+    healthprof: expect.any(Number),
+    state: "in_progress",
+  });
+  await expect(page.getByRole("heading", { name: /^gnuhealth\.vaccination form/ })).toBeVisible();
+  await expect(page.locator('input[name="patient"]:visible')).toHaveValue(
+    new RegExp(syntheticGivenName),
+  );
+  await expect(page.locator('input[name="healthprof"]:visible')).toHaveValue(
+    /Profesional Sintético Epiton/,
+  );
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("in_progress");
+  await expect(page.locator('input[name="dose"]:visible')).toHaveValue("1");
+  await expect(page.locator('input[name="date"]:visible')).not.toHaveValue("");
+
+  const vaccineInput = page.locator('input[name="vaccine"]:visible');
+  await vaccineInput.locator("..").getByRole("button", { name: "Buscar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Buscar Vacuna", exact: true })).toBeVisible();
+  const vaccineRelationSearch = page.getByRole("textbox", {
+    name: "Buscar relación",
+    exact: true,
+  });
+  await vaccineRelationSearch.fill(syntheticVaccineName);
+  const vaccineResult = page
+    .locator(".epiton-menu-list")
+    .getByRole("button")
+    .filter({ hasText: syntheticVaccineName })
+    .first();
+  await expect(vaccineResult).toBeVisible();
+  await vaccineResult.click();
+  await expect(vaccineInput).toHaveValue(new RegExp(syntheticVaccineName));
+
+  await page.locator('input[name="amount"]:visible').fill("0.5");
+  await page.locator('select[name="admin_route"]:visible').selectOption("im");
+  await page.locator('select[name="admin_site"]:visible').selectOption("ld");
+  await page.locator('input[name="vaccine_lot"]:visible').fill(syntheticVaccineLot);
+  await page
+    .locator('input[name="vaccine_expiration_date"]:visible')
+    .fill(syntheticVaccineExpirationDate);
+  await page.locator('textarea[name="observations"]:visible').fill(syntheticVaccinationObservation);
+
+  const vaccinationCreateResponse = waitForModelResponse("model.gnuhealth.vaccination.create");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  const vaccinationCreated = await vaccinationCreateResponse;
+  const vaccinationCreateRequest = vaccinationCreated.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const vaccinationCreateValues = Array.isArray(vaccinationCreateRequest.params?.[0])
+    ? vaccinationCreateRequest.params[0][0]
+    : undefined;
+  const vaccinationCreatePayload = (await vaccinationCreated.json()) as {
+    error?: unknown;
+    result?: unknown;
+  };
+  expect(vaccinationCreateValues).toMatchObject({
+    admin_route: "im",
+    admin_site: "ld",
+    amount: 0.5,
+    observations: syntheticVaccinationObservation,
+    patient: patientId,
+    vaccine: expect.any(Number),
+    vaccine_expiration_date: {
+      __class__: "date",
+      year: 2030,
+      month: 12,
+      day: 31,
+    },
+    vaccine_lot: syntheticVaccineLot,
+  });
+  expect(vaccinationCreatePayload.error).toBeUndefined();
+  expect(vaccinationCreatePayload.result).toEqual([expect.any(Number)]);
+  const vaccinationId = Number(
+    Array.isArray(vaccinationCreatePayload.result) ? vaccinationCreatePayload.result[0] : undefined,
+  );
+  expect(vaccinationId, "the generated vaccination must have a Tryton identifier").toBeGreaterThan(
+    0,
+  );
+  await expect(page.getByRole("status").filter({ hasText: /^Guardado$/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: new RegExp(`gnuhealth\\.vaccination #${vaccinationId}`) }),
+  ).toBeVisible();
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("in_progress");
+
+  const finalizeVaccinationResponse = waitForModelResponse("model.gnuhealth.vaccination.sign");
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toBe(
+      "¿Finalizar y firmar esta vacunación? ¡Esta vacunación será de solo lectura!",
+    );
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "Firmar", exact: true }).click();
+  const vaccinationFinalized = await finalizeVaccinationResponse;
+  const vaccinationFinalizationRequest = vaccinationFinalized.request().postDataJSON() as {
+    params?: unknown[];
+  };
+  const vaccinationFinalizationPayload = (await vaccinationFinalized.json()) as {
+    error?: unknown;
+  };
+  expect(vaccinationFinalizationRequest.params?.[0]).toEqual([vaccinationId]);
+  expect(vaccinationFinalizationPayload.error).toBeUndefined();
+  await expect(page.locator('select[name="state"]:visible')).toHaveValue("done");
+  await expect(page.locator('input[name="signed_by"]:visible')).toHaveValue(
+    /Profesional Sintético Epiton/,
+  );
+  await expect(page.locator('input[name="vaccine_lot"]:visible')).toBeDisabled();
+  await expect(page.locator('textarea[name="observations"]:visible')).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Firmar", exact: true })).toHaveCount(0);
+
   const evidence = {
     environmentKind: "synthetic-gnu-health",
     language: "es",
     clinicalModels: [
       ...clinicalWorkspaces.map(([, model]) => model),
       "gnuhealth.patient.evaluation",
+      "gnuhealth.vaccination",
     ],
     emptyClinicalLists: true,
     openedUnsavedPatientForm: true,
@@ -706,6 +1050,30 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
       patientLinked: patientId,
       checkedIn: true,
       deleted: true,
+    },
+    prescriptionLifecycle: {
+      prescriptionId,
+      created: true,
+      defaultState: "draft",
+      patientLinked: patientId,
+      medicament: syntheticMedicamentName,
+      safetyWarningAcknowledged: true,
+      finalized: true,
+      immutable: true,
+      pageOfLifeDelegatedToFixture: true,
+      retainedForFixtureCleanup: true,
+    },
+    vaccinationLifecycle: {
+      vaccinationId,
+      created: true,
+      defaultState: "in_progress",
+      patientLinked: patientId,
+      vaccine: syntheticVaccineName,
+      vaccineLot: syntheticVaccineLot,
+      finalized: true,
+      immutable: true,
+      pageOfLifeDelegatedToFixture: true,
+      retainedForFixtureCleanup: true,
     },
     evaluationLifecycle: {
       actionContextPatient: patientId,
