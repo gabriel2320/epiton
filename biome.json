@@ -40,6 +40,7 @@
       "**/dev-dist/**",
       "**/www/**",
       "**/test-results/**",
+      "tests/compat/receipts/**",
       "**/playwright-report/**"
     ]
   }

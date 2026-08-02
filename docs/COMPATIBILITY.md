@@ -67,7 +67,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Series 9.x | Future official artifacts + capability probes | Future canary, not claimed | Scheduled official-source canary is `waiting` as of 2026-08-01; do not infer support from 7/8 receipts |
 | Sao coexistence | Same trytond | Supported | Shared backend authority; Epitón does not share or persist client state |
 | Proteus / XML-RPC | Server-side reference client | Lab oracle only | Exact 7/8 pins; synthetic CRUD; redacted receipt; never runtime/UI |
-| GNU Health | `gnuhealth.*` models | Metadata-only discovery contract | No business-row reads or writes; dedicated GH lab still required |
+| GNU Health | `gnuhealth.*` models | Core metadata profile verified | Read-only Epitón protocol receipt on the pinned Tryton 8/PostgreSQL Chilean `health` core proves Spanish session context, the exact eight-module activation set, translated root menus, namespace discovery and five critical view contracts. Browser clinical workflows, PHI readiness and production compliance remain separate gates |
 
 ## Tryton 8 lab profile
 

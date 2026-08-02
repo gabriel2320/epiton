@@ -1,6 +1,6 @@
 {
   "schema": "epiton.tryton-series-policy.v1",
-  "productTargetSeries": ["7.0", "9.0"],
+  "productTargetSeries": ["7.0", "8.0"],
   "certifiedSeries": {
     "7.0": {
       "evidence": ["protocol", "proteus", "browser"]

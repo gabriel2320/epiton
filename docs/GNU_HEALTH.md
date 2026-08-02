@@ -16,7 +16,8 @@ names as proof that a clinical workflow is correct.
 | Generic Tryton 7/8 protocol | Verified | Core metadata, CRUD, actions, keywords, attachments |
 | Generic browser CRUD | Verified | Browser → gateway → trytond → browser on both tiers |
 | GNU Health namespace discovery | Implemented | Reads `ir.model` metadata for `gnuhealth.*` only |
-| Dedicated GNU Health lab | Not yet verified | No module- or workflow-level compatibility claim |
+| Chilean `health` core RPC profile | Verified | Pinned Tryton 8/PostgreSQL synthetic lab; Spanish session, exact activated modules and five critical view contracts |
+| Dedicated GNU Health browser workflows | Not yet verified | No clinical workflow or PHI-readiness claim |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
 The stock Docker lab contains party/company modules only. Therefore
@@ -33,6 +34,13 @@ pnpm --filter @epiton/protocol build
 EPITON_GH_ENVIRONMENT_KIND=synthetic-gnu-health pnpm gh:check
 ```
 
+For the pinned Chilean core, add
+`EPITON_GH_PROFILE=health-core-cl`. That stricter profile fails unless the
+authenticated preference is Spanish, the activated module set is exactly
+`health` plus its seven Tryton dependencies, the translated root menus are
+present, and the patient, appointment, evaluation and prescription views expose
+their required metadata. It remains read-only and synthetic.
+
 Connection variables follow the other lab scripts:
 `EPITON_BASE`, `EPITON_DB`, `EPITON_USER`, and `EPITON_PASSWORD`. They are used
 in memory and are deliberately excluded from the receipt.
@@ -45,20 +53,24 @@ schema `epiton.gnu-health-discovery.v1`. It contains only:
 - technical `gnuhealth.*` model names;
 - whether tree/form metadata could be obtained;
 - explicit flags confirming no business-row reads, writes, or PHI.
+- for the optional Chilean core profile, language/module/menu evidence and
+  technical required-view field counts.
 
 Upstream error details are redacted. The probe never searches, reads, creates,
 writes, deletes, or exports GNU Health business records.
 
 ## Dedicated lab requirements
 
-`docker/Dockerfile.gnuhealth` is an intentionally non-functional scaffold,
-because GNU Health packages must be pinned to a compatible Tryton series. A
-future supported lab must:
+`docker/Dockerfile.gnuhealth` remains an intentionally non-functional scaffold.
+The verified Chilean core is assembled in the separate GPL GNU Health source
+tree with exact Python/Tryton locks and a disposable PostgreSQL cluster; GNU
+Health code is not copied into this Apache-2.0 client. A fully supported browser
+lab must still:
 
-1. pin every GNU Health and Tryton package exactly;
+1. retain the exact GNU Health and Tryton package pins;
 2. use a disposable database and synthetic fixtures only;
 3. route the browser through the Epitón gateway;
-4. run metadata discovery before model-specific browser scenarios;
+4. run the verified core profile before model-specific browser scenarios;
 5. clean up all synthetic writes and publish only redacted receipts;
 6. add evidence to `COMPATIBILITY.md` before changing any support claim.
 
