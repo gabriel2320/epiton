@@ -353,3 +353,51 @@ Push: not done
   must never issue an RPC.
 - L7 still owns the formal threat model, accessibility/performance budgets,
   native artifact receipts, and any separately governed GNU Health evidence.
+
+---
+
+# Epitón audit delta — 2026-08-02 (typed domain filtering)
+
+L5 closes the multi-clause filter gap at the extracted workspace-search
+boundary. Domain state remains a volatile client projection and every applied
+or saved domain continues through trytond-owned search and `ir.ui.view_search`
+contracts; this change adds no client business store or mutation authority.
+
+## Closed finding
+
+| ID | Previous severity | Finding | Closure |
+|----|-------------------|---------|---------|
+| G-06 | Medium (UX depth) | Multi-clause domain filter builder | Typed flat AND/OR clauses now cover the documented Tryton operators, field-aware values, optional hierarchy/reference targets, and strict domain validation. Builder-shaped saved filters round-trip; nested domains remain strict raw JSON. Invalid clauses disable list/count/export work before any RPC. |
+
+L6 is also confirmed complete by previously earned L1.3 evidence: board
+wizard/report actions reuse the shared Shell host and preserve active
+selection/context. No duplicate embedded action runtime was introduced.
+
+## Verification snapshot
+
+```text
+Base: b1ad35b + L5 worktree
+Typecheck: PASS — 13/13 tasks
+Lint: PASS — 225 files
+Unit/contract tests: PASS — 207 tests (protocol 59, view-engine 75,
+  web 45, compat 19, intelligence 4, ui 5)
+Filter builder Playwright: PASS — 1/1 build/apply/save/reload/delete scenario
+Mock browser E2E: PASS — 15/15
+Web production build: PASS — 1,672 modules; PWA 25 entries
+Bundle budget: PASS — largest JavaScript asset 468.1 KiB / 700 KiB
+git diff --check: PASS
+Push: not done
+```
+
+## Residual risk and next action
+
+- The visual builder intentionally represents flat AND/OR domains. Nested
+  combinations and `where` operands remain available through validated raw JSON
+  rather than implying a tree editor that the client does not yet provide.
+- L7 is now the active slice: formal threat model, executable
+  accessibility/performance budgets, production gateway checklist, supported
+  live compatibility receipts, and native artifact evidence where the local/CI
+  environment can truthfully produce it.
+- GNU Health remains an optional, separately pinned metadata-only lab claim;
+  PHI readiness, clinical certification, and penetration testing are not
+  inferred from this client-depth closure.

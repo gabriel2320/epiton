@@ -21,7 +21,6 @@ import {
   type RecordValues,
   type ViewField,
   aggregateGraphData,
-  buildSearchDomain,
   evalContext,
   evalDomain,
   flattenTreeRows,
@@ -32,6 +31,7 @@ import {
   parseCalendarArch,
   parseFieldsViewGet,
   parseGraphArch,
+  parseSearchDomain,
   renderView,
   rowsToCalendarEvents,
   rowsToMultiSeries,
@@ -110,7 +110,7 @@ import {
 import {
   activeWorkspaceTabDomain,
   savedSearchText,
-  workspaceListDomain,
+  workspaceListDomainResult,
 } from "./modelWorkspace/workspaceSearch";
 import { noticeTone } from "./modelWorkspace/workspaceUi";
 
@@ -299,6 +299,10 @@ export function ModelWorkspace(props: {
 
   async function exportCsv(fields?: string[]) {
     if (!client) return;
+    if (!listDomainResult.ok) {
+      setNotice(listDomainResult.error);
+      return;
+    }
     setNotice("Exporting CSV…");
     try {
       const fieldNames = fields?.length ? fields : columns.map((c) => c.name).filter(Boolean);
@@ -515,10 +519,33 @@ export function ModelWorkspace(props: {
     );
   }, [treeViewQuery.data, formViewQuery.data]);
 
-  const listDomain = useMemo(
-    () => workspaceListDomain(resolvedActionDomain, activeTabDomain, searchQuery, searchFields),
+  const filterFields = useMemo<ViewField[]>(() => {
+    const candidates: ViewField[] = [
+      { name: "id", string: "ID", type: "integer" },
+      { name: "rec_name", string: "Record name", type: "char" },
+      ...Object.values(treeViewQuery.data?.fields ?? {}),
+      ...Object.values(formViewQuery.data?.fields ?? {}),
+    ];
+    const unique = new Map<string, ViewField>();
+    for (const field of candidates) {
+      if (!unique.has(field.name)) unique.set(field.name, field);
+    }
+    return [...unique.values()];
+  }, [treeViewQuery.data, formViewQuery.data]);
+
+  const searchInputResult = useMemo(
+    () => parseSearchDomain(searchInput, searchFields),
+    [searchInput, searchFields],
+  );
+
+  const listDomainResult = useMemo(
+    () =>
+      workspaceListDomainResult(resolvedActionDomain, activeTabDomain, searchQuery, searchFields),
     [resolvedActionDomain, activeTabDomain, searchQuery, searchFields],
   );
+  const listDomain = listDomainResult.ok
+    ? listDomainResult.domain
+    : mergeDomains(resolvedActionDomain, activeTabDomain);
 
   const order = useMemo(() => formatOrder(sorts), [sorts]);
 
@@ -543,7 +570,7 @@ export function ModelWorkspace(props: {
       pageSize,
       order ?? "",
     ],
-    enabled: Boolean(client && treeViewQuery.isSuccess),
+    enabled: Boolean(client && treeViewQuery.isSuccess && listDomainResult.ok),
     placeholderData: keepPreviousData,
     queryFn: async () => {
       if (!client) return [];
@@ -593,7 +620,7 @@ export function ModelWorkspace(props: {
   }, [listQuery.data, lazyTreeRows, hierarchyMeta, expandedTreeIds, emptyTreeParents]);
 
   useEffect(() => {
-    if (!client || !session || !hierarchyMeta?.hierarchical) return;
+    if (!client || !session || !hierarchyMeta?.hierarchical || !listDomainResult.ok) return;
     let cancelled = false;
     void loadTreeState(client, props.model, session.userId, rpcContext, listDomain).then(
       (nodes) => {
@@ -604,10 +631,18 @@ export function ModelWorkspace(props: {
     return () => {
       cancelled = true;
     };
-  }, [client, session, hierarchyMeta?.hierarchical, props.model, rpcContext, listDomain]);
+  }, [
+    client,
+    session,
+    hierarchyMeta?.hierarchical,
+    props.model,
+    rpcContext,
+    listDomain,
+    listDomainResult.ok,
+  ]);
 
   useEffect(() => {
-    if (!client || !session || !hierarchyMeta?.hierarchical) return;
+    if (!client || !session || !hierarchyMeta?.hierarchical || !listDomainResult.ok) return;
     if (treeStateTimer.current) clearTimeout(treeStateTimer.current);
     treeStateTimer.current = setTimeout(() => {
       void saveTreeState(
@@ -630,6 +665,7 @@ export function ModelWorkspace(props: {
     expandedTreeIds,
     rpcContext,
     listDomain,
+    listDomainResult.ok,
   ]);
 
   async function openEmail() {
@@ -720,7 +756,7 @@ export function ModelWorkspace(props: {
 
   const countQuery = useQuery({
     queryKey: ["model", props.model, "count", JSON.stringify(listDomain)],
-    enabled: Boolean(client && treeViewQuery.isSuccess),
+    enabled: Boolean(client && treeViewQuery.isSuccess && listDomainResult.ok),
     staleTime: 30_000,
     queryFn: async () => {
       if (!client) return null;
@@ -1026,6 +1062,10 @@ export function ModelWorkspace(props: {
       }
       if (e.key === "F5" && !typing) {
         e.preventDefault();
+        if (!listDomainResult.ok) {
+          setNotice(listDomainResult.error);
+          return;
+        }
         void listQuery.refetch();
         return;
       }
@@ -1056,6 +1096,7 @@ export function ModelWorkspace(props: {
     selectedId,
     selectedIds,
     listQuery,
+    listDomainResult,
     recordQuery.data,
     props.model,
     recordLifecycleRefs,
@@ -1315,13 +1356,15 @@ export function ModelWorkspace(props: {
   const graphInsight = useMemo(() => summarizeSeries(graphData), [graphData]);
 
   const aclWarning = strictAclCoach(props.model, aclQuery.data ?? null);
-  const listState = listQuery.isLoading
-    ? "loading"
-    : listQuery.isError
-      ? "error"
-      : listQuery.data?.length
-        ? "data"
-        : "empty";
+  const listState = !listDomainResult.ok
+    ? "error"
+    : listQuery.isLoading
+      ? "loading"
+      : listQuery.isError
+        ? "error"
+        : listQuery.data?.length
+          ? "data"
+          : "empty";
 
   const total = countQuery.data;
   const canPrev = offset > 0;
@@ -1338,6 +1381,11 @@ export function ModelWorkspace(props: {
   }
 
   function applySearch() {
+    const result = parseSearchDomain(searchInput, searchFields);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
     setOffset(0);
     setSearchQuery(searchInput);
   }
@@ -1359,13 +1407,14 @@ export function ModelWorkspace(props: {
   async function saveCurrentSearch(name: string) {
     if (!client || !session) return;
     try {
-      const domain = buildSearchDomain(searchQuery, searchFields);
+      const parsed = parseSearchDomain(searchQuery, searchFields);
+      if (!parsed.ok) throw new Error(parsed.error);
       await createViewSearch(
         client,
         {
           name,
           model: props.model,
-          domain: (domain as JsonValue) ?? [],
+          domain: (parsed.domain as JsonValue) ?? [],
           user: session.userId,
         },
         rpcContext,
@@ -1450,7 +1499,13 @@ export function ModelWorkspace(props: {
           inlineEditActive={forceTreeEdit}
           treeEditable={treeIsEditable}
           onNew={() => void startNew()}
-          onRefresh={() => void listQuery.refetch()}
+          onRefresh={() => {
+            if (!listDomainResult.ok) {
+              setNotice(listDomainResult.error);
+              return;
+            }
+            void listQuery.refetch();
+          }}
           onSelectView={setViewMode}
           onToggleInlineEdit={() => setForceTreeEdit((value) => !value)}
           onDelete={() => requestDelete(effectiveSelectedIds(selectedIds, selectedId))}
@@ -1460,9 +1515,11 @@ export function ModelWorkspace(props: {
         />
         <WorkspaceSearchControls
           searchInput={searchInput}
+          fields={filterFields}
+          searchError={searchInputResult.ok ? null : searchInputResult.error}
           savedSearches={viewSearchesQuery.data}
           savedSearchDialog={savedSearchDialog}
-          canSaveSearch={Boolean(client && session && searchQuery.trim())}
+          canSaveSearch={Boolean(client && session && searchQuery.trim() && listDomainResult.ok)}
           onSearchInputChange={setSearchInput}
           onApplySearch={applySearch}
           onClearSearch={clearSearch}
@@ -1528,7 +1585,13 @@ export function ModelWorkspace(props: {
         ) : null}
         <StateBlock
           state={listState}
-          message={listQuery.isError ? listQuery.error.message : "No records"}
+          message={
+            !listDomainResult.ok
+              ? listDomainResult.error
+              : listQuery.isError
+                ? listQuery.error.message
+                : "No records"
+          }
         >
           {viewMode === "calendar" ? (
             <CalendarView

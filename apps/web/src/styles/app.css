@@ -85,6 +85,8 @@
 .epiton-login-card input,
 .epiton-toolbar input,
 .epiton-toolbar select,
+.epiton-filter-builder input,
+.epiton-filter-builder select,
 .epiton-command input {
   width: 100%;
   border-radius: 12px;
@@ -302,6 +304,86 @@
   gap: 0.5rem;
   margin-bottom: 0.85rem;
   align-items: center;
+}
+
+.epiton-search-controls {
+  margin-bottom: 0.85rem;
+  container-type: inline-size;
+}
+
+.epiton-search-toolbar {
+  margin-bottom: 0.5rem;
+}
+
+.epiton-search-input {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.epiton-filter-builder {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid var(--epiton-border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--epiton-accent) 5%, var(--epiton-bg));
+}
+
+.epiton-filter-builder-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.epiton-filter-builder-heading label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--epiton-muted);
+  font-size: 0.85rem;
+}
+
+.epiton-filter-clauses {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.epiton-filter-clause {
+  display: grid;
+  grid-template-columns: auto minmax(7rem, 1fr) minmax(6.5rem, 0.8fr) minmax(9rem, 1.5fr) minmax(
+      8rem,
+      1fr
+    ) auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.epiton-filter-clause > button:last-child {
+  grid-column: -2 / -1;
+}
+
+@container (max-width: 52rem) {
+  .epiton-filter-clause {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .epiton-filter-clause > :not(.epiton-filter-clause-number) {
+    grid-column: 2;
+  }
+}
+
+.epiton-filter-clause-number {
+  color: var(--epiton-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.epiton-filter-error {
+  margin: 0.25rem 0 0;
+  color: var(--epiton-danger, #b42318);
+  font-size: 0.85rem;
 }
 
 .epiton-breadcrumbs {
@@ -1087,6 +1169,14 @@ html[data-shell="tauri"] {
 }
 
 @media (max-width: 719px) {
+  .epiton-filter-clause {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .epiton-filter-clause > :not(.epiton-filter-clause-number) {
+    grid-column: 2;
+  }
+
   .epiton-layout-grid {
     grid-template-columns: minmax(0, 1fr);
   }

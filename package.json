@@ -14,7 +14,7 @@
     "typecheck": "turbo run typecheck",
     "format": "biome format --write .",
     "test:e2e": "playwright test",
-    "test:e2e:mock": "playwright test e2e/login.spec.ts e2e/workspace.spec.ts e2e/board.spec.ts e2e/wizard-report.spec.ts e2e/calendar.spec.ts e2e/form-layout.spec.ts",
+    "test:e2e:mock": "playwright test e2e/login.spec.ts e2e/workspace.spec.ts e2e/board.spec.ts e2e/wizard-report.spec.ts e2e/calendar.spec.ts e2e/form-layout.spec.ts e2e/filter-builder.spec.ts",
     "test:e2e:next": "pnpm check:next && playwright test --config=playwright.next.config.ts",
     "test:e2e:live": "playwright test e2e/live-lab.spec.ts",
     "lab:up": "docker compose -f docker/docker-compose.yml up -d --build",

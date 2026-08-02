@@ -131,9 +131,20 @@ export {
   type BoardTile,
 } from "./board";
 export {
+  DOMAIN_OPERATORS,
   buildSearchDomain,
+  decodeDomainFilter,
+  encodeDomainFilter,
   formatOrder,
   mergeDomains,
+  parseDomainValue,
+  parseSearchDomain,
+  validateTrytonDomain,
+  type DomainClause,
+  type DomainCombinator,
+  type DomainFilter,
+  type DomainOperator,
+  type SearchDomainResult,
 } from "./search";
 export {
   flattenTreeRows,

@@ -1,7 +1,10 @@
 import type { ActWindowDomainTab, ViewSearchRow } from "@epiton/protocol";
 import { Button, Tab, Tabs } from "@epiton/ui";
+import type { ViewField } from "@epiton/view-engine";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SavedSearchDialog } from "../SavedSearchDialog";
+import { DomainFilterBuilder, builderFilterFromText } from "./DomainFilterBuilder";
 
 export function WorkspaceDomainTabs(props: {
   tabs: ActWindowDomainTab[];
@@ -32,6 +35,8 @@ export function WorkspaceDomainTabs(props: {
 
 export function WorkspaceSearchControls(props: {
   searchInput: string;
+  fields: ViewField[];
+  searchError?: string | null;
   savedSearches?: ViewSearchRow[];
   savedSearchDialog: "save" | "delete" | null;
   canSaveSearch: boolean;
@@ -46,53 +51,117 @@ export function WorkspaceSearchControls(props: {
 }) {
   const { t } = useTranslation();
   const hasSavedSearches = Boolean(props.savedSearches?.length);
+  const [mode, setMode] = useState<"quick" | "builder">("quick");
+  const [builderValid, setBuilderValid] = useState(false);
+  const [builderKey, setBuilderKey] = useState(0);
+  const applyDisabled = mode === "builder" ? !builderValid : Boolean(props.searchError);
+
+  function showBuilder() {
+    const decoded = builderFilterFromText(props.searchInput);
+    setBuilderValid(Boolean(decoded?.clauses.length));
+    setBuilderKey((current) => current + 1);
+    setMode("builder");
+  }
+
+  function selectSavedSearch(row: ViewSearchRow) {
+    const text = typeof row.domain === "string" ? row.domain : JSON.stringify(row.domain ?? []);
+    const decoded = builderFilterFromText(text);
+    if (decoded?.clauses.length) {
+      setMode("builder");
+      setBuilderValid(true);
+    } else {
+      setMode("quick");
+      setBuilderValid(false);
+    }
+    setBuilderKey((current) => current + 1);
+    props.onApplySavedSearch(row);
+  }
 
   return (
     <>
-      <div className="epiton-toolbar">
-        <input
-          value={props.searchInput}
-          onChange={(event) => props.onSearchInputChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") props.onApplySearch();
-          }}
-          placeholder="Search name/code, id, or JSON domain"
-          aria-label="Domain search"
-          style={{ flex: 1, minWidth: "12rem" }}
-        />
-        <Button onClick={props.onApplySearch}>{t("workspace.filter")}</Button>
-        <Button onClick={props.onClearSearch}>{t("workspace.clear")}</Button>
-        <select
-          aria-label="Saved searches"
-          value=""
-          disabled={!hasSavedSearches}
-          onChange={(event) => {
-            const id = Number(event.target.value);
-            const row = props.savedSearches?.find((candidate) => candidate.id === id);
-            if (row) props.onApplySavedSearch(row);
-          }}
-        >
-          <option value="">Saved searches…</option>
-          {(props.savedSearches ?? []).map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-              {row.user == null ? " (shared)" : ""}
-            </option>
-          ))}
-        </select>
-        <Button
-          disabled={!props.canSaveSearch}
-          onClick={() => props.onOpenSavedSearchDialog("save")}
-        >
-          Save filter
-        </Button>
-        <Button
-          variant="ghost"
-          disabled={!hasSavedSearches}
-          onClick={() => props.onOpenSavedSearchDialog("delete")}
-        >
-          Delete filter
-        </Button>
+      <div className="epiton-search-controls">
+        <div className="epiton-toolbar epiton-search-toolbar">
+          {mode === "quick" ? (
+            <input
+              className="epiton-search-input"
+              value={props.searchInput}
+              onChange={(event) => props.onSearchInputChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !applyDisabled) props.onApplySearch();
+              }}
+              placeholder="Search name/code, id, or JSON domain"
+              aria-label="Domain search"
+              aria-invalid={Boolean(props.searchError)}
+              aria-describedby={props.searchError ? "epiton-search-error" : undefined}
+            />
+          ) : (
+            <Button variant="ghost" aria-expanded onClick={() => setMode("quick")}>
+              Quick / JSON
+            </Button>
+          )}
+          {mode === "quick" ? (
+            <Button variant="ghost" aria-expanded={false} onClick={showBuilder}>
+              Filter builder
+            </Button>
+          ) : null}
+          <Button disabled={applyDisabled} onClick={props.onApplySearch}>
+            {t("workspace.filter")}
+          </Button>
+          <Button
+            onClick={() => {
+              setBuilderValid(false);
+              setBuilderKey((current) => current + 1);
+              props.onClearSearch();
+            }}
+          >
+            {t("workspace.clear")}
+          </Button>
+          <select
+            aria-label="Saved searches"
+            value=""
+            disabled={!hasSavedSearches}
+            onChange={(event) => {
+              const id = Number(event.target.value);
+              const row = props.savedSearches?.find((candidate) => candidate.id === id);
+              if (row) selectSavedSearch(row);
+            }}
+          >
+            <option value="">Saved searches…</option>
+            {(props.savedSearches ?? []).map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+                {row.user == null ? " (shared)" : ""}
+              </option>
+            ))}
+          </select>
+          <Button
+            disabled={!props.canSaveSearch}
+            onClick={() => props.onOpenSavedSearchDialog("save")}
+          >
+            Save filter
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={!hasSavedSearches}
+            onClick={() => props.onOpenSavedSearchDialog("delete")}
+          >
+            Delete filter
+          </Button>
+        </div>
+        {mode === "builder" ? (
+          <DomainFilterBuilder
+            key={builderKey}
+            fields={props.fields}
+            initialText={props.searchInput}
+            onChange={props.onSearchInputChange}
+            onValidityChange={setBuilderValid}
+          />
+        ) : null}
+        {mode === "quick" && props.searchError ? (
+          <p id="epiton-search-error" className="epiton-filter-error" role="alert">
+            {props.searchError}
+          </p>
+        ) : null}
       </div>
       <SavedSearchDialog
         mode={props.savedSearchDialog === "delete" ? "delete" : "save"}

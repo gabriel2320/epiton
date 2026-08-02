@@ -37,6 +37,14 @@ type SyntheticCalendarRecord = {
   ends_at: string;
 };
 
+type SyntheticViewSearch = {
+  id: number;
+  name: string;
+  model: string;
+  domain: string;
+  user: number | null;
+};
+
 const partyFields = {
   name: { name: "name", string: "Name", type: "char", required: true },
   code: { name: "code", string: "Code", type: "char" },
@@ -264,6 +272,7 @@ export type MockTryton = {
   records: Map<number, SyntheticRecord>;
   addresses: Map<number, SyntheticAddress>;
   categories: Map<number, SyntheticCategory>;
+  viewSearches: Map<number, SyntheticViewSearch>;
   calendarRecords: Map<number, SyntheticCalendarRecord>;
   calendarDates: {
     initial: string;
@@ -420,6 +429,7 @@ export async function installMockTryton(
     [21, { id: 21, rec_name: "Synthetic Category Beta", name: "Synthetic Category Beta" }],
     [22, { id: 22, rec_name: "Synthetic Category Gamma", name: "Synthetic Category Gamma" }],
   ]);
+  const viewSearches = new Map<number, SyntheticViewSearch>();
   const calendarDates = {
     initial: currentMonthDate(8),
     create: currentMonthDate(12),
@@ -448,6 +458,7 @@ export async function installMockTryton(
   let nextPartyId = 3;
   let nextAddressId = 50;
   let nextAttachmentId = 100;
+  let nextViewSearchId = 300;
 
   function applyAddressCommands(currentIds: number[], value: unknown): number[] {
     if (!Array.isArray(value)) return currentIds;
@@ -572,7 +583,29 @@ export async function installMockTryton(
       if (Number.isSafeInteger(id) && id > 0) favoriteMenuIds.delete(id);
       return true;
     }
-    if (method === "model.ir.ui.view_search.search_read") return [];
+    if (method === "model.ir.ui.view_search.search_read") {
+      const requestedModel = domainEquals(params[0], "model", "party.party");
+      const rows = [...viewSearches.values()].filter(
+        (row) => requestedModel !== false && row.model === "party.party",
+      );
+      return projectRows(rows, params[4]);
+    }
+    if (method === "model.ir.ui.view_search.create") {
+      const values = valuesFrom(Array.isArray(params[0]) ? params[0][0] : null);
+      const id = nextViewSearchId++;
+      viewSearches.set(id, {
+        id,
+        name: text(values.name, `Synthetic filter ${id}`),
+        model: text(values.model, "party.party"),
+        domain: text(values.domain, "[]"),
+        user: typeof values.user === "number" ? values.user : null,
+      });
+      return [id];
+    }
+    if (method === "model.ir.ui.view_search.delete") {
+      for (const id of idsFrom(params[0])) viewSearches.delete(id);
+      return true;
+    }
     if (method === "model.ir.model.access.search_read") return [{ id: 1 }];
     if (method === "model.ir.action.keyword.get_keyword") return [];
 
@@ -926,6 +959,7 @@ export async function installMockTryton(
     records,
     addresses,
     categories,
+    viewSearches,
     calendarRecords,
     calendarDates,
     waitForPartyRead: async (id: number) => {

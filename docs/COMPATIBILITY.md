@@ -25,13 +25,13 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Reports | `report.*.execute` | Improved | Formats + pdfjs + `ir.action.report` picker; board→shared Shell mock proof preserves action context |
 | Binary | binary fields | Improved | MIME + filename= sibling; download uses real name |
 | PYSON states | `invisible`/`readonly`/`required` | Improved | + Add/Sub/Mul/Div/Id; unknown → null |
-| Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; screen filter bar |
+| Domains | field / arch domain PYSON | Implemented | Evaluated for M2O search + O2M/M2M; typed flat AND/OR builder covers documented operators, field-aware values and optional targets; nested domains remain available as strict raw JSON |
 | on_change | `on_change_*` / `on_change_with` | Implemented | Debounced parent and child paths; relation-shaped replacement/patch responses enter x2many queues with generation/revision stale-response guards; Tryton 7 live evidence covers a transient `party.identifier` child and metadata-derived dependents |
 | Action stack | nested related records | Implemented | Breadcrumbs + Back in Shell |
 | Workspace tabs | multi-tab actions | Implemented | Independent stacks per tab; Ctrl/Cmd+favorite opens new |
 | CSV export | `export_data` / `export_data_domain` | Improved | Field picker dialog before export |
 | CSV import | `import_data` | Improved | Header mapping dialog → typed cells |
-| Saved searches | `ir.ui.view_search` | Improved | Typed controls load/apply + dialog save/delete through the workspace-owned RPC path (no prompt) |
+| Saved searches | `ir.ui.view_search` | Improved | Builder-shaped domains round-trip through typed load/apply/save/delete controls; nested domains fall back to raw JSON through the workspace-owned RPC path (no prompt) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter; act_window/wizard/report Open reuse Shell and preserve active selection/context (mock browser proof) |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
 | Shell hosts | Tauri / Capacitor | Beta | Title/safe-area; memory-only sessions; legacy preference slots erased; Android project and CI APK/Tauri bundle producers are defined, first green artifact receipts pending |
@@ -44,7 +44,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Preferences | `get_preferences` / `set_preferences` | Improved | Server form + M2O RelationSearch; no fake arch |
 | act_window | domain/context/views | Improved | Polymorphic `ir.action,{id}`; views/domain/context eval |
 | Screen host | act_window lifecycle + relation queue | Improved | Explicit parent/child hydrate lifecycle; pristine `default_get`; A→B/generation + last-request-wins guards; Save/Accept flush pending `on_change`; parent save via `screenValuesForSave`; deterministic browser proof covers O2M queued create+edit and M2M membership add/remove as one parent write with no child mutation. Tryton 7 live metadata proves the transient child `on_change_with` / `pre_validate` boundary; late-A isolation from B writes remains covered. Nested lifecycle: [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md) |
-| Screen search | user domain / ilike | Improved | Pure composition preserves action + selected-tab + field-aware search domains |
+| Screen search | user domain / ilike | Improved | Pure composition preserves action + selected-tab + field-aware search domains; malformed raw or typed clauses block list/count/export RPCs |
 | Server order | column sort | Implemented | `name ASC` via search_read order |
 | defaults | `default_get` | Implemented | On New |
 | Copy | `model.*.copy` | Implemented | Selected ids → new records |

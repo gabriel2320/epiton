@@ -1,6 +1,11 @@
 import type { ActWindowDomainTab } from "@epiton/protocol";
 import { describe, expect, it } from "vitest";
-import { activeWorkspaceTabDomain, savedSearchText, workspaceListDomain } from "./workspaceSearch";
+import {
+  activeWorkspaceTabDomain,
+  savedSearchText,
+  workspaceListDomain,
+  workspaceListDomainResult,
+} from "./workspaceSearch";
 
 describe("workspaceSearch", () => {
   it("evaluates only the selected Tryton action-domain tab", () => {
@@ -34,5 +39,14 @@ describe("workspaceSearch", () => {
     expect(savedSearchText([["id", "=", 12]])).toBe('[["id","=",12]]');
     expect(savedSearchText('[["active","=",true]]')).toBe('[["active","=",true]]');
     expect(savedSearchText(undefined)).toBe("[]");
+  });
+
+  it("returns an invalid result before composing a malformed user domain", () => {
+    expect(
+      workspaceListDomainResult([["active", "=", true]], [], '[["name","=","Ada"]', ["name"]),
+    ).toEqual({
+      ok: false,
+      error: "Raw domain must be valid JSON",
+    });
   });
 });

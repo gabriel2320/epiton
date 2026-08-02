@@ -1,6 +1,6 @@
 # Where Tryton (Sao/GTK) still surpasses Epitón
 
-Updated: **2026-08-01**. Companion to [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)
+Updated: **2026-08-02**. Companion to [`TRYTON_COMPARE.md`](TRYTON_COMPARE.md)
 (live RPC evidence) and [`COMPATIBILITY.md`](COMPATIBILITY.md) (status matrix).
 
 **Frame:** Epitón already matches Tryton on the **Session wire** and core
@@ -36,7 +36,7 @@ with record-isolation guards; plus attachments depth, graph operators, ↑/↓ n
 | **Editable tree** | `editable="top\|bottom"` inline cell edit + writes | **Improved:** selection/date/m2o cells + New row | Small | `VirtualPartyTable.tsx` |
 | **Hierarchical tree** | Parent expand via TreeMixin / `field_childs` | **Improved:** flatten + lazy fetch + tree_state(+domain) + sequence DnD | Small | `tree_hierarchy.ts`, `tree_state.ts` |
 | **Notebook** | Exclusive tabs, remembered page, icons/states | **Improved:** exclusive tabs + process-local page selection | Small | `render.tsx` `NotebookHost` |
-| **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** load/apply/save/delete via protocol helper | Small | `view_search.ts`, ModelWorkspace |
+| **Saved filters** | `ir.ui.view_search` named domains per model/user | **Improved:** typed AND/OR builder plus raw-domain load/apply/save/delete | Small | `view_search.ts`, `DomainFilterBuilder.tsx` |
 | **Server favorites / bookmarks** | Persisted user shortcuts on server | **Improved:** exact `ir.ui.menu.favorite.get/set/unset` + star toggle; strict server tuples and no fabricated fallback | Small | `menus.ts`, `Shell.tsx`, `MenuTree.tsx` |
 | **Translations** | Lang-aware strings via trytond / catalogs | **Improved:** catalog + `t()` labels + Shell/workspace chrome | Small | `i18n.ts`, `Shell.tsx` |
 | **Reports** | Broader formats + print pipeline | **Improved:** formats + pdfjs + `ir.action.report` picker | Small | `ReportDownload.tsx` |
@@ -111,11 +111,11 @@ agent ownership in [`AGENT_BRIDGE.md`](AGENT_BRIDGE.md).
 - **Reduce the workspace hotspot before adding more UI state.**
   `ModelWorkspace.tsx` is now below 2,000 lines but still concentrates list,
   record, action, calendar, search, and relation behavior.
-- **Nested Screen and dense form layout are closed client-depth gaps.** Their
-  deterministic receipts now protect the next priority: a typed multi-clause
-  filter builder interoperable with the existing raw and saved-search paths.
-- Board wizard/report panes still hand off to the shell. Closing that placeholder
-  is useful polish, not the leading protocol or workflow blocker.
+- **Nested Screen, dense form layout, and typed multi-clause filtering are
+  closed client-depth gaps.** Their deterministic receipts protect the release
+  and compatibility gate without widening the client authority boundary.
+- Board wizard/report panes hand off to the shared Shell action host and preserve
+  active selection/context; there is no embedded duplicate action runtime.
 - REST Bearer, GTK-only plugins, PHI/HIS claims, and Proteus in the product
   runtime are outside this plan. Proteus remains an isolated lab oracle.
 
@@ -135,10 +135,9 @@ start with evidence for that behavior instead of reopening its implementation.
 | **L6 — Board/action polish** | Replace the wizard/report placeholder by reusing the normal shell action host, then verify active ids/context. Do not create an embedded duplicate action runtime; deeper list-form/calendar pane work is a separately justified follow-up. | L1 and L2; schedule after L5 unless a failing workflow raises its priority | One board Playwright scenario proves wizard/report open through the shared host and preserves selection/context; existing tree/form/graph and sibling `_actions` tests remain green. | S–M / Medium |
 | **L7 — Release and compatibility gate** | Run accessibility/performance budgets, document a focused threat model and production gateway checklist, and optionally attach a pinned disposable GNU Health lab for metadata/menu/view discovery. GNU Health evidence stays synthetic and read-only until separately governed. | L1–L5 for the core client-depth candidate; L6 gates only a release claiming that board polish; GH track may start earlier in isolation | Minimum gates below pass; strict production ACL/gateway defaults are explicit; `gh:check` and a receipt back only the exact GNU Health claim made; `AUDIT.md` is updated only through a new dated audit. | L / Medium–High |
 
-L1 is delivered as atomic browser slices. The relation/isolation and board
-action-open slices are covered; the next claim is **wizard/report shell paths**.
-Calendar follows as a separate slice so each commit expands one mock fixture
-surface and has one unambiguous owner/reviewer handoff.
+L1 was delivered as atomic browser slices. Relation/isolation, board action
+open, wizard/report Shell handoff, and calendar create/move are all covered by
+the deterministic mock browser gate.
 
 Recommended sequence:
 
@@ -287,19 +286,24 @@ group/notebook state preservation in Playwright.
 May proceed beside L2/L3 **only** with separate path ownership (no shared edit
 of `ModelWorkspace.tsx` / `screen.ts` / relation editors).
 
-### L5 — Domain filter builder
+### L5 — Domain filter builder — DONE (2026-08-02)
 
-Typed AND/OR clauses, operators, values, validation, round-trip to Tryton
-domains. Interoperate with raw JSON domain and `ir.ui.view_search`. Malformed
-clauses must never issue an RPC. Depends on L2 so search UI is not still
-entangled in the monolith.
+The extracted search boundary now provides typed flat AND/OR clauses across the
+documented Tryton operators, field-aware values, optional hierarchy/reference
+targets, strict domain validation, and lossless encode/decode for builder-shaped
+domains. Nested domains stay interoperable through raw JSON. Saved filters load
+into the builder when representable and otherwise remain raw; malformed raw or
+typed clauses disable list/count/export work before any RPC. Unit tests pin the
+domain contract and a deterministic browser scenario builds, applies, saves,
+reloads, and deletes an OR filter.
 
-### L6 — Board / action polish
+### L6 — Board / action polish — DONE (2026-08-02, previously earned by L1.3)
 
-Replace wizard/report placeholder by reusing the normal shell action host;
-verify `active_ids` / context. Deeper list-form/calendar pane work is a
-**separately justified** follow-up. Schedule after L5 unless a failing workflow
-raises priority (then CLAIM explicitly).
+The board wizard/report path already reuses the normal Shell action host and
+preserves `active_id(s)`, `active_model`, and action context. The dedicated
+`e2e/wizard-report.spec.ts` receipt and the full mock suite satisfy the L6 exit
+without a second embedded runtime. Deeper list-form/calendar pane work remains
+a **separately justified** follow-up, not a release blocker.
 
 ### L7 — Release and compatibility gate
 
@@ -331,11 +335,10 @@ raises priority (then CLAIM explicitly).
 | Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
 | Human | Authority for push, PHI, production, license exceptions |
 
-Default next implementation slice: **L5 domain filter builder**. Preserve the
-frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md), L3.3 evidence,
-and L4 responsive layout receipts. Add typed AND/OR clauses behind the extracted
-workspace-search boundary while keeping raw JSON and `ir.ui.view_search`
-round-trippable; invalid clauses must stop before any search RPC.
+Default next implementation slice: **L7 release and compatibility gate**.
+Preserve the frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md),
+responsive layout receipts, strict domain validation, same-origin gateway, and
+memory-only authority boundary while adding only evidence and release controls.
 
 ### Milestone map (relative, not calendar)
 
@@ -344,9 +347,9 @@ M0  Wire + Screen + L1.1 + L1.2   ████ DONE
 M1  L1.3–L1.4 browser evidence    ████ DONE
 M2  L2 workspace decomposition    ████ DONE
 M3  L3 nested Screen API+wire     ████ DONE (L3.1 contract + L3.2 wire + L3.3 evidence)
-M4  L4 form density ‖ L5 filters  ██░░ (L4 DONE; L5 NEXT)
-M5  L6 board polish (optional)    ░░░
-M6  L7 release candidate          ░░░
+M4  L4 form density ‖ L5 filters  ████ DONE
+M5  L6 board polish (optional)    ████ DONE (shared Shell receipt)
+M6  L7 release candidate          ░░░ NEXT
 ```
 
 ## How to re-check
