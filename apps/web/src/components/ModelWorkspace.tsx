@@ -3,12 +3,14 @@ import {
   type ActWindowDomainTab,
   type JsonObject,
   type JsonValue,
+  READ_ONLY_MODEL_ACCESS,
   type ViewSearchRow,
   copyRecords,
   createViewSearch,
   deleteViewSearch,
   exportModelCsv,
   getKeywords,
+  getModelAccess,
   importModelCsv,
   loadTreeState,
   loadViewSearches,
@@ -84,6 +86,7 @@ import {
   WorkspaceDomainTabs,
   WorkspaceSearchControls,
 } from "./modelWorkspace/WorkspaceSearchControls";
+import { actionDomainDefaults, hydrateDefaultMany2OneNames } from "./modelWorkspace/actionDefaults";
 import { buttonRpcContext, isActionButton } from "./modelWorkspace/actionToolbar";
 import {
   adjacentSelectedId,
@@ -138,7 +141,7 @@ export function ModelWorkspace(props: {
   onSelectedIdsChange?: (ids: number[]) => void;
   onPushRelated?: (model: string, id: number | null) => void;
   /** Open keyword / related action refs in the shell. */
-  onOpenAction?: (ref: string, source: string) => void;
+  onOpenAction?: (ref: string, source: string, context?: JsonObject) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
@@ -285,7 +288,7 @@ export function ModelWorkspace(props: {
       const actions = await getKeywords(client, keyword, props.model, recordId, rpcContext);
       const hit = actions[0];
       if (!hit) return false;
-      props.onOpenAction(hit.ref, source);
+      props.onOpenAction(hit.ref, source, buttonRpcContext(rpcContext, props.model, [recordId]));
       props.onHistory?.(source);
       return true;
     } catch {
@@ -329,7 +332,7 @@ export function ModelWorkspace(props: {
   }
 
   async function importCsvFile(file: File) {
-    if (!client) return;
+    if (!client || !modelAccess.create) return;
     try {
       const text = await file.text();
       setCsvImportText(text);
@@ -339,7 +342,7 @@ export function ModelWorkspace(props: {
   }
 
   async function confirmCsvImport(mapping: string[]) {
-    if (!client || !csvImportText) return;
+    if (!client || !modelAccess.create || !csvImportText) return;
     setNotice("Importing CSV…");
     try {
       const { fields, dataCsv } = applyCsvColumnMapping(csvImportText, mapping);
@@ -359,7 +362,7 @@ export function ModelWorkspace(props: {
   }
 
   async function copySelected() {
-    if (!client) return;
+    if (!client || !modelAccess.create) return;
     const ids = effectiveSelectedIds(selectedIds, selectedId);
     if (!ids.length) return;
     setNotice("Copying…");
@@ -370,7 +373,7 @@ export function ModelWorkspace(props: {
       await invalidateModelProjections(queryClient);
       if (created[0] != null) {
         selectId(created[0]);
-        setMode("write");
+        setMode(modelAccess.write ? "write" : "read");
       }
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Copy failed");
@@ -723,7 +726,11 @@ export function ModelWorkspace(props: {
         );
         const hit = actions.find((a) => /mail|email|smtp/i.test(`${a.name} ${a.type} ${a.ref}`));
         if (hit) {
-          props.onOpenAction(hit.ref, "email");
+          props.onOpenAction(
+            hit.ref,
+            "email",
+            buttonRpcContext(rpcContext, props.model, [selectedId]),
+          );
           props.onHistory?.("email:keyword");
           return;
         }
@@ -735,7 +742,13 @@ export function ModelWorkspace(props: {
   }
 
   async function reorderTreeRows(draggedId: number, targetId: number) {
-    if (!client || !hierarchyMeta?.parentField || !hierarchyMeta.sequenceField) return;
+    if (
+      !client ||
+      !modelAccess.write ||
+      !hierarchyMeta?.parentField ||
+      !hierarchyMeta.sequenceField
+    )
+      return;
     const all = mergeTreeRows(
       (listQuery.data ?? []) as Array<Record<string, unknown>>,
       lazyTreeRows,
@@ -924,8 +937,8 @@ export function ModelWorkspace(props: {
     };
   }, [recordLifecycleRefs]);
 
-  const aclQuery = useQuery({
-    queryKey: ["model", props.model, "acl"],
+  const aclRowsQuery = useQuery({
+    queryKey: ["model", props.model, "acl-rows"],
     enabled: Boolean(client),
     staleTime: 60_000,
     queryFn: async () => {
@@ -933,6 +946,19 @@ export function ModelWorkspace(props: {
       return modelHasAccessRows(client, props.model);
     },
   });
+
+  const modelAccessQuery = useQuery({
+    queryKey: ["model", props.model, "access", session?.userId],
+    enabled: Boolean(client && session),
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      if (!client) throw new Error("No client");
+      return getModelAccess(client, props.model, sessionContext);
+    },
+  });
+  // Match Sao's safe fallback: reads may continue, but mutations fail closed.
+  const modelAccess = modelAccessQuery.data ?? READ_ONLY_MODEL_ACCESS;
 
   function scheduleOnChange(name: string, nextDraft: RecordValues) {
     scheduleRecordOnChange({
@@ -973,6 +999,7 @@ export function ModelWorkspace(props: {
   }
 
   async function startNew() {
+    if (!modelAccess.create) return;
     if (!confirmDiscard()) return;
     bumpScreenGeneration();
     const expected = {
@@ -994,10 +1021,24 @@ export function ModelWorkspace(props: {
       if (!formView) throw new Error(t("workspace.defaultsFailed"));
       const fieldNames = Object.keys(formView.fields);
       const defaults = await client.model(props.model, "default_get", [fieldNames], rpcContext);
-      const defaultsForScreen =
+      const backendDefaults =
         defaults && typeof defaults === "object" && !Array.isArray(defaults)
-          ? hydrateMany2OneRecNames(defaults as RecordValues, Object.values(formView.fields))
+          ? (defaults as RecordValues)
           : {};
+      const defaultsForScreen = await hydrateDefaultMany2OneNames(
+        {
+          ...backendDefaults,
+          ...actionDomainDefaults(resolvedActionDomain, fieldNames),
+        },
+        Object.values(formView.fields),
+        async (relation, id) => {
+          const result = await client.model(relation, "read", [[id], ["rec_name"]], rpcContext);
+          const record = Array.isArray(result) ? result[0] : null;
+          if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+          const recName = (record as Record<string, unknown>).rec_name;
+          return typeof recName === "string" && recName.length > 0 ? recName : null;
+        },
+      );
       setScreen((current) =>
         screenAfterNewDefaults(expected, screenGenerationRef.current, current, defaultsForScreen),
       );
@@ -1018,6 +1059,9 @@ export function ModelWorkspace(props: {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error("No client");
+      if (selectedId == null ? !modelAccess.create : !modelAccess.write) {
+        throw new Error(t("workspace.accessDenied"));
+      }
       return saveRecord({
         client,
         model: props.model,
@@ -1043,11 +1087,14 @@ export function ModelWorkspace(props: {
     },
   });
 
-  const canSave = !newDefaultsPending && isScreenReadyToSave(screen, selectedId);
+  const canModifyCurrent = selectedId == null ? modelAccess.create : modelAccess.write;
+  const canSave =
+    canModifyCurrent && !newDefaultsPending && isScreenReadyToSave(screen, selectedId);
 
   const deleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       if (!client || !ids.length) throw new Error(t("workspace.nothingSelected"));
+      if (!modelAccess.delete) throw new Error(t("workspace.accessDenied"));
       // Deleting abandons the edited lifecycle; no late field patch may revive it.
       bumpScreenGeneration();
       await client.model(props.model, "delete", [ids], rpcContext);
@@ -1068,6 +1115,7 @@ export function ModelWorkspace(props: {
   });
 
   function requestDelete(ids: number[]) {
+    if (!modelAccess.delete) return;
     if (!ids.length) {
       setNotice(t("workspace.nothingSelected"));
       return;
@@ -1098,6 +1146,7 @@ export function ModelWorkspace(props: {
         e.preventDefault();
         if (
           mode === "write" &&
+          (selectedId == null ? modelAccess.create : modelAccess.write) &&
           !newDefaultsPending &&
           !saveMutation.isPending &&
           isScreenReadyToSave(screenRef.current, selectedId)
@@ -1108,7 +1157,7 @@ export function ModelWorkspace(props: {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !typing) {
         e.preventDefault();
-        void keyHandlersRef.current.startNew();
+        if (modelAccess.create) void keyHandlersRef.current.startNew();
         return;
       }
       if (e.key === "F5" && !typing) {
@@ -1120,7 +1169,12 @@ export function ModelWorkspace(props: {
         void listQuery.refetch();
         return;
       }
-      if (e.key === "Delete" && !typing && (selectedId || selectedIds.length)) {
+      if (
+        e.key === "Delete" &&
+        !typing &&
+        modelAccess.delete &&
+        (selectedId || selectedIds.length)
+      ) {
         const ids = effectiveSelectedIds(selectedIds, selectedId);
         e.preventDefault();
         keyHandlersRef.current.requestDelete(ids);
@@ -1152,6 +1206,9 @@ export function ModelWorkspace(props: {
     props.model,
     recordLifecycleRefs,
     newDefaultsPending,
+    modelAccess.create,
+    modelAccess.write,
+    modelAccess.delete,
   ]);
 
   async function runButton(name: string, meta?: { type?: string }) {
@@ -1159,14 +1216,18 @@ export function ModelWorkspace(props: {
       setNotice("Select a record before running a button");
       return;
     }
+    const ids = effectiveSelectedIds(selectedIds, selectedId);
+    const activeIds = ids as [number, ...number[]];
     if (isActionButton(name, meta?.type) && props.onOpenAction) {
       setNotice(`Opening action ${name}…`);
-      props.onOpenAction(name, `button:${name}`);
+      props.onOpenAction(
+        name,
+        `button:${name}`,
+        buttonRpcContext(rpcContext, props.model, activeIds),
+      );
       props.onHistory?.(`button:action:${name}`);
       return;
     }
-    const ids = effectiveSelectedIds(selectedIds, selectedId);
-    const activeIds = ids as [number, ...number[]];
     setNotice(`Running ${name}…`);
     try {
       await client.model(
@@ -1184,8 +1245,10 @@ export function ModelWorkspace(props: {
   }
 
   const treeIsEditable = useMemo(
-    () => forceTreeEdit || (treeViewQuery.data ? treeEditable(treeViewQuery.data) : false),
-    [forceTreeEdit, treeViewQuery.data],
+    () =>
+      modelAccess.write &&
+      (forceTreeEdit || (treeViewQuery.data ? treeEditable(treeViewQuery.data) : false)),
+    [forceTreeEdit, treeViewQuery.data, modelAccess.write],
   );
 
   const treeRowActions = useMemo(
@@ -1229,7 +1292,7 @@ export function ModelWorkspace(props: {
   );
 
   async function commitTreeCell(id: number, field: string, value: unknown) {
-    if (!client) return;
+    if (!client || !modelAccess.write) return;
     try {
       setNotice(`Writing ${field}…`);
       await client.model(
@@ -1253,7 +1316,11 @@ export function ModelWorkspace(props: {
     if (!client) return;
     selectId(id);
     if (isActionButton(action.name, action.type) && props.onOpenAction) {
-      props.onOpenAction(action.name, `tree-button:${action.name}`);
+      props.onOpenAction(
+        action.name,
+        `tree-button:${action.name}`,
+        buttonRpcContext(rpcContext, props.model, [id]),
+      );
       props.onHistory?.(`tree-button:action:${action.name}`);
       return;
     }
@@ -1275,7 +1342,7 @@ export function ModelWorkspace(props: {
   }
 
   async function addTreeRow() {
-    if (!client) return;
+    if (!client || !modelAccess.create) return;
     setNotice("Creating row…");
     try {
       const fieldNames = columns.map((c) => c.name).filter((n) => n !== "id");
@@ -1308,7 +1375,7 @@ export function ModelWorkspace(props: {
   );
 
   async function createCalendarAt(startIso: string, endIso: string | null) {
-    if (!client) return;
+    if (!client || !modelAccess.create) return;
     const startField = calendarSpec?.dtstart ?? "start";
     const endField = calendarSpec?.dtend;
     setNotice("Creating calendar event…");
@@ -1338,7 +1405,7 @@ export function ModelWorkspace(props: {
   }
 
   async function dropCalendarEvent(id: number, startIso: string, endIso: string | null) {
-    if (!client) return;
+    if (!client || !modelAccess.write) return;
     const startField = calendarSpec?.dtstart ?? "start";
     const endField = calendarSpec?.dtend;
     const values: JsonObject = {
@@ -1403,7 +1470,7 @@ export function ModelWorkspace(props: {
 
   const graphInsight = useMemo(() => summarizeSeries(graphData), [graphData]);
 
-  const aclWarning = strictAclCoach(props.model, aclQuery.data ?? null);
+  const aclWarning = strictAclCoach(props.model, aclRowsQuery.data ?? null);
   const listState = !listDomainResult.ok
     ? "error"
     : listQuery.isLoading
@@ -1545,10 +1612,13 @@ export function ModelWorkspace(props: {
         />
         <WorkspaceListActionToolbar
           clientAvailable={Boolean(client)}
+          canCreate={modelAccess.create}
+          canWrite={modelAccess.write}
+          canDelete={modelAccess.delete}
           hasFocusedRecord={Boolean(selectedId)}
           multiSelectedCount={selectedIds.length}
           visibleRowCount={listQuery.data?.length ?? 0}
-          inlineEditActive={forceTreeEdit}
+          inlineEditActive={forceTreeEdit && modelAccess.write}
           treeEditable={treeIsEditable}
           onNew={() => void startNew()}
           onRefresh={() => {
@@ -1559,7 +1629,9 @@ export function ModelWorkspace(props: {
             void listQuery.refetch();
           }}
           onSelectView={setViewMode}
-          onToggleInlineEdit={() => setForceTreeEdit((value) => !value)}
+          onToggleInlineEdit={() => {
+            if (modelAccess.write) setForceTreeEdit((value) => !value);
+          }}
           onDelete={() => requestDelete(effectiveSelectedIds(selectedIds, selectedId))}
           onCopy={() => void copySelected()}
           onExportCsv={() => setCsvExportOpen(true)}
@@ -1648,14 +1720,20 @@ export function ModelWorkspace(props: {
           {viewMode === "calendar" ? (
             <CalendarView
               events={calendarEvents}
-              editable
+              editable={modelAccess.write}
               onSelect={(id) => {
                 selectId(id);
                 leaveWriteMode();
                 props.onHistory?.("open");
               }}
-              onCreateAt={(start, end) => void createCalendarAt(start, end)}
-              onEventDrop={(id, start, end) => void dropCalendarEvent(id, start, end)}
+              onCreateAt={
+                modelAccess.create ? (start, end) => void createCalendarAt(start, end) : undefined
+              }
+              onEventDrop={
+                modelAccess.write
+                  ? (id, start, end) => void dropCalendarEvent(id, start, end)
+                  : undefined
+              }
             />
           ) : viewMode === "graph" ? (
             <GraphView
@@ -1785,6 +1863,9 @@ export function ModelWorkspace(props: {
         }
       >
         {aclWarning ? <Alert tone="muted">{aclWarning.message}</Alert> : null}
+        {modelAccessQuery.isError ? (
+          <Alert tone="danger">{t("workspace.accessUnavailable")}</Alert>
+        ) : null}
         {formViewQuery.isError ? (
           <Alert tone="danger">
             Form view failed:{" "}
@@ -1803,10 +1884,14 @@ export function ModelWorkspace(props: {
           isDirty={isDirty}
           onChangePending={onChangePending || newDefaultsPending}
           clientAvailable={Boolean(client)}
+          canCreate={modelAccess.create}
+          canWrite={modelAccess.write}
+          canDelete={modelAccess.delete}
           hasFocusedRecord={Boolean(selectedId)}
           canSave={canSave}
           savePending={saveMutation.isPending}
           onToggleMode={() => {
+            if (!canModifyCurrent) return;
             if (mode === "write" && !confirmDiscard()) return;
             if (mode === "write") {
               const restored = screenAfterDiscard(
@@ -1841,6 +1926,7 @@ export function ModelWorkspace(props: {
             currentValues={draft}
             onClose={() => setShowHistory(false)}
             onRestore={(values) => {
+              if (!modelAccess.write) return;
               const {
                 id: _id,
                 write_date: _wd,
@@ -1865,12 +1951,13 @@ export function ModelWorkspace(props: {
         <WorkspaceKeywordActions
           model={props.model}
           recordId={selectedId}
+          context={rpcContext}
           onOpen={props.onOpenAction}
         />
         {formViewQuery.data
           ? renderView(formViewQuery.data, {
               values: draft,
-              mode: newDefaultsPending ? "read" : mode,
+              mode: newDefaultsPending || !canModifyCurrent ? "read" : mode,
               density,
               model: props.model,
               onChange: handleFieldChange,

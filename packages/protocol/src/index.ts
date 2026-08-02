@@ -3,7 +3,12 @@ import { sessionAuthorization } from "./auth";
 export { sessionAuthorization } from "./auth";
 export { pollBus } from "./bus";
 export { BusClient, type BusClientOptions, type BusMessage } from "./busClient";
-export { modelHasAccessRows } from "./acl";
+export {
+  getModelAccess,
+  modelHasAccessRows,
+  READ_ONLY_MODEL_ACCESS,
+  type ModelAccess,
+} from "./acl";
 export {
   openActionUrl,
   resolveAction,

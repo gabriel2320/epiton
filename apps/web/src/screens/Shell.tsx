@@ -25,6 +25,7 @@ import { applyShellDataset, setShellTitle } from "../lib/nativeShell";
 import { clearSecureSession } from "../lib/secureSessionBridge";
 import { clearClientAuthentication } from "../lib/sessionBoundary";
 import { useAppStore } from "../lib/store";
+import { composeActionContext } from "./actionContext";
 
 const ModelWorkspace = lazy(() =>
   import("../components/ModelWorkspace").then((m) => ({ default: m.ModelWorkspace })),
@@ -414,7 +415,7 @@ export function Shell() {
         id: null,
         label: resolved.name ?? resolved.model,
         domain: resolved.domain,
-        context: inheritedContext ?? resolved.context,
+        context: composeActionContext(sessionContext, resolved.context, inheritedContext),
         views: resolved.views,
         domains: resolved.domains,
       };
@@ -753,7 +754,9 @@ export function Shell() {
                 pushFrame(model, id);
                 setHistory((h) => [...h, { model, action: "stack:push" }]);
               }}
-              onOpenAction={(ref, source) => void openWorkspace(ref, source)}
+              onOpenAction={(ref, source, context) =>
+                void openWorkspace(ref, source, false, context)
+              }
               onHistory={(action) => setHistory((h) => [...h, { model: active, action }])}
             />
           </Suspense>

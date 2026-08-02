@@ -3,6 +3,9 @@ export type { WorkspaceListViewMode } from "./workspaceNavigation";
 
 export interface ListActionAvailabilityInput {
   clientAvailable: boolean;
+  canCreate: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
   hasFocusedRecord: boolean;
   multiSelectedCount: number;
   visibleRowCount: number;
@@ -11,6 +14,9 @@ export interface ListActionAvailabilityInput {
 export interface RecordActionAvailabilityInput {
   mode: "read" | "write";
   clientAvailable: boolean;
+  canCreate: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
   hasFocusedRecord: boolean;
   canSave: boolean;
   savePending: boolean;
@@ -20,21 +26,27 @@ export interface RecordActionAvailabilityInput {
 export function listActionAvailability(input: ListActionAvailabilityInput) {
   const hasSelection = input.multiSelectedCount > 0 || input.hasFocusedRecord;
   return {
-    deleteDisabled: !hasSelection,
-    copyDisabled: !input.clientAvailable || !hasSelection,
+    newDisabled: !input.clientAvailable || !input.canCreate,
+    inlineEditDisabled: !input.clientAvailable || !input.canWrite,
+    deleteDisabled: !input.clientAvailable || !input.canDelete || !hasSelection,
+    copyDisabled: !input.clientAvailable || !input.canCreate || !hasSelection,
     exportDisabled: !input.clientAvailable || (!hasSelection && input.visibleRowCount === 0),
-    importDisabled: !input.clientAvailable,
+    importDisabled: !input.clientAvailable || !input.canCreate,
   };
 }
 
 /** Pure availability contract shared by the selected-record action toolbar. */
 export function recordActionAvailability(input: RecordActionAvailabilityInput) {
+  const canModify = input.hasFocusedRecord ? input.canWrite : input.canCreate;
   return {
     modeDisabled:
-      input.savePending || (input.mode === "read" && (!input.clientAvailable || !input.canSave)),
-    saveDisabled: input.savePending || !input.canSave,
-    deleteDisabled: !input.hasFocusedRecord,
-    copyDisabled: !input.clientAvailable || !input.hasFocusedRecord,
+      input.savePending ||
+      !input.clientAvailable ||
+      !canModify ||
+      (input.mode === "read" && !input.canSave),
+    saveDisabled: input.savePending || !canModify || !input.canSave,
+    deleteDisabled: !input.clientAvailable || !input.canDelete || !input.hasFocusedRecord,
+    copyDisabled: !input.clientAvailable || !input.canCreate || !input.hasFocusedRecord,
     historyDisabled: !input.hasFocusedRecord,
     emailDisabled: !input.hasFocusedRecord,
   };

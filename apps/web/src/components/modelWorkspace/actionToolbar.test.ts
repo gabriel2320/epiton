@@ -11,11 +11,16 @@ describe("actionToolbar", () => {
     expect(
       listActionAvailability({
         clientAvailable: false,
+        canCreate: false,
+        canWrite: false,
+        canDelete: false,
         hasFocusedRecord: false,
         multiSelectedCount: 0,
         visibleRowCount: 0,
       }),
     ).toEqual({
+      newDisabled: true,
+      inlineEditDisabled: true,
       deleteDisabled: true,
       copyDisabled: true,
       exportDisabled: true,
@@ -25,11 +30,16 @@ describe("actionToolbar", () => {
     expect(
       listActionAvailability({
         clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
         hasFocusedRecord: false,
         multiSelectedCount: 0,
         visibleRowCount: 4,
       }),
     ).toMatchObject({
+      newDisabled: false,
+      inlineEditDisabled: false,
       deleteDisabled: true,
       copyDisabled: true,
       exportDisabled: false,
@@ -39,11 +49,16 @@ describe("actionToolbar", () => {
     expect(
       listActionAvailability({
         clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
         hasFocusedRecord: false,
         multiSelectedCount: 2,
         visibleRowCount: 0,
       }),
     ).toEqual({
+      newDisabled: false,
+      inlineEditDisabled: false,
       deleteDisabled: false,
       copyDisabled: false,
       exportDisabled: false,
@@ -56,6 +71,9 @@ describe("actionToolbar", () => {
       recordActionAvailability({
         mode: "read",
         clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
         hasFocusedRecord: false,
         canSave: true,
         savePending: false,
@@ -73,6 +91,9 @@ describe("actionToolbar", () => {
       recordActionAvailability({
         mode: "write",
         clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
         hasFocusedRecord: true,
         canSave: true,
         savePending: true,
@@ -92,6 +113,9 @@ describe("actionToolbar", () => {
       recordActionAvailability({
         mode: "read",
         clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
         hasFocusedRecord: true,
         canSave: false,
         savePending: false,
@@ -102,11 +126,48 @@ describe("actionToolbar", () => {
       recordActionAvailability({
         mode: "write",
         clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
         hasFocusedRecord: true,
         canSave: false,
         savePending: false,
       }).modeDisabled,
     ).toBe(false);
+  });
+
+  it("fails closed for every mutation the backend denies", () => {
+    expect(
+      listActionAvailability({
+        clientAvailable: true,
+        canCreate: false,
+        canWrite: false,
+        canDelete: false,
+        hasFocusedRecord: true,
+        multiSelectedCount: 1,
+        visibleRowCount: 1,
+      }),
+    ).toMatchObject({
+      newDisabled: true,
+      inlineEditDisabled: true,
+      deleteDisabled: true,
+      copyDisabled: true,
+      importDisabled: true,
+      exportDisabled: false,
+    });
+
+    expect(
+      recordActionAvailability({
+        mode: "read",
+        clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: false,
+        hasFocusedRecord: true,
+        canSave: true,
+        savePending: false,
+      }).deleteDisabled,
+    ).toBe(true);
   });
 
   it("recognizes Tryton action references without treating ordinary methods as actions", () => {

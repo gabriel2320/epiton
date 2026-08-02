@@ -607,6 +607,14 @@ export async function installMockTryton(
       return true;
     }
     if (method === "model.ir.model.access.search_read") return [{ id: 1 }];
+    if (method === "model.ir.model.access.get_access") {
+      const models = Array.isArray(params[0]) ? params[0] : [];
+      return Object.fromEntries(
+        models
+          .filter((model): model is string => typeof model === "string")
+          .map((model) => [model, { read: true, write: true, create: true, delete: true }]),
+      );
+    }
     if (method === "model.ir.action.keyword.get_keyword") return [];
 
     if (

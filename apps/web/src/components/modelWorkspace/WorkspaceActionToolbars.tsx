@@ -1,3 +1,4 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Badge, Button } from "@epiton/ui";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,6 +8,9 @@ import type { WorkspaceListViewMode } from "./workspaceNavigation";
 
 export function WorkspaceListActionToolbar(props: {
   clientAvailable: boolean;
+  canCreate: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
   hasFocusedRecord: boolean;
   multiSelectedCount: number;
   visibleRowCount: number;
@@ -27,13 +31,14 @@ export function WorkspaceListActionToolbar(props: {
 
   return (
     <div className="epiton-toolbar">
-      <Button variant="primary" onClick={props.onNew}>
+      <Button variant="primary" disabled={availability.newDisabled} onClick={props.onNew}>
         {t("workspace.new")}
       </Button>
       <Button onClick={props.onRefresh}>{t("workspace.refresh")}</Button>
       <Button onClick={() => props.onSelectView("tree")}>{t("workspace.tree")}</Button>
       <Button
         variant={props.inlineEditActive || props.treeEditable ? "primary" : "default"}
+        disabled={availability.inlineEditDisabled}
         onClick={props.onToggleInlineEdit}
       >
         {t("workspace.inlineEdit")}
@@ -79,6 +84,9 @@ export function WorkspaceRecordActionToolbar(props: {
   isDirty: boolean;
   onChangePending: boolean;
   clientAvailable: boolean;
+  canCreate: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
   hasFocusedRecord: boolean;
   canSave: boolean;
   savePending: boolean;
@@ -124,8 +132,16 @@ export function WorkspaceRecordActionToolbar(props: {
 export function WorkspaceKeywordActions(props: {
   model: string;
   recordId: number | null;
-  onOpen?: (ref: string, source: string) => void;
+  context: JsonObject;
+  onOpen?: (ref: string, source: string, context: JsonObject) => void;
 }) {
   if (!props.onOpen) return null;
-  return <RecordActionsMenu model={props.model} recordId={props.recordId} onOpen={props.onOpen} />;
+  return (
+    <RecordActionsMenu
+      model={props.model}
+      recordId={props.recordId}
+      context={props.context}
+      onOpen={props.onOpen}
+    />
+  );
 }
