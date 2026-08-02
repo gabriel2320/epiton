@@ -57,6 +57,7 @@ writing it independently.
 | Canary contract tests | `pnpm check:tryton-canary` |
 | Gateway tests | `cd apps/gateway && cargo test` |
 | Mock browser E2E | `pnpm test:e2e:mock` |
+| Client accessibility/performance release baseline | `pnpm test:e2e:release` |
 | Disposable live browser E2E | `EPITON_E2E_LAB=disposable pnpm test:e2e:live` |
 | Proteus oracle (7 / 8) | `pnpm lab:oracle:7` / `pnpm lab:oracle:8` |
 

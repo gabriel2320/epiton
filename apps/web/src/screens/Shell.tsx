@@ -479,7 +479,7 @@ export function Shell() {
 
   return (
     <div className="epiton-shell" data-layout={layout.layout} data-density={density}>
-      <aside className="epiton-sidebar">
+      <aside className="epiton-sidebar" aria-label={t("shell.menu")}>
         <div className="epiton-brand">{t("app.brand")}</div>
         <p style={{ color: "var(--epiton-muted)", marginTop: "0.35rem" }}>
           {session?.login} · layout {layout.layout}
@@ -544,12 +544,20 @@ export function Shell() {
       <main className="epiton-main">
         <div className="epiton-topbar">
           <div className="epiton-toolbar">
-            <select value={preset} onChange={(e) => setPreset(e.target.value as typeof preset)}>
+            <select
+              aria-label="Workspace preset"
+              value={preset}
+              onChange={(e) => setPreset(e.target.value as typeof preset)}
+            >
               <option value="general">General</option>
               <option value="accounting">Accounting</option>
               <option value="warehouse">Warehouse</option>
             </select>
-            <select value={density} onChange={(e) => setDensity(e.target.value as typeof density)}>
+            <select
+              aria-label="Workspace density"
+              value={density}
+              onChange={(e) => setDensity(e.target.value as typeof density)}
+            >
               <option value="comfortable">Comfortable</option>
               <option value="compact">Compact</option>
             </select>

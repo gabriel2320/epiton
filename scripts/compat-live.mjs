@@ -147,52 +147,66 @@ async function main() {
           field.name !== changedField.name && field.on_change_with?.includes(changedField.name),
       );
       const rows = await client.searchRead("party.party", [], ["id"], 0, 1);
-      const parentId = rows[0] ? Number(rows[0].id) : null;
-      if (!parentId) throw new Error("no synthetic party row for relation probe");
-
-      const defaults = await client.model(parentField.relation, "default_get", [
-        Object.keys(childForm.fields),
-        {},
-      ]);
-      const values = {
-        ...(defaults && typeof defaults === "object" && !Array.isArray(defaults) ? defaults : {}),
-        id: -1,
-        party: parentId,
-        code: "EPITON-LIVE-RELATION",
-        [changedField.name]: null,
-      };
-      const dependentNames = dependents.map((field) => field.name);
-      const argumentNames = [
-        "id",
-        ...dependentNames,
-        ...dependents.flatMap((field) => field.on_change_with ?? []),
-      ];
-      const args = buildOnChangeArgs(values, [...new Set(argumentNames)], childForm.fields);
-      const patch = await client.model(parentField.relation, "on_change_with", [
-        args,
-        dependentNames,
-      ]);
-      if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-        throw new Error("on_change_with did not return an object patch");
+      let parentId = rows[0] ? Number(rows[0].id) : null;
+      let createdParentId = null;
+      if (!parentId) {
+        const created = await client.model("party.party", "create", [
+          [{ name: `EpitonRelation ${Date.now()}`, active: true }],
+        ]);
+        parentId = Array.isArray(created) ? Number(created[0]) : Number(created);
+        if (!Number.isFinite(parentId)) throw new Error("could not create relation probe parent");
+        createdParentId = parentId;
       }
 
-      const validation = await preValidateRecord(
-        client,
-        parentField.relation,
-        { ...values, ...patch },
-        childForm.fields,
-      );
-      if (validation !== null) {
-        throw new Error(`pre_validate returned ${JSON.stringify(validation)}`);
+      try {
+        const defaults = await client.model(parentField.relation, "default_get", [
+          Object.keys(childForm.fields),
+          {},
+        ]);
+        const values = {
+          ...(defaults && typeof defaults === "object" && !Array.isArray(defaults) ? defaults : {}),
+          id: -1,
+          party: parentId,
+          code: "EPITON-LIVE-RELATION",
+          [changedField.name]: null,
+        };
+        const dependentNames = dependents.map((field) => field.name);
+        const argumentNames = [
+          "id",
+          ...dependentNames,
+          ...dependents.flatMap((field) => field.on_change_with ?? []),
+        ];
+        const args = buildOnChangeArgs(values, [...new Set(argumentNames)], childForm.fields);
+        const patch = await client.model(parentField.relation, "on_change_with", [
+          args,
+          dependentNames,
+        ]);
+        if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+          throw new Error("on_change_with did not return an object patch");
+        }
+
+        const validation = await preValidateRecord(
+          client,
+          parentField.relation,
+          { ...values, ...patch },
+          childForm.fields,
+        );
+        if (validation !== null) {
+          throw new Error(`pre_validate returned ${JSON.stringify(validation)}`);
+        }
+        return {
+          parentField: parentField.name,
+          relation: parentField.relation,
+          changedField: changedField.name,
+          dependents: dependentNames,
+          patchKeys: Object.keys(patch),
+          validation: "accepted",
+        };
+      } finally {
+        if (createdParentId != null) {
+          await client.model("party.party", "delete", [[createdParentId]]);
+        }
       }
-      return {
-        parentField: parentField.name,
-        relation: parentField.relation,
-        changedField: changedField.name,
-        dependents: dependentNames,
-        patchKeys: Object.keys(patch),
-        validation: "accepted",
-      };
     },
   );
 

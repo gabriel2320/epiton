@@ -401,3 +401,69 @@ Push: not done
 - GNU Health remains an optional, separately pinned metadata-only lab claim;
   PHI readiness, clinical certification, and penetration testing are not
   inferred from this client-depth closure.
+
+---
+
+# Epitón audit delta — 2026-08-02 (client release candidate)
+
+The planned core-client slices L1–L7 are complete. This is a reproducible
+client release-candidate verdict, not a production authorization, security or
+WCAG certification, native signing/device receipt, PHI-readiness finding, or
+clinical-product claim.
+
+## Closed finding
+
+| ID | Previous severity | Finding | Closure |
+|----|-------------------|---------|---------|
+| G-10 | Low (ops) | Formal threat model / accessibility / performance budgets | `THREAT_MODEL.md` now records the focused browser/gateway/native boundaries and explicit exclusions. `pnpm test:e2e:release` enforces versioned accessibility and performance limits, and the gateway README plus `config/gateway-production.env.example` provide a reviewed deployment starting point. |
+
+## Verification snapshot
+
+```text
+Base: d101972 + L7 worktree
+Typecheck: PASS — 13/13 tasks
+Lint: PASS — 227 files
+Unit/contract tests: PASS — 207 tests (protocol 59, view-engine 75,
+  web 45, compat 19, intelligence 4, ui 5)
+Mock browser E2E: PASS — 16/16
+Release browser E2E: PASS — 1/1
+Next production E2E/CSP/PWA: PASS — 15/15
+Tryton 7 live protocol/browser: PASS — 21/21 + 1/1 CRUD
+Tryton 8 live protocol/browser: PASS — 21/21 + 1/1 CRUD
+Web production build: PASS — 1,672 modules; PWA 25 entries
+Bundle budget: PASS — largest JavaScript asset 468.1 KiB / 700 KiB
+Gateway release build: PASS — cargo build --release --locked in Docker
+git diff --check: PASS
+Push: not done
+```
+
+The standalone Chromium receipt recorded 505 DOM nodes, zero duplicate ids,
+zero unnamed interactive accessibility nodes, CLS 0, one 62 ms long task,
+41.5 ms DOMContentLoaded, 80.6 ms login-to-shell, and 888.3 ms
+menu-to-workspace. These local regression numbers are compared to the
+versioned budgets; they are not production SLOs or a representative field
+performance study.
+
+The live relation-boundary probe now creates and removes a synthetic temporary
+party when a fresh lab has no suitable row, so both supported series exercise
+the same 21-probe contract without depending on mutable lab history. The live
+browser fixture likewise follows the server-supplied Parties menu before CRUD.
+
+## Promotion boundary and residual risk
+
+- The Actions workflow now has one pnpm version authority (`packageManager`),
+  closing the bootstrap conflict that stopped recent remote runs before the
+  JavaScript gates. The native APK and Tauri DEB/AppImage jobs are defined, but
+  there is no first-green artifact receipt for this unpublished commit; no
+  native artifact claim is made.
+- The current host has no `cargo` executable. The gateway release image did
+  complete `cargo build --release --locked`, and CI defines locked RustSec,
+  format, test, and check gates. A remote green run remains promotion evidence,
+  not unfinished client behavior.
+- Real-device lifecycle checks, release signing/notarization, deployment TLS,
+  identity/rotation operations, penetration testing, a formal WCAG audit,
+  production load data, and incident exercises remain production/native
+  acceptance work.
+- GNU Health remains an optional metadata-only discovery track. No PHI,
+  clinical workflow, certification, or HIS claim follows from this release
+  candidate.

@@ -103,9 +103,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="epiton-login">
+    <main className="epiton-login">
       <motion.form
         className="epiton-login-card"
+        aria-label={t("login.connect")}
         onSubmit={form.handleSubmit(onSubmit)}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -166,6 +167,6 @@ export function LoginPage() {
           </Button>
         </Panel>
       </motion.form>
-    </div>
+    </main>
   );
 }

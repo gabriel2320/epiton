@@ -65,7 +65,7 @@ These are **not** Tryton wins — listed so the comparison stays honest:
 
 | Area | Note |
 |------|------|
-| Session CRUD / act_window / menu favorites / keywords | Live `compat:live` 21/21 on Tryton 7 (including relation-child boundary) and prior 20/20 on Tryton 8 |
+| Session CRUD / act_window / menu favorites / keywords | Live `compat:live` 21/21 on Tryton 7 and 21/21 on Tryton 8, including the transient relation-child boundary; browser CRUD passes on both labs |
 | Domain tabs + `search_count` badges | Implemented |
 | Client analytics overlays | Boards/graphs aggregate `search_read` with insights |
 | Gateway (CSP, rate limit, strict ACL coach) | Sao has no equivalent Axum edge |
@@ -105,7 +105,7 @@ agent ownership in [`AGENT_BRIDGE.md`](AGENT_BRIDGE.md).
 - **Do not rebuild Screen or Board from zero.** Parent-owned relation commands,
   record-isolation guards, and tree/graph/form board panes are already
   `Improved`.
-- **Evidence comes first.** The 21/21 Tryton 7 and 20/20 Tryton 8 live receipts prove the wire, not deep
+- **Evidence comes first.** The 21/21 Tryton 7 and 21/21 Tryton 8 live receipts prove the wire, not deep
   browser behavior. Relation queues, board actions, wizards, reports, and
   calendars need deterministic browser scenarios.
 - **Reduce the workspace hotspot before adding more UI state.**
@@ -186,7 +186,7 @@ business truth outside trytond.
 
 | Track | Evidence | Commits / gates (local, 2026-07-31) |
 |-------|----------|-------------------------------------|
-| Session wire + CRUD | `compat:live` 21/21 on Tryton 7, including transient relation child; prior 20/20 on Tryton 8 | CI + lab receipts |
+| Session wire + CRUD | `compat:live` 21/21 on Tryton 7 and 21/21 on Tryton 8, including transient relation child; browser CRUD passes on both labs | Local lab receipts; CI matrix defined |
 | Proteus lab oracle | Isolated docker oracle 4/4 | Never product runtime |
 | Screen host + parent O2M/M2M queue | Hydrate flag; pristine `default_get`; generation + last-request-wins `on_change`; Save flushes pending work | `06627c7`, `7a7f0fe` (PASS) |
 | Browser relation / isolation | One parent `write` for queued create+edit; late A read cannot redirect B | `75a6e44` (PASS); mock e2e 8/8 |
@@ -204,7 +204,7 @@ business truth outside trytond.
 | **W4 Form density** | Sao-shaped colspan / expand / paned | `view-engine` parse/render | AHEAD L4 |
 | **W5 Domain UX** | Typed filter builder ↔ Tryton domains | `view-engine` + workspace search | AHEAD L5 |
 | **W6 Board polish** | Wizard/report via shared shell host | Board + Shell action host | AHEAD L6; AUDIT smoke #4 |
-| **W7 Release / ops** | Threat model, a11y/perf, GH metadata lab | gateway docs, `GNU_HEALTH.md` | AUDIT A-01/A-09; L7 |
+| **W7 Release / ops** | Threat model, executable a11y/perf baseline, production gateway checklist; optional GH metadata lab | gateway docs, `THREAT_MODEL.md`, release browser receipt | AUDIT A-01/A-09; L7 |
 | **W8 Platform shells** | Verify memory-only lifecycle and deletion-only migration on real devices | Tauri / Capacitor bridges | AUDIT A-05 |
 
 ### L1 — Browser depth evidence (atomic slices)
@@ -305,7 +305,7 @@ preserves `active_id(s)`, `active_model`, and action context. The dedicated
 without a second embedded runtime. Deeper list-form/calendar pane work remains
 a **separately justified** follow-up, not a release blocker.
 
-### L7 — Release and compatibility gate
+### L7 — Release and compatibility gate — DONE (2026-08-02)
 
 | Gate | Command / artifact | Claim it unlocks |
 |------|--------------------|------------------|
@@ -313,9 +313,22 @@ a **separately justified** follow-up, not a release blocker.
 | Mock browser | `pnpm test:e2e:mock` | UI-depth evidence |
 | Live protocol | `pnpm compat:live` (7 and 8) | Wire parity |
 | Gateway | `cargo test` / `cargo check` in `apps/gateway` | Production-web edge |
-| Threat model + a11y/perf budgets | Documented checklist | Pre-production claim |
-| GNU Health metadata lab | Pinned synthetic GH + `pnpm gh:check` | Module discovery only — **not** PHI |
+| Threat model + a11y/perf budgets | `pnpm test:e2e:release`, `config/client-release-budgets.json`, `THREAT_MODEL.md`, gateway production checklist | Reproducible client release baseline — **not** a pentest or WCAG certification |
+| GNU Health metadata lab | Optional pinned synthetic GH + `pnpm gh:check` | Module discovery only — **not** PHI and not a core-client blocker |
 | New dated audit | Append section to `AUDIT.md` | Point-in-time posture |
+
+The core-client release gate is closed. The standalone release browser receipt
+records zero unnamed interactive nodes, zero duplicate ids, 505 DOM nodes,
+CLS 0, a 62 ms maximum/total long task, 41.5 ms DOMContentLoaded, 80.6 ms
+login-to-shell, and 888.3 ms menu-to-workspace on the local Chromium runner.
+The deterministic mock suite passes 16/16, the production Next host passes
+15/15, and both live Tryton labs pass protocol 21/21 plus browser CRUD.
+
+The CI workflow now takes its pnpm version from `packageManager`, removing the
+bootstrap conflict that prevented recent remote jobs from reaching the gates.
+Its unsigned APK and Tauri DEB/AppImage producers remain promotion evidence
+pending the first green run after publication; no native artifact, signing,
+device, penetration-test, WCAG, PHI, or clinical claim is inferred here.
 
 ### Out of scope (hard)
 
@@ -335,10 +348,12 @@ a **separately justified** follow-up, not a release blocker.
 | Reviewer | Read-only until handoff; `CURSOR-REVIEW: PASS` or `FINDINGS`; commit if implementer's `.git` is RO |
 | Human | Authority for push, PHI, production, license exceptions |
 
-Default next implementation slice: **L7 release and compatibility gate**.
-Preserve the frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md),
+The planned core-client implementation slices are complete. Subsequent work is
+governed promotion (remote/native artifacts, signing, device acceptance,
+deployment security review) or a separately justified optional extension; it
+must preserve the frozen [`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md),
 responsive layout receipts, strict domain validation, same-origin gateway, and
-memory-only authority boundary while adding only evidence and release controls.
+memory-only authority boundary.
 
 ### Milestone map (relative, not calendar)
 
@@ -349,7 +364,7 @@ M2  L2 workspace decomposition    ████ DONE
 M3  L3 nested Screen API+wire     ████ DONE (L3.1 contract + L3.2 wire + L3.3 evidence)
 M4  L4 form density ‖ L5 filters  ████ DONE
 M5  L6 board polish (optional)    ████ DONE (shared Shell receipt)
-M6  L7 release candidate          ░░░ NEXT
+M6  L7 release candidate          ████ DONE
 ```
 
 ## How to re-check
@@ -358,6 +373,8 @@ M6  L7 release candidate          ░░░ NEXT
 pnpm --filter @epiton/compat test   # offline contracts
 pnpm compat:live                    # live RPC for the selected lab tier
 pnpm test:e2e:mock                  # deterministic browser boundary
+pnpm test:e2e:release               # executable accessibility/performance baseline
+pnpm test:e2e:next                  # production Next/CSP/PWA host
 EPITON_E2E_LAB=disposable pnpm test:e2e:live
 ```
 

@@ -63,6 +63,9 @@ When in doubt: read the Tryton docs / live RPC, then write original TypeScript.
 
 ## Security controls (client + gateway)
 
+The scoped threats, trust boundaries, residual risk, and production acceptance
+triggers are maintained in [`THREAT_MODEL.md`](THREAT_MODEL.md).
+
 | Control | Location |
 |---------|----------|
 | Session in memory (web) | `@epiton/web` store |
@@ -79,6 +82,7 @@ When in doubt: read the Tryton docs / live RPC, then write original TypeScript.
 | Correlation id | `X-Correlation-Id` |
 | Deny-only strict ACL guard on mutations | `EPITON_STRICT_ACL=true` |
 | Bundle size budget | `pnpm check:bundle` |
+| Browser accessibility/performance regression baseline | `pnpm test:e2e:release` with versioned limits in `config/client-release-budgets.json` |
 | CSP topology | Production browser must use same-origin edge → gateway → trytond |
 
 Audit logs on the gateway must not include response bodies or PHI payloads.

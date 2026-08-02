@@ -60,9 +60,10 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | REST | Bearer application tokens | Not probed (default false) | Do not claim compatibility |
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + in-app navigation; backend identifiers stay out of URL/history |
 | CSP | Web security headers | Prod hardened | Production web is pinned to a same-origin gateway with `connect-src 'self'`; Next adds a per-request script nonce plus `strict-dynamic`, proved in a production browser |
-| Next.js App Router host | Same Epitón application and contracts | N1 partial | Build and 14-scenario production E2E/CSP/PWA receipt pass; first green CI APK and Tauri bundle receipts remain before the N2 web cutover |
+| Accessibility / performance release baseline | Browser semantics and versioned budgets | Release regression gate | `pnpm test:e2e:release` covers keyboard login/menu/search, semantic landmarks and names, duplicate ids, DOM size, long tasks, layout shift, and workflow timings; this is not a WCAG certification or field performance study |
+| Next.js App Router host | Same Epitón application and contracts | N1 partial | Build and 15-scenario production E2E/CSP/PWA receipt pass; first green CI APK and Tauri bundle receipts remain before the N2 web cutover |
 | Series 7.0 LTS | Docker lab image | Supported tier | Live protocol 21/21, including transient relation-child boundary + Proteus oracle 4/4 + browser CRUD |
-| Series 8.x | Docker lab image + RPC fallback | Supported tier | CI protocol 20/20 + Proteus oracle 4/4 + browser CRUD; separate Postgres volume |
+| Series 8.x | Docker lab image + RPC fallback | Supported tier | Live protocol 21/21, including transient relation-child boundary + Proteus oracle 4/4 + browser CRUD; separate Postgres volume |
 | Series 9.x | Future official artifacts + capability probes | Future canary, not claimed | Scheduled official-source canary is `waiting` as of 2026-08-01; do not infer support from 7/8 receipts |
 | Sao coexistence | Same trytond | Supported | Shared backend authority; Epitón does not share or persist client state |
 | Proteus / XML-RPC | Server-side reference client | Lab oracle only | Exact 7/8 pins; synthetic CRUD; redacted receipt; never runtime/UI |
@@ -117,6 +118,11 @@ are purged on logout, authenticated 401, and page lifecycle teardown. Legacy
 adapters are deletion-only. RPC and bus requests use `no-store`, omit ambient
 credentials and suppress referrers; the PWA cache contains static build assets
 only.
+
+The client release regression fixtures are `pnpm test:e2e:mock`,
+`pnpm test:e2e:release`, `pnpm test:e2e:next`, and the disposable-lab live
+browser check. Production acceptance remains governed by
+[`THREAT_MODEL.md`](THREAT_MODEL.md) and the gateway production checklist.
 
 ## Fixtures
 

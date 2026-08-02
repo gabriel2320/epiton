@@ -15,7 +15,10 @@ test("live disposable lab crosses browser, protocol, gateway and trytond", async
   await page.getByLabel("User").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Enter Epiton" }).click();
-  await expect(page.getByRole("tab", { name: "party.party" })).toBeVisible();
+
+  const sidebar = page.getByRole("complementary", { name: "Menu" });
+  await sidebar.getByRole("button", { name: "Parties", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "party.party", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "New", exact: true }).first().click();
   await page.getByLabel("Name").fill(marker);

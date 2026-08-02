@@ -1,0 +1,15 @@
+{
+  "accessibility": {
+    "duplicateIds": 0,
+    "unnamedInteractiveNodes": 0
+  },
+  "performance": {
+    "navigationDomContentLoadedMs": 5000,
+    "loginToShellMs": 8000,
+    "menuToWorkspaceMs": 8000,
+    "maxDomNodes": 2500,
+    "maxSingleLongTaskMs": 1000,
+    "maxTotalLongTaskMs": 2000,
+    "maxCumulativeLayoutShift": 0.25
+  }
+}

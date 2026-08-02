@@ -114,7 +114,7 @@ styles, stores, and translators. Product behavior may not diverge between
 hosts. A host-specific adapter may inject environment and document concerns,
 but it must not contain Tryton behavior.
 
-### Current convergence receipt (2026-08-01)
+### Current convergence receipt (2026-08-02)
 
 - N0 is implemented in `apps/web/app`: App Router owns the document and mounts
   the shared `EpitonClient` through one client-provider island.
@@ -130,7 +130,7 @@ but it must not contain Tryton behavior.
   `script-src` uses the nonce with `strict-dynamic`, and RPC remains pinned to
   the same-origin gateway.
 - `pnpm test:e2e:next` builds and starts the production Next host, then proves
-  14 deterministic browser scenarios across login, workspace CRUD/relations,
+  15 deterministic browser scenarios across login, workspace CRUD/relations,
   board, wizard/report, calendar, response headers, nonce rotation, and the
   absence of CSP console violations. The same receipt installs the Next
   manifest and service worker, exercises an authenticated RPC flow, and proves
