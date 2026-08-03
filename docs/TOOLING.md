@@ -48,8 +48,14 @@ the product. The Next E2E gate qualifies the installable web PWA but does not
 replace native-shell receipts: CI now builds an Android debug APK and Linux
 Tauri DEB/AppImage bundles. Each native job emits `receipt.json` plus
 `SHA256SUMS`; push jobs attest those subjects with `actions/attest@v4`. Their
-first green Actions receipts are still required. Next request-time nonce/Proxy
-behavior remains server-hosted rather than being weakened into a static export.
+first green Actions receipts are still required. A separate manual
+`native-release-candidate.yml` workflow is restricted to clean `main`, reruns
+the quality gates, signs and verifies Android inside the protected
+`native-release-candidates` environment, and emits the exact Linux candidate
+pair for independent detached signing. It records non-promotable receipts and
+build attestations before upload; its first green run and all external approval
+evidence are still required. Next request-time nonce/Proxy behavior remains
+server-hosted rather than being weakened into a static export.
 
 ## Reproducible client toolchain
 
@@ -86,6 +92,13 @@ The policy deliberately classifies Android debug as `debug-only` and Linux as
 `unsigned`, both with `productionEligible: false`. GitHub's build attestation
 binds subjects to a workflow, but does not replace Android release signing,
 Linux platform signing, key custody, or device acceptance.
+
+The ordinary CI upload explicitly includes hidden paths because receipts live
+under `.artifacts/`. The protected candidate workflow signs the Android APK
+before hashing it; for Linux it hashes immutable DEB/AppImage bytes before the
+independent authority retains detached signatures. Android keystore secrets are
+platform-signing material only and never substitute for either Ed25519 approval
+authority.
 
 Release candidates remain non-promotable until
 `scripts/verify-native-release-promotion.mjs` validates both exact candidate

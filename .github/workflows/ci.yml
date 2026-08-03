@@ -122,6 +122,7 @@ jobs:
             .artifacts/native/linux-unsigned/receipt.json
             .artifacts/native/linux-unsigned/SHA256SUMS
           if-no-files-found: error
+          include-hidden-files: true
 
   mobile-android:
     runs-on: ubuntu-latest
@@ -185,6 +186,7 @@ jobs:
             .artifacts/native/android-debug/receipt.json
             .artifacts/native/android-debug/SHA256SUMS
           if-no-files-found: error
+          include-hidden-files: true
 
   lab-compat:
     runs-on: ubuntu-latest

@@ -42,6 +42,7 @@ writing it independently.
 | Next production CSP/PWA browser receipt | `pnpm test:e2e:next` |
 | Capacitor Android sync | `pnpm --filter @epiton/mobile sync:android` |
 | Android debug APK | `pnpm --filter @epiton/mobile build:android:debug` (JDK + Android SDK) |
+| Android unsigned release APK | `pnpm --filter @epiton/mobile build:android:release-unsigned` (sign before receipt) |
 | Tauri Linux bundles | `pnpm --filter @epiton/desktop build:linux` (Rust + Linux WebKit) |
 | Lab up (Tryton 7) | `pnpm lab:up` |
 | Lab up (Tryton 8) | `pnpm lab:up:8` |
@@ -94,6 +95,11 @@ delivery; do not fake live results.
   browser receipts, locked gateway cargo, Android debug APK and Linux Tauri
   bundles with SHA-256 receipts (plus attestations on push), and Tryton 7/8
   protocol/oracle/live-browser gates on push/PR.
+- **Protected candidate CI (`native-release-candidate.yml`):** manual dispatch
+  from clean `main`; quality gates first, then Android platform signing in the
+  reviewed environment and exact Linux candidate staging. Receipts and build
+  attestations are non-promotable until independent signature and physical-
+  device evidence passes `check:native-promotion`.
 - **Scheduled canary (`tryton-upstream-canary.yml`):** checks official PyPI,
   Tryton documentation, and container signals for 9.0. A release alert means
   “build and prove the 9.0 lab lane,” never “claim support.” Follow every

@@ -9,6 +9,7 @@
     "sync": "pnpm build:web && pnpm prepare:www && pnpm exec cap sync",
     "sync:android": "pnpm build:web && pnpm prepare:www && pnpm exec cap sync android",
     "build:android:debug": "pnpm sync:android && ./android/gradlew -p android assembleDebug",
+    "build:android:release-unsigned": "pnpm sync:android && ./android/gradlew -p android assembleRelease",
     "open:android": "pnpm exec cap open android",
     "open:ios": "pnpm exec cap open ios",
     "typecheck": "tsc -p tsconfig.json --noEmit",

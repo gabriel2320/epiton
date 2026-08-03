@@ -558,3 +558,165 @@ The remaining gates are migration of a representative GNU Health 5.0/Tryton 7
 database, PHI operating controls, clinical and Chilean regulatory approval,
 production deployment/incident exercises and the later modules. No claim from
 this delta extends beyond the central `health` slice.
+
+---
+
+# Epitón full audit — 2026-08-03 (three-layer architecture)
+
+Point-in-time review of the **local** Epitón monorepo at
+`/home/gabriel/epiton`, framed by
+[`THREE_LAYER_ARCHITECTURE.md`](THREE_LAYER_ARCHITECTURE.md). Complements prior
+deltas; does not erase them. Interactive canvas (three layers):
+[`epiton-three-layer-audit.canvas.tsx`](/home/gabriel/.cursor/projects/home-gabriel-epiton/canvases/epiton-three-layer-audit.canvas.tsx).
+
+**Scope:** architecture ownership, client depth, security/minimization,
+compatibility evidence, release/promotion posture. **Out of scope as claims:**
+PHI readiness, clinical certification, penetration test, WCAG certification,
+production promotion, Epione HIS equivalence.
+
+## Executive verdict
+
+| Dimension | Score | Notes |
+|-----------|-------|-------|
+| Layer 1 — Experience | Strong | Web + Next canary + thin native shells; workspace decomposed behind focused modules |
+| Layer 2 — Compatibility kernel | Strong | Protocol / view-engine / intelligence / gateway; Session JSON-RPC only |
+| Layer 3 — Authority | Strong (boundary) | trytond + PostgreSQL SoT preserved; GH `health` slice verified synthetically |
+| Sao/client depth | Good+ / RC | L1–L7 program closed; nested Screen exit integrity closed |
+| Security / minimization | Hardened baseline | Memory-only sessions; purge on logout/401; CSP + gateway caps |
+| Release / promotion | Candidate, not authorized | Local gates green in prior receipts; `main` unpublished; native first-green + signed promotion pending |
+| PHI / HIS | **Not claimed** | A-01 open by design |
+
+**Overall:** Epitón is a mature **Tryton-compatible client platform** with a
+reproducible release-candidate posture on synthetic labs (Tryton 7/8 + pinned
+GNU Health `health` slice). It is **not** a clinical system of record, not a
+Sao/GTK fork, and not production-authorized until remote CI, native promotion
+evidence, and human ops gates land.
+
+## Repository snapshot (local)
+
+```text
+Audited base: 38455c9 feat(release): enforce native promotion evidence
+Publication:  local main only; protected native-candidate delta included here
+              remains unpublished (no push)
+LOC approx (ts/tsx/rs, excl. node_modules/target):
+  apps/web            ~13.4k
+  packages/view-engine ~7.4k
+  packages/protocol    ~3.9k
+  apps/gateway         ~0.7k
+  packages/ui          ~0.5k
+  packages/intelligence ~0.3k
+  apps/desktop/mobile  thin adapters
+ModelWorkspace.tsx:   ~2307 lines (coordinator; extracts under modelWorkspace/)
+E2E specs:            12 Playwright entrypoints
+Docs hub:             17 markdown files under docs/
+```
+
+Evidence anchors: `COMPATIBILITY.md`, `TRYTON_AHEAD.md`, `THREAT_MODEL.md`,
+`CHILD_SCREEN_CONTRACT.md`, `GOVERNANCE.md`, `AGENT_BRIDGE.md` (solo-Codex ledger),
+`.github/workflows/ci.yml`, `config/native-release-promotion.json`.
+
+---
+
+## Layer 1 — Experience
+
+**Owner:** `apps/web` (Vite release + Next App Router canary), `@epiton/ui`,
+Tauri/Capacitor shells.
+
+| Finding | Severity | Status | Evidence |
+|---------|----------|--------|----------|
+| L1-01 Shared `EpitonClient` across Vite/Next | Strength | Closed | `apps/web/app`, `mount.tsx`; N0/N1 receipts |
+| L1-02 Workspace monolith reduced via extracts | Strength | Closed enough | `modelWorkspace/*` (lifecycle, save, selection, toolbar, search, filters, history, navigation) |
+| L1-03 Nested relation dirty-exit integrity | Strength | Closed | G-01 delta 2026-08-02; parent Save blocked until line accepted |
+| L1-04 Dense forms + domain filter builder | Strength | Closed | L4/L5; `form-layout` / `filter-builder` e2e |
+| L1-05 Board / wizard / report / calendar hosts | Strength | Closed | L1.2–L1.4 / L6; mock suite |
+| L1-06 Next host CSP nonce + PWA static-only | Strength | Closed (web) | `test:e2e:next` 15/15 prior receipt |
+| L1-07 Native shells thinner than web | Medium (product) | Open as depth | Protected candidate producer and promotion verifier are defined; first-green signed/device receipts remain external |
+| L1-08 ModelWorkspace still large coordinator | Low | Residual | ~2.3k lines; further extract optional, not a wire blocker |
+| L1-09 UI recipe consolidation | Low | Open | Prefer `@epiton/ui` Dialog recipes over duplicated wrappers |
+
+**Layer 1 verdict:** Production-web experience is deep and evidenced. Native is
+packaging-complete in CI definitions but not promotion-authorized. Do not fork
+Tryton behavior per host.
+
+---
+
+## Layer 2 — Compatibility kernel
+
+**Owner:** `@epiton/protocol`, `@epiton/view-engine`, `@epiton/intelligence`,
+`apps/gateway`.
+
+| Finding | Severity | Status | Evidence |
+|---------|----------|--------|----------|
+| L2-01 Session JSON-RPC + auto path fallback | Strength | Closed | Tryton 7/8 live 21/21 |
+| L2-02 Strict RPC correlation / envelope | Strength | Closed | B-03 |
+| L2-03 Child Screen contract frozen | Strength | Closed | `CHILD_SCREEN_CONTRACT.md`; O2M/M2M one parent write |
+| L2-04 PYSON / domains / typed filter encode | Strength | Closed | view-engine + L5 |
+| L2-05 Gateway: rate/body/response caps, ACL coach | Strength | Closed | S-02/B-06; gateway tests |
+| L2-06 Intelligence advisory-only | Strength | Closed | No auto create/write/delete |
+| L2-07 REST Bearer | Info | Not probed | A-04 — do not claim |
+| L2-08 Tryton 9 | Info | Future canary | `tryton-series-policy.json`; waiting |
+| L2-09 Proteus | Process | Lab oracle only | Never in protocol/web runtime |
+
+**Layer 2 verdict:** Kernel faithfully translates Sao-shaped Session contracts
+without owning business truth. Gateway is the required production-web edge.
+
+---
+
+## Layer 3 — Authority (trytond / PostgreSQL)
+
+**Owner:** trytond modules + PostgreSQL. Epitón must not duplicate.
+
+| Finding | Severity | Status | Evidence |
+|---------|----------|--------|----------|
+| L3-01 trytond is sole SoT | Strength | Closed (design) | CANON / GOVERNANCE / AGENTS |
+| L3-02 Live CRUD on Tryton 7/8 labs | Strength | Closed | compat:live + browser CRUD |
+| L3-03 `_timestamp` concurrency on GH clinical writes | Strength | Closed | GH audit delta 2026-08-02 |
+| L3-04 Correlated audit without clinical payloads | Strength | Closed | Gateway header + Tryton context UUID; no body PHI |
+| L3-05 GNU Health core `health` synthetic acceptance | Medium (claim boundary) | Closed for slice | Browser 3/3 + PG acceptance; **not** PHI |
+| L3-06 Broader gnuhealth.* module set | Medium | Open | Roadmap; metadata discovery ≠ clinical claim |
+| L3-07 Production IdP / TLS / rotation / incidents | High (ops) | Open | Human ops; not client depth |
+| L3-08 PHI / clinical / regulatory approval | High (claim) | **Blocked** | A-01 |
+
+**Layer 3 verdict:** Client correctly defers authority. Synthetic GH evidence
+raises confidence for a disposable lab slice only.
+
+---
+
+## Cross-cutting risk register (current)
+
+| ID | Layer | Severity | Finding | Mitigation / next |
+|----|-------|----------|---------|-------------------|
+| A-01 | 3 / claim | High | No PHI/HIS certification | Never market as Epione; keep synthetic labs |
+| R-01 | 1 | Medium | Protected native candidate first-green + signed promotion pending | Manual workflow, `check:native-promotion`, human approvals |
+| R-02 | 1–2 | Medium | Local `main` ~86 ahead of `origin` | Human decides push / CI green |
+| R-03 | 2 | Info | REST Bearer not probed | Session + gateway only |
+| R-04 | 2 | Info | Tryton 9 not claimed | Official canary waiting |
+| R-05 | 1 | Low | Formal WCAG / field perf not claimed | Release e2e budgets ≠ certification |
+| R-06 | 3 | Medium | GH modules beyond central `health` | Separate pinned labs per module |
+| A-08 | Ops | Process | Synthetic lab credentials | Never reuse in shared/prod |
+
+## Closed since evening 2026-07-31 program (summary)
+
+L1.3 wizard/report · L1.4 calendar · L2 workspace extracts · L3 nested Screen
+(+ exit integrity) · L4 dense forms · L5 domain builder · L6 board polish
+(earned) · L7 release budgets/threat model · backend-authority minimization ·
+GH `health` synthetic gate · native artifact attestation + promotion verifier
+(local).
+
+## Recommended human order
+
+1. Publish / CI: get remote `build-test`, gateway, ordinary native, and protected
+   candidate producers green once.
+2. Native promotion: collect signed candidates + device authorities per
+   `config/native-release-promotion.json` — fail-closed until complete.
+3. Keep A-01 / REST / Tryton 9 / broader GH modules out of marketing claims.
+4. Optional client polish: further ModelWorkspace leaf extraction; `@epiton/ui`
+   Dialog consolidation.
+5. Ops: threat-model exercises, IdP/TLS runbooks, incident drills — separate
+   from client depth.
+
+## Explicit non-goals (unchanged)
+
+Sao/GTK GPL import · Proteus in product runtime · Intelligence auto-writes ·
+Client SQL / second store · PHI fixtures · force-push / prod promotion without
+explicit human order · claiming Epione HIS equivalence.

@@ -138,12 +138,14 @@ but it must not contain Tryton behavior.
 - The repository now tracks the Capacitor Android project and CI definitions
   that build/upload a debug-signed Android APK plus unsigned Linux Tauri
   DEB/AppImage bundles. Both jobs emit SHA-256/source/toolchain receipts and
-  attest subjects on push. N1 remains open until both jobs produce their first
-  green Actions receipts. The fail-closed native promotion contract now makes
-  signature verification and physical-device acceptance executable requirements
-  with separated authorities, while the real signed candidates and approvals
-  remain external evidence. Until that evidence exists, Vite remains the web
-  release bridge and N2 may not begin.
+  attest subjects on push. A manual protected workflow now produces the signed
+  Android and exact Linux release candidates from clean `main`, with receipts
+  and attestations that remain non-promotable. N1 remains open until these jobs
+  produce their first green Actions receipts. The fail-closed native promotion
+  contract makes independent signature verification and physical-device
+  acceptance executable requirements with separated authorities; those real
+  approvals remain external evidence. Until that evidence exists, Vite remains
+  the web release bridge and N2 may not begin.
 
 ## Clean-room Tryton translation
 

@@ -1,8 +1,9 @@
 # Native release promotion
 
 This is the executable production-distribution gate for Epitón's Android and
-Linux shells. It promotes an exact set of already built and externally signed
-bytes; it does not build, sign, deploy, or authorize a clinical environment.
+Linux shells. It promotes an exact set of already built, platform-signed and
+independently verified bytes; it does not build, sign, deploy, or authorize a
+clinical environment.
 
 The closed policy lives in
 [`config/native-release-promotion.json`](../config/native-release-promotion.json).
@@ -83,18 +84,31 @@ verification. The scenario set must exactly match the policy, with every
 
 1. Establish two separately controlled Ed25519 authorities and record their
    distinct public-key SHA-256 fingerprints in the governed policy.
-2. Build and sign the Android APK and Linux DEB/AppImage in an approved
-   GitHub Actions workflow on clean `main`.
-3. In that same trusted run, create non-promotable receipts using
+2. Configure the protected GitHub environment `native-release-candidates` with
+   required reviewers and the Android platform-signing secrets
+   `EPITON_ANDROID_KEYSTORE_B64`, `EPITON_ANDROID_KEY_ALIAS`,
+   `EPITON_ANDROID_KEYSTORE_PASSWORD`, and `EPITON_ANDROID_KEY_PASSWORD`.
+   These are distinct from the two Ed25519 approval authorities, whose private
+   keys must remain outside GitHub Actions.
+3. Manually dispatch `.github/workflows/native-release-candidate.yml` from the
+   exact clean `main` revision. The workflow reruns the quality gates, builds
+   the release artifacts, signs and verifies the Android APK before recording
+   it, stages one exact Linux DEB/AppImage pair, and emits build attestations.
+   Both candidate sets are retained for 30 days and remain non-promotable.
+4. In that same trusted run, create non-promotable receipts using
    `--kind android-release-candidate` and
    `--kind linux-release-candidate`, then attest the exact binaries.
-4. Have the signing authority independently verify the signatures and GitHub
-   build attestations, retain the raw verifier outputs in the controlled
-   release record, and issue both signing-evidence documents.
-5. Exercise the exact hashes on physical Android and Linux devices with
+   This is automated by the workflow; operators must not regenerate the
+   receipts after download.
+5. Apply detached Linux signatures outside the repository without modifying
+   either candidate binary. Have the signing authority independently verify
+   the Android platform signature, both Linux detached signatures, and GitHub
+   build attestations; retain signatures and raw verifier outputs in the
+   controlled release record, then issue both signing-evidence documents.
+6. Exercise the exact hashes on physical Android and Linux devices with
    synthetic or otherwise authorized non-production data. A separate authority
    issues both device-acceptance documents.
-6. From the same clean revision, inject the two policy-matching public keys
+7. From the same clean revision, inject the two policy-matching public keys
    through the environment and run:
 
 ```bash

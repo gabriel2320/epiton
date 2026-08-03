@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   buildNativeArtifactReceipt,
   writeNativeArtifactReceipt,
@@ -15,6 +16,10 @@ const FIXED_TOOLCHAIN = {
   rust: "1.97.1",
   lockfileSha256: "0".repeat(64),
 };
+const CI_WORKFLOW_PATH = fileURLToPath(new URL("../.github/workflows/ci.yml", import.meta.url));
+const RELEASE_WORKFLOW_PATH = fileURLToPath(
+  new URL("../.github/workflows/native-release-candidate.yml", import.meta.url),
+);
 
 async function fixtureRoot(t) {
   const root = await mkdtemp(join(tmpdir(), "epiton-native-receipt-"));
@@ -122,6 +127,38 @@ test("keeps signed release candidates non-promotable until the promotion gate", 
   assert.equal(receipt.signing.status, "external-verification-required");
   assert.equal(receipt.signing.productionEligible, false);
   assert.equal(receipt.signing.requiredPromotionGate, "signed native release promotion receipt");
+});
+
+test("native release workflow signs before receipts and keeps candidate uploads complete", async () => {
+  const [ciWorkflow, releaseWorkflow] = await Promise.all([
+    readFile(CI_WORKFLOW_PATH, "utf8"),
+    readFile(RELEASE_WORKFLOW_PATH, "utf8"),
+  ]);
+
+  assert.match(releaseWorkflow, /^on:\n {2}workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(releaseWorkflow, /^ {2}(?:push|pull_request):/m);
+  assert.match(releaseWorkflow, /environment: native-release-candidates/g);
+  assert.match(releaseWorkflow, /GITHUB_REF:\?}" != "refs\/heads\/main"/);
+  assert.match(releaseWorkflow, /EPITON_ANDROID_KEYSTORE_B64: \$\{\{ secrets\./);
+  assert.match(releaseWorkflow, /--ks-pass env:EPITON_ANDROID_KEYSTORE_PASSWORD/);
+  assert.match(releaseWorkflow, /--key-pass env:EPITON_ANDROID_KEY_PASSWORD/);
+
+  const signIndex = releaseWorkflow.indexOf('"$apksigner_path" sign');
+  const androidReceiptIndex = releaseWorkflow.indexOf("--kind android-release-candidate");
+  const linuxBuildIndex = releaseWorkflow.indexOf("pnpm --filter @epiton/desktop build:linux");
+  const linuxReceiptIndex = releaseWorkflow.indexOf("--kind linux-release-candidate");
+  assert.ok(signIndex >= 0 && signIndex < androidReceiptIndex);
+  assert.ok(linuxBuildIndex >= 0 && linuxBuildIndex < linuxReceiptIndex);
+
+  assert.match(
+    releaseWorkflow,
+    /path: \.artifacts\/native\/android-release-candidate\/\n\s+if-no-files-found: error\n\s+include-hidden-files: true/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /path: \.artifacts\/native\/linux-release-candidate\/\n\s+if-no-files-found: error\n\s+include-hidden-files: true/,
+  );
+  assert.equal((ciWorkflow.match(/include-hidden-files: true/g) ?? []).length, 2);
 });
 
 test("rejects duplicate, symlinked, and out-of-root artifacts", async (t) => {
