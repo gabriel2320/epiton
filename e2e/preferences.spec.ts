@@ -9,8 +9,7 @@ function rpcContext(params: unknown[]): Record<string, unknown> {
 
 async function selectCompany(page: Parameters<typeof installMockTryton>[0], name: string) {
   const preferences = page.getByRole("dialog", { name: "Prefs" });
-  await preferences.getByRole("button", { name: "Search", exact: true }).click();
-  await preferences.getByRole("button", { name: new RegExp(name) }).click();
+  await preferences.getByLabel("Company").selectOption({ label: name });
 }
 
 test("keeps the active company when Tryton rejects the preference write", async ({ page }) => {
@@ -23,8 +22,21 @@ test("keeps the active company when Tryton rejects the preference write", async 
 
   await page.getByRole("button", { name: "Prefs", exact: true }).click();
   const preferences = page.getByRole("dialog", { name: "Prefs" });
-  await expect(preferences.getByLabel("Company")).toHaveValue("1");
+  await expect(preferences.getByLabel("Company")).toHaveValue("number:1");
+  expect(
+    mock.calls.some((call) => call.method === "model.res.user.get_preferences_fields_view"),
+  ).toBe(true);
+  expect(mock.calls.some((call) => call.method === "model.res.user.fields_view_get")).toBe(false);
+  const companySelection = mock.calls.find(
+    (call) => call.method === "model.company.company.search_read",
+  );
+  expect(companySelection?.params[0]).toEqual([["id", "in", [1, 2]]]);
+  expect(rpcContext(companySelection?.params ?? [])).toMatchObject({
+    active_company: 1,
+    company: 1,
+  });
   await selectCompany(page, "Hospital Sur");
+  await expect(preferences.getByLabel("Company")).toHaveValue("number:2");
 
   await Promise.all([
     page.waitForEvent("dialog").then(async (dialog) => {
@@ -35,6 +47,8 @@ test("keeps the active company when Tryton rejects the preference write", async 
   ]);
 
   await expect(preferences.getByText("Company is not allowed", { exact: true })).toBeVisible();
+  const rejectedWrite = mock.calls.find((call) => call.method === "model.res.user.set_preferences");
+  expect(rejectedWrite?.params[0]).toEqual({ company: 2 });
   await preferences.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("tab", { name: "party.party" })).toBeVisible();
   expect(
@@ -79,6 +93,8 @@ test("purges the old workspace and reloads menus after an authorized company cha
   await expect(
     page.getByText("Choose an action from the backend menu.", { exact: true }),
   ).toBeVisible();
+  const acceptedWrite = mock.calls.find((call) => call.method === "model.res.user.set_preferences");
+  expect(acceptedWrite?.params[0]).toEqual({ company: 2 });
   await expect
     .poll(
       () =>

@@ -1,6 +1,10 @@
 import {
+  type SelectionKey,
+  decodeSelectionKey,
+  encodeSelectionKey,
   formatTrytonDate,
   formatTrytonTime,
+  normalizeSelectionKey,
   parseTrytonDateInput,
   parseTrytonTimeInput,
 } from "@epiton/view-engine";
@@ -23,7 +27,7 @@ type TreeCol = {
   widget?: string;
   readonly?: boolean;
   relation?: string;
-  selection?: Array<[string, string]>;
+  selection?: Array<[SelectionKey, string]>;
   aggregate?: "sum" | "average";
 };
 
@@ -88,24 +92,29 @@ function EditableCell(props: {
   }
 
   if (type === "selection" && props.field.selection?.length) {
+    const selectedKey = normalizeSelectionKey(props.value);
+    const selectedValue = selectedKey == null ? "" : encodeSelectionKey(selectedKey);
     return (
       <select
         className="epiton-tree-edit"
-        value={props.value == null ? "" : String(props.value)}
+        value={selectedValue}
         aria-label={props.field.string}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => {
           const next = e.target.value;
-          if (String(props.value ?? "") === next) return;
-          props.onCommit(props.id, props.field.name, next === "" ? null : next);
+          if (selectedValue === next) return;
+          const selected = decodeSelectionKey(props.field.selection ?? [], next);
+          props.onCommit(props.id, props.field.name, next === "" ? null : selected);
         }}
       >
         <option value="">—</option>
-        {props.field.selection.map(([k, label]) => (
-          <option key={k} value={k}>
-            {label}
-          </option>
-        ))}
+        {props.field.selection
+          .filter(([key]) => key !== null)
+          .map(([key, label], index) => (
+            <option key={`${encodeSelectionKey(key)}-${index}`} value={encodeSelectionKey(key)}>
+              {label}
+            </option>
+          ))}
       </select>
     );
   }

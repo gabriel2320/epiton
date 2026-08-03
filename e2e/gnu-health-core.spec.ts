@@ -1,4 +1,4 @@
-import { type Page, type Route, expect, test } from "@playwright/test";
+import { type Locator, type Page, type Response, type Route, expect, test } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 
@@ -199,6 +199,134 @@ const syntheticVaccineName =
 const syntheticVaccineLot = process.env.EPITON_GH_SYNTHETIC_VACCINE_LOT ?? "EPITON-LOTE-VAC-001";
 const syntheticVaccineExpirationDate =
   process.env.EPITON_GH_SYNTHETIC_VACCINE_EXPIRATION_DATE ?? "2030-12-31";
+const primaryInstitutionName =
+  process.env.EPITON_GH_PRIMARY_INSTITUTION_NAME ?? "Hospital Norte Sintético Epiton";
+const secondaryInstitutionName =
+  process.env.EPITON_GH_SECONDARY_INSTITUTION_NAME ?? "Hospital Sur Sintético Epiton";
+
+function isRpcResponse(response: Response, method: string) {
+  try {
+    const request = response.request().postDataJSON() as { method?: unknown };
+    return request.method === method;
+  } catch {
+    return false;
+  }
+}
+
+function rpcContext(params: unknown[] | undefined): Record<string, unknown> {
+  const context = params?.at(-1);
+  if (!context || typeof context !== "object" || Array.isArray(context)) return {};
+  return context as Record<string, unknown>;
+}
+
+async function selectPreferenceCompany(page: Page, companyName: string) {
+  const preferences = page.getByRole("dialog", { name: "Preferencias", exact: true });
+  const company = preferences.locator('select[name="company"]:visible');
+  await expect(company).toBeVisible();
+  await company.selectOption({ label: companyName });
+  const encodedId = await company.inputValue();
+  expect(encodedId).toMatch(/^number:\d+$/);
+  const id = Number(encodedId.slice("number:".length));
+  expect(id, `company id for ${companyName}`).toBeGreaterThan(0);
+  await expect(company).toHaveValue(`number:${id}`);
+  return id;
+}
+
+async function savePreferenceCompany(page: Page, expectedCompanyId: number) {
+  const preferences = page.getByRole("dialog", { name: "Preferencias", exact: true });
+  const responsePromise = page.waitForResponse((response) =>
+    isRpcResponse(response, "model.res.user.set_preferences"),
+  );
+  const confirmationPromise = page.waitForEvent("dialog").then(async (confirmation) => {
+    const details = {
+      message: confirmation.message(),
+      type: confirmation.type(),
+    };
+    await confirmation.accept();
+    return details;
+  });
+  const [, confirmation] = await Promise.all([
+    preferences.getByRole("button", { name: "Guardar", exact: true }).click(),
+    confirmationPromise,
+  ]);
+  expect(confirmation.type).toBe("confirm");
+  expect(confirmation.message).toContain("cerrará el trabajo abierto");
+
+  const response = await responsePromise;
+  const request = response.request().postDataJSON() as {
+    params?: Array<Record<string, unknown>>;
+  };
+  const payload = (await response.json()) as { error?: unknown };
+  expect(request.params?.[0]).toMatchObject({ company: expectedCompanyId });
+  expect(payload.error).toBeUndefined();
+  await expect(preferences).toBeHidden();
+}
+
+async function expectAppointmentInstitution(
+  page: Page,
+  sidebar: Locator,
+  expectedCompanyId: number,
+  expectedInstitutionName: string,
+) {
+  await sidebar.getByRole("button", { name: "Citas", exact: true }).last().click();
+  await expect(
+    page.getByRole("heading", { name: "gnuhealth.appointment", exact: true }),
+  ).toBeVisible();
+  const defaultsPromise = page.waitForResponse((response) =>
+    isRpcResponse(response, "model.gnuhealth.appointment.default_get"),
+  );
+  await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
+  const defaults = await defaultsPromise;
+  const request = defaults.request().postDataJSON() as { params?: unknown[] };
+  const payload = (await defaults.json()) as { error?: unknown };
+  expect(rpcContext(request.params)).toMatchObject({ company: expectedCompanyId });
+  expect(payload.error).toBeUndefined();
+  await expect(page.locator('input[name="institution"]:visible')).toHaveValue(
+    expectedInstitutionName,
+  );
+}
+
+test("Epiton respeta la empresa activa y los defaults institucionales de GNU Health", async ({
+  page,
+}) => {
+  test.skip(!syntheticCoreLab, "requires the disposable synthetic GNU Health core laboratory");
+  test.setTimeout(180_000);
+
+  const baseUrl = process.env.EPITON_BASE ?? "http://127.0.0.1:58001";
+  const database = process.env.EPITON_DB ?? "epiton_health_core";
+  const username = process.env.EPITON_USER ?? "admin";
+  const password = process.env.EPITON_PASSWORD ?? "epiton-health-synthetic-admin";
+
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page.getByLabel("Language").selectOption("es");
+  await page.getByLabel("Servidor", { exact: true }).fill(baseUrl);
+  await page.getByLabel("Base de datos", { exact: true }).fill(database);
+  await page.getByLabel("Usuario", { exact: true }).fill(username);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar a Epiton", exact: true }).click();
+
+  const sidebar = page.getByRole("complementary", { name: "Menú", exact: true });
+  await expect(sidebar).toBeVisible({ timeout: 30_000 });
+  await sidebar.getByRole("button", { name: "Citas", exact: true }).last().click();
+  await expect(
+    page.getByRole("heading", { name: "gnuhealth.appointment", exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Preferencias", exact: true }).click();
+  const secondaryCompanyId = await selectPreferenceCompany(page, secondaryInstitutionName);
+  await savePreferenceCompany(page, secondaryCompanyId);
+  await expect(
+    page.getByRole("heading", { name: "gnuhealth.appointment", exact: true }),
+  ).toHaveCount(0);
+  await expectAppointmentInstitution(page, sidebar, secondaryCompanyId, secondaryInstitutionName);
+
+  await page.getByRole("button", { name: "Preferencias", exact: true }).click();
+  const primaryCompanyId = await selectPreferenceCompany(page, primaryInstitutionName);
+  expect(primaryCompanyId).not.toBe(secondaryCompanyId);
+  await savePreferenceCompany(page, primaryCompanyId);
+  await expect(page.getByRole("heading", { name: /^gnuhealth\.appointment form/ })).toHaveCount(0);
+  await expectAppointmentInstitution(page, sidebar, primaryCompanyId, primaryInstitutionName);
+});
 
 test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async ({
   page,

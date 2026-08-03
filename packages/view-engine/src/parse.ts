@@ -33,6 +33,8 @@ export type FieldType =
   | "dict"
   | "unknown";
 
+export type SelectionKey = string | number | boolean | null;
+
 export interface ViewField {
   name: string;
   string?: string;
@@ -40,7 +42,7 @@ export interface ViewField {
   readonly?: boolean;
   required?: boolean;
   relation?: string;
-  selection?: Array<[string, string]>;
+  selection?: Array<[SelectionKey, string]>;
   help?: string;
   /** Arch widget= override (email, url, password, …). */
   widget?: string;
@@ -48,6 +50,8 @@ export interface ViewField {
   filename?: string;
   /** Static or PYSON-encoded domain from fields_view_get. */
   domain?: unknown;
+  /** Static or PYSON-encoded RPC context for relation-backed fields. */
+  context?: unknown;
   /** Dynamic readonly/required/invisible flags from fields_view_get. */
   states?: unknown;
   on_change?: string[];
@@ -211,9 +215,10 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
       relation: typeof meta.relation === "string" ? meta.relation : undefined,
       help: typeof meta.help === "string" ? meta.help : undefined,
       selection: Array.isArray(meta.selection)
-        ? (meta.selection as Array<[string, string]>)
+        ? (meta.selection as Array<[SelectionKey, string]>)
         : undefined,
       domain: meta.domain,
+      context: meta.context,
       states: meta.states,
       on_change: Array.isArray(meta.on_change) ? meta.on_change.map(String) : undefined,
       on_change_with: Array.isArray(meta.on_change_with)

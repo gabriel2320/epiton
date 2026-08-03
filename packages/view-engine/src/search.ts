@@ -221,6 +221,24 @@ export function parseDomainValue(
     if (value === "false") return { ok: true, value: false };
     return { ok: false, error: "Boolean value must be true, false, or null" };
   }
+  if (fieldType === "selection") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (
+        parsed === null ||
+        typeof parsed === "string" ||
+        typeof parsed === "number" ||
+        typeof parsed === "boolean"
+      ) {
+        return { ok: true, value: parsed };
+      }
+    } catch {
+      // Unquoted selection keys remain valid for manually entered legacy filters.
+    }
+    return value
+      ? { ok: true, value: input }
+      : { ok: false, error: "Value is required (use null for an empty value)" };
+  }
   if (
     fieldType === "integer" ||
     fieldType === "float" ||

@@ -103,6 +103,8 @@ describe("search helpers", () => {
       ok: true,
       value: ["draft", "done"],
     });
+    expect(parseDomainValue("1", "selection", "=")).toEqual({ ok: true, value: 1 });
+    expect(parseDomainValue('"1"', "selection", "=")).toEqual({ ok: true, value: "1" });
     expect(parseDomainValue("yes", "boolean", "=")).toEqual({
       ok: false,
       error: "Boolean value must be true, false, or null",

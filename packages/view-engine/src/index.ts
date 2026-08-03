@@ -5,6 +5,7 @@ export {
   parseXml,
   type FieldType,
   type ParsedView,
+  type SelectionKey,
   type ViewField,
   type ViewNode,
   type ViewType,
@@ -45,6 +46,17 @@ export {
   type O2MCommand,
   type RelationProjectionField,
 } from "./relations";
+export {
+  decodeSelectionKey,
+  encodeSelectionKey,
+  hydrateRelationSelections,
+  normalizeSelectionKey,
+  relationSelectionRequests,
+  selectionValueText,
+  type RelationSelectionLoader,
+  type RelationSelectionRequest,
+  type RelationSelectionRow,
+} from "./selections";
 export {
   acceptAsyncScreenUpdate,
   acceptLatestAsyncScreenUpdate,

@@ -252,12 +252,14 @@ const preferenceFields = {
     string: "Company",
     type: "many2one",
     relation: "company.company",
+    domain: [["id", "in", { __class__: "Eval", v: "companies", d: [] }]],
+    context: { active_company: { __class__: "Eval", v: "company", d: null } },
     required: true,
   },
 };
 
 const preferenceForm = {
-  arch: '<form string="Preferences"><group><field name="company"/></group></form>',
+  arch: '<form string="Preferences"><group><field name="company" widget="selection"/></group></form>',
   fields: preferenceFields,
 };
 
@@ -577,7 +579,10 @@ export async function installMockTryton(
       }
       return { language: "en", context: { language: "en" }, groups: [] };
     }
-    if (method === "model.res.user.fields_view_get" && options.includeCompanyPreferences) {
+    if (
+      method === "model.res.user.get_preferences_fields_view" &&
+      options.includeCompanyPreferences
+    ) {
       return preferenceForm;
     }
     if (method === "model.res.user.set_preferences" && options.includeCompanyPreferences) {

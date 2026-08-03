@@ -6,9 +6,13 @@ import {
   type DomainOperator,
   type ViewField,
   decodeDomainFilter,
+  decodeSelectionKey,
   encodeDomainFilter,
+  encodeSelectionKey,
+  normalizeSelectionKey,
   parseDomainValue,
   parseSearchDomain,
+  selectionValueText,
 } from "@epiton/view-engine";
 import { useState } from "react";
 
@@ -44,12 +48,15 @@ function valueText(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function draftFromClause(clause: DomainClause): ClauseDraft {
+function draftFromClause(clause: DomainClause, fields: ViewField[]): ClauseDraft {
+  const field = fields.find((candidate) => candidate.name === clause.field);
+  const selectionKey =
+    field?.type === "selection" ? normalizeSelectionKey(clause.value) : undefined;
   return {
     id: nextClauseId(),
     field: clause.field,
     operator: clause.operator,
-    value: valueText(clause.value),
+    value: selectionKey === undefined ? valueText(clause.value) : selectionValueText(selectionKey),
     target: clause.target ?? "",
   };
 }
@@ -128,19 +135,35 @@ function clauseValueControl(
       );
     }
     if (field?.type === "selection" && field.selection?.length) {
+      const parsed = parseDomainValue(draft.value, field.type, draft.operator);
+      const selectedKey = parsed.ok ? normalizeSelectionKey(parsed.value) : undefined;
+      const selectedValue =
+        selectedKey === undefined
+          ? ""
+          : field.selection.some(([key]) => Object.is(key, selectedKey))
+            ? encodeSelectionKey(selectedKey)
+            : "";
       return (
         <select
           aria-label={`Value for ${field.string ?? field.name}`}
-          value={draft.value}
-          onChange={(event) => onChange(event.target.value)}
+          value={selectedValue}
+          onChange={(event) => {
+            const key = decodeSelectionKey(field.selection ?? [], event.target.value);
+            onChange(key === undefined ? "" : selectionValueText(key));
+          }}
         >
           <option value="">Select value…</option>
-          {field.selection.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-          <option value="null">Empty (null)</option>
+          {field.selection
+            .filter(([value]) => value !== null)
+            .map(([value, label], index) => (
+              <option
+                key={`${encodeSelectionKey(value)}-${index}`}
+                value={encodeSelectionKey(value)}
+              >
+                {label}
+              </option>
+            ))}
+          <option value={encodeSelectionKey(null)}>Empty (null)</option>
         </select>
       );
     }
@@ -214,7 +237,9 @@ export function DomainFilterBuilder(props: {
   const decoded = builderFilterFromText(props.initialText);
   const [combinator, setCombinator] = useState<DomainCombinator>(decoded?.combinator ?? "AND");
   const [drafts, setDrafts] = useState<ClauseDraft[]>(
-    decoded?.clauses.length ? decoded.clauses.map(draftFromClause) : [defaultClause(props.fields)],
+    decoded?.clauses.length
+      ? decoded.clauses.map((clause) => draftFromClause(clause, props.fields))
+      : [defaultClause(props.fields)],
   );
   const [error, setError] = useState<string | null>(null);
 

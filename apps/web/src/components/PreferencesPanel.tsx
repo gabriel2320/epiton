@@ -1,9 +1,16 @@
-import { type JsonObject, buildSessionContext, reloadSessionPreferences } from "@epiton/protocol";
+import {
+  type JsonObject,
+  type JsonValue,
+  buildSessionContext,
+  reloadSessionPreferences,
+} from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type RecordValues,
   type ViewField,
+  hydrateRelationSelections,
   parseFieldsViewGet,
+  relationSelectionRequests,
   renderView,
 } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +25,15 @@ import { useAppStore } from "../lib/store";
 import { applyClientLanguage } from "../lib/translations";
 import { RelationSearch } from "./RelationSearch";
 
-/** Preferences form from res.user fields_view_get (preferences context). */
+function preferenceRpcValue(field: ViewField | undefined, value: unknown): JsonValue | undefined {
+  if (field?.type === "many2one" && Array.isArray(value)) {
+    const id = value[0];
+    if (typeof id === "number" || typeof id === "string" || id === null) return id;
+  }
+  return value === undefined ? undefined : (value as JsonValue);
+}
+
+/** Preferences form from Tryton's native res.user preferences view contract. */
 export function PreferencesPanel(props: { onSessionBoundary?: () => void }) {
   const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
@@ -45,10 +60,12 @@ export function PreferencesPanel(props: { onSessionBoundary?: () => void }) {
       try {
         setViewError(null);
         return parseFieldsViewGet(
-          await client.fieldsViewGet("res.user", null, "form", {
-            ...sessionContext,
-            preferences: true,
-          }),
+          (await client.model(
+            "res.user",
+            "get_preferences_fields_view",
+            [],
+            sessionContext,
+          )) as JsonObject,
         );
       } catch (err) {
         setViewError(err instanceof Error ? err.message : t("preferences.viewFailed"));
@@ -61,23 +78,62 @@ export function PreferencesPanel(props: { onSessionBoundary?: () => void }) {
     setDraft({ ...preferences });
   }, [preferences]);
 
+  const selectionRequests = viewQuery.data ? relationSelectionRequests(viewQuery.data, draft) : [];
+  const selectionScope = JSON.stringify(selectionRequests);
+  const selectionQuery = useQuery({
+    queryKey: [
+      "res.user",
+      "preference-relation-selections",
+      sessionRpcScope,
+      viewQuery.dataUpdatedAt,
+      selectionScope,
+    ],
+    enabled: Boolean(client && viewQuery.data && selectionRequests.length),
+    queryFn: async () => {
+      if (!client || !viewQuery.data) return null;
+      return hydrateRelationSelections(viewQuery.data, draft, async (request) =>
+        client.searchRead(
+          request.relation,
+          request.domain as JsonValue[],
+          ["rec_name"],
+          0,
+          null,
+          null,
+          { ...sessionContext, ...request.context } as JsonObject,
+        ),
+      );
+    },
+  });
+  const renderedView = selectionRequests.length ? selectionQuery.data : viewQuery.data;
+  const resolvedViewError =
+    viewError ??
+    (selectionQuery.error instanceof Error
+      ? selectionQuery.error.message
+      : selectionQuery.isError
+        ? t("preferences.viewFailed")
+        : null);
+
   async function save() {
     if (!client || !session) return;
     setStatus("loading");
     setMessage(t("preferences.saving"));
     const patch: JsonObject = {};
-    const fields = viewQuery.data?.fields ?? {};
+    const fields = renderedView?.fields ?? viewQuery.data?.fields ?? {};
     const keys = Object.keys(fields).length
       ? Object.keys(fields)
       : ["company", "language", "employee"];
     for (const key of keys) {
       if (!(key in draft)) continue;
-      const raw = draft[key];
-      if (Array.isArray(raw) && typeof raw[0] === "number") {
-        patch[key] = raw[0];
-      } else if (raw !== undefined) {
-        patch[key] = raw as JsonObject[string];
-      }
+      const field = fields[key];
+      const current = preferenceRpcValue(field, draft[key]);
+      const persisted = preferenceRpcValue(field, preferences[key]);
+      if (JSON.stringify(current) === JSON.stringify(persisted) || current === undefined) continue;
+      patch[key] = current;
+    }
+    if (!Object.keys(patch).length) {
+      setStatus("data");
+      setMessage(t("preferences.saved"));
+      return;
     }
     const requestedContext = buildSessionContext(
       { ...preferences, ...patch },
@@ -135,20 +191,20 @@ export function PreferencesPanel(props: { onSessionBoundary?: () => void }) {
 
   const blockState =
     status === "idle"
-      ? viewQuery.isLoading
+      ? viewQuery.isLoading || (selectionRequests.length > 0 && selectionQuery.isLoading)
         ? "loading"
-        : viewError
+        : resolvedViewError
           ? "error"
-          : viewQuery.data
+          : renderedView
             ? "data"
             : "empty"
       : status;
 
   return (
     <Panel title={t("preferences.title")}>
-      <StateBlock state={blockState} message={viewError ?? message}>
-        {viewQuery.data ? (
-          renderView(viewQuery.data, {
+      <StateBlock state={blockState} message={resolvedViewError ?? message}>
+        {renderedView ? (
+          renderView(renderedView, {
             values: draft,
             mode: "write",
             density,
@@ -158,7 +214,7 @@ export function PreferencesPanel(props: { onSessionBoundary?: () => void }) {
           })
         ) : (
           <p className="text-sm text-[var(--epiton-muted)]" role="status">
-            {viewError ? t("preferences.formUnavailable") : t("preferences.waiting")}
+            {resolvedViewError ? t("preferences.formUnavailable") : t("preferences.waiting")}
           </p>
         )}
         {relationField ? (

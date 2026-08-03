@@ -8,10 +8,11 @@ import {
 } from "./dates";
 import { t } from "./i18n";
 import { parseViewLayoutAttributes } from "./layout";
-import type { ParsedView, ViewField, ViewNode } from "./parse";
+import type { ParsedView, SelectionKey, ViewField, ViewNode } from "./parse";
 import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
 import { evalDomain, resolveStatesAttr } from "./pyson";
 import { relationRecordCount } from "./relations";
+import { decodeSelectionKey, encodeSelectionKey, normalizeSelectionKey } from "./selections";
 
 export type RecordValues = Record<string, unknown>;
 
@@ -345,19 +346,34 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   }
 
   if (field.type === "selection" && field.selection) {
+    const selectedKey = normalizeSelectionKey(value);
     return createElement(
       "select",
       {
         ...common,
-        value: value == null ? "" : String(value),
-        onChange: (e: { target: { value: string } }) => ctx.onChange?.(field.name, e.target.value),
+        value: selectedKey === undefined ? "" : encodeSelectionKey(selectedKey),
+        onChange: (e: { target: { value: string } }) => {
+          const selected = decodeSelectionKey(field.selection ?? [], e.target.value);
+          ctx.onChange?.(field.name, selected);
+        },
       },
-      field.selection.map(([k, label]) => createElement("option", { key: k, value: k }, label)),
+      field.selection.map(([k, label], index) =>
+        createElement(
+          "option",
+          { key: `${encodeSelectionKey(k)}-${index}`, value: encodeSelectionKey(k) },
+          label,
+        ),
+      ),
     );
   }
 
   if (field.type === "multiselection" && field.selection) {
-    const selected = Array.isArray(value) ? value.map(String) : [];
+    const selected = Array.isArray(value)
+      ? value
+          .map(normalizeSelectionKey)
+          .filter((key): key is SelectionKey => key !== undefined)
+          .map(encodeSelectionKey)
+      : [];
     return createElement(
       "select",
       {
@@ -366,11 +382,22 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         value: selected,
         size: Math.min(6, field.selection.length || 3),
         onChange: (e: { target: { selectedOptions: HTMLCollectionOf<HTMLOptionElement> } }) => {
-          const next = Array.from(e.target.selectedOptions).map((o) => o.value);
-          ctx.onChange?.(field.name, next);
+          const next = Array.from(e.target.selectedOptions).map((option) => {
+            return decodeSelectionKey(field.selection ?? [], option.value);
+          });
+          ctx.onChange?.(
+            field.name,
+            next.filter((key): key is SelectionKey => key !== undefined),
+          );
         },
       },
-      field.selection.map(([k, label]) => createElement("option", { key: k, value: k }, label)),
+      field.selection.map(([k, label], index) =>
+        createElement(
+          "option",
+          { key: `${encodeSelectionKey(k)}-${index}`, value: encodeSelectionKey(k) },
+          label,
+        ),
+      ),
     );
   }
 
@@ -379,7 +406,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     const idPart = Array.isArray(value) ? String(value[1] ?? "") : "";
     const models = field.selection?.length
       ? field.selection
-      : ([[modelPart || "", modelPart || "model"]] as Array<[string, string]>);
+      : [[modelPart || "", modelPart || "model"]];
     return createElement(
       "div",
       { className: "epiton-reference" },
@@ -399,7 +426,11 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
             },
             createElement("option", { value: "" }, "— model —"),
             models.map(([k, label]) =>
-              createElement("option", { key: k || label, value: k }, label || k),
+              createElement(
+                "option",
+                { key: String(k || label), value: String(k ?? "") },
+                label || String(k ?? ""),
+              ),
             ),
           )
         : createElement("input", {
@@ -935,7 +966,7 @@ export interface TreeColumn {
   type?: string;
   widget?: string;
   readonly?: boolean;
-  selection?: Array<[string, string]>;
+  selection?: Array<[SelectionKey, string]>;
   /** Sao `optional="1"` — hidden by default, user can toggle. */
   optional?: boolean;
   /** Sao tree footer aggregate from `sum="1"` / `average="1"`. */
