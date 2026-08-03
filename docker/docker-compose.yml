@@ -42,7 +42,7 @@ services:
     image: epiton/gateway:0.1
     depends_on:
       tryton:
-        condition: service_started
+        condition: service_healthy
     environment:
       EPITON_UPSTREAM: http://tryton:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8080
@@ -120,7 +120,7 @@ services:
     image: epiton/gateway:0.1
     depends_on:
       tryton8:
-        condition: service_started
+        condition: service_healthy
     environment:
       EPITON_UPSTREAM: http://tryton8:8000
       EPITON_GATEWAY_BIND: 0.0.0.0:8081
