@@ -136,10 +136,12 @@ but it must not contain Tryton behavior.
   manifest and service worker, exercises an authenticated RPC flow, and proves
   that Cache Storage contains only allowlisted same-origin static build assets.
 - The repository now tracks the Capacitor Android project and CI definitions
-  that build/upload an unsigned Android debug APK plus Linux Tauri DEB/AppImage
-  bundles. N1 remains open until both jobs produce their first green Actions
-  receipts. Device acceptance and release signing remain separate promotion
-  gates; until then Vite remains the web release bridge and N2 may not begin.
+  that build/upload a debug-signed Android APK plus unsigned Linux Tauri
+  DEB/AppImage bundles. Both jobs emit SHA-256/source/toolchain receipts and
+  attest subjects on push. N1 remains open until both jobs produce their first
+  green Actions receipts. Device acceptance and release signing remain separate
+  promotion gates; until then Vite remains the web release bridge and N2 may
+  not begin.
 
 ## Clean-room Tryton translation
 

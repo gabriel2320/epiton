@@ -46,9 +46,10 @@ The progressive host gates are `pnpm check:next` for the App Router build,
 artifact. All must stay green during N1 so the migration cannot silently fork
 the product. The Next E2E gate qualifies the installable web PWA but does not
 replace native-shell receipts: CI now builds an Android debug APK and Linux
-Tauri DEB/AppImage bundles, with their first green Actions receipts still
-required. Next request-time nonce/Proxy behavior remains server-hosted rather
-than being weakened into a static export.
+Tauri DEB/AppImage bundles. Each native job emits `receipt.json` plus
+`SHA256SUMS`; push jobs attest those subjects with `actions/attest@v4`. Their
+first green Actions receipts are still required. Next request-time nonce/Proxy
+behavior remains server-hosted rather than being weakened into a static export.
 
 ## Reproducible client toolchain
 
@@ -69,6 +70,22 @@ The four publishable TypeScript libraries use `tsdown` instead of `tsup`.
 `tsdown` supports the TypeScript 7 declaration pipeline used here; neutral
 output preserves the existing `.js`/`.d.ts` package exports, and React is kept
 external in UI bundles so consumers retain a single React runtime.
+
+## Native artifact provenance
+
+`node scripts/native-artifact-receipt.mjs` accepts only explicit, in-repository
+regular files. It rejects symlinks, duplicates, unexpected package formats, and
+incomplete Linux DEB/AppImage pairs. Its `epiton.native-artifacts.v1` receipt
+records sorted paths, byte sizes, streaming SHA-256 values, source revision,
+working-tree state, CI
+run link, declared native toolchains, and the `pnpm-lock.yaml` digest.
+`SHA256SUMS` covers every binary and the receipt itself; its output directory is
+also resolved physically to reject symlink traversal.
+
+The policy deliberately classifies Android debug as `debug-only` and Linux as
+`unsigned`, both with `productionEligible: false`. GitHub's build attestation
+binds subjects to a workflow, but does not replace Android release signing,
+Linux platform signing, key custody, or device acceptance.
 
 ## Optional future (non-core) niches
 

@@ -11,8 +11,21 @@ pnpm --filter @epiton/mobile open:android   # requires Android Studio
 
 `apps/mobile/android` is tracked source. Generated web assets and APK/AAB build
 outputs remain ignored; every build refreshes them from the shared
-`@epiton/web` static adapter. CI uploads an unsigned debug APK as an artifact.
-Release signing and real-device acceptance are separate, still-open gates.
+`@epiton/web` static adapter. CI verifies and uploads the debug-signed APK with
+an `epiton.native-artifacts.v1` receipt and `SHA256SUMS`; push builds also get a
+GitHub artifact attestation. Android's generated debug certificate is not a
+release signature. Release signing, key custody/distribution, and real-device
+acceptance are separate, still-open gates.
+
+After a local debug build, generate the same non-promotable receipt from the
+repository root:
+
+```bash
+node scripts/native-artifact-receipt.mjs \
+  --kind android-debug \
+  --output .artifacts/native/android-debug/receipt.json \
+  apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
 
 The reproducible Android baseline is Node 24.18.1, pnpm 11.18.0, JDK 21,
 Android SDK 36, Android Gradle Plugin 8.13.0, and Gradle 8.14.3. These versions

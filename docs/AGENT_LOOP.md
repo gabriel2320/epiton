@@ -55,6 +55,7 @@ writing it independently.
 | GH model probe | `pnpm gh:check` |
 | Tryton 9 official-source canary | `pnpm tryton:canary:9` |
 | Canary contract tests | `pnpm check:tryton-canary` |
+| Native receipt contract tests | `pnpm check:native-artifacts` |
 | Gateway tests | `cd apps/gateway && cargo test` |
 | Mock browser E2E | `pnpm test:e2e:mock` |
 | Client accessibility/performance release baseline | `pnpm test:e2e:release` |
@@ -90,7 +91,8 @@ delivery; do not fake live results.
 - **Local loop:** lint → test → web build → bundle.
 - **CI (`.github/workflows/ci.yml`):** same plus mock and Next production
   browser receipts, locked gateway cargo, Android debug APK and Linux Tauri
-  bundles, and Tryton 7/8 protocol/oracle/live-browser gates on push/PR.
+  bundles with SHA-256 receipts (plus attestations on push), and Tryton 7/8
+  protocol/oracle/live-browser gates on push/PR.
 - **Scheduled canary (`tryton-upstream-canary.yml`):** checks official PyPI,
   Tryton documentation, and container signals for 9.0. A release alert means
   “build and prove the 9.0 lab lane,” never “claim support.” Follow every

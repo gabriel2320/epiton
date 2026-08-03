@@ -34,6 +34,7 @@
     "gh:check": "pnpm --filter @epiton/protocol build && node scripts/gh-models-check.mjs",
     "tryton:canary:9": "node scripts/tryton-upstream-canary.mjs",
     "check:tryton-canary": "node --test scripts/tryton-upstream-canary.test.mjs",
+    "check:native-artifacts": "node --test scripts/native-artifact-receipt.test.mjs",
     "analyze": "pnpm --filter @epiton/web build && echo 'Open apps/web/dist/stats.html'",
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:next": "pnpm --filter @epiton/web build:next",

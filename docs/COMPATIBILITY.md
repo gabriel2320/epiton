@@ -34,7 +34,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Saved searches | `ir.ui.view_search` | Improved | Builder-shaped domains round-trip through typed load/apply/save/delete controls; nested domains fall back to raw JSON through the workspace-owned RPC path (no prompt) |
 | Board | board arch + actions | Improved | Tree/graph/form + multi-y + `_actions` cross-filter; act_window/wizard/report Open reuse Shell and preserve active selection/context (mock browser proof) |
 | Hierarchical tree | TreeMixin / `parent` / `field_childs` | Improved | Expand + lazy + tree_state(domain) + sequence DnD |
-| Shell hosts | Tauri / Capacitor | Beta | Title/safe-area; memory-only sessions; legacy preference slots erased; Android project and CI APK/Tauri bundle producers are defined, first green artifact receipts pending |
+| Shell hosts | Tauri / Capacitor | Beta | Title/safe-area; memory-only sessions; legacy preference slots erased; CI APK/Tauri producers now define SHA-256/source/toolchain receipts and push attestations, but their first green remote evidence, release signing, and real-device acceptance remain pending |
 | Server menus/favorites | `ir.ui.menu` + `ir.ui.menu.favorite.get/set/unset` | Improved | Strict server rows/tuples; sidebar + star toggle; no fabricated fallback or menu-record write |
 | Email compose | mailto / form_action keywords | Improved | CC/BCC + keyword-first mailto fallback |
 | Translations | `ir.translation` catalog | Improved | Catalog + `t()` labels + Shell/workspace chrome |
@@ -61,7 +61,7 @@ Where Sao/GTK still lead: [`TRYTON_AHEAD.md`](TRYTON_AHEAD.md).
 | Menu → model/wizard/report | `resolveAction` | Implemented | Tree menu + in-app navigation; backend identifiers stay out of URL/history |
 | CSP | Web security headers | Prod hardened | Production web is pinned to a same-origin gateway with `connect-src 'self'`; Next adds a per-request script nonce plus `strict-dynamic`, proved in a production browser |
 | Accessibility / performance release baseline | Browser semantics and versioned budgets | Release regression gate | `pnpm test:e2e:release` covers keyboard login/menu/search, semantic landmarks and names, duplicate ids, DOM size, long tasks, layout shift, and workflow timings; this is not a WCAG certification or field performance study |
-| Next.js App Router host | Same Epitón application and contracts | N1 partial | Build and 15-scenario production E2E/CSP/PWA receipt pass; first green CI APK and Tauri bundle receipts remain before the N2 web cutover |
+| Next.js App Router host | Same Epitón application and contracts | N1 partial | Build and 15-scenario production E2E/CSP/PWA receipt pass; native receipt/attestation producers are defined, while their first green CI evidence remains before the N2 web cutover |
 | Series 7.0 LTS | Docker lab image | Supported tier | Live protocol 21/21, including transient relation-child boundary + Proteus oracle 4/4 + browser CRUD |
 | Series 8.x | Docker lab image + RPC fallback | Supported tier | Live protocol 21/21, including transient relation-child boundary + Proteus oracle 4/4 + browser CRUD; separate Postgres volume |
 | Series 9.x | Future official artifacts + capability probes | Future canary, not claimed | Scheduled official-source canary is `waiting` as of 2026-08-01; do not infer support from 7/8 receipts |

@@ -1,6 +1,6 @@
 # Epitón client and gateway threat model
 
-Versioned baseline: 2026-08-02. This model covers the Epitón web client,
+Versioned baseline: 2026-08-03. This model covers the Epitón web client,
 desktop/mobile beta shells, and the Axum gateway. It does not certify trytond,
 PostgreSQL, an edge proxy, an identity provider, a device, or a particular
 production deployment.
@@ -60,9 +60,9 @@ client IPs only when a known edge strips inbound forwarding headers and
 | T-07 | Memory/latency denial through large or stalled requests | Configurable request and response caps, a five-second upstream connect timeout, configurable request timeout, bounded response streaming, and login rate limiting fail requests instead of allowing unbounded buffering. | Each accepted concurrent request may still consume its configured cap. Size limits against legitimate reports and enforce concurrency/body/time limits at the edge. |
 | T-08 | Sensitive values disclosed in observability | Gateway audit lines contain correlation id, method/RPC name, status, and latency, not request/response bodies; security responses use `no-store`. | Upstream/application diagnostics and edge logs are separately operated. Never enable payload logging and treat model/method names as potentially sensitive metadata. |
 | T-09 | Cross-session stale UI or confused-deputy mutations | Authentication-boundary purge, request correlation, last-request-wins workspace guards, origin record ids, and strict row/envelope decoding prevent older responses from silently targeting newer UI state. | Concurrency bugs outside covered flows remain possible. Unit, mock-browser, and live-lab receipts are release gates. |
-| T-10 | Compromised dependency, build, or service worker | Pinned lockfiles, production JavaScript advisory audit, RustSec, unit/build gates, bundle budget, and CI-built native artifacts are defined. The PWA precaches versioned static assets only and has no RPC/auth runtime cache. | Advisory databases are not a proof of supply-chain integrity. Protect CI, review lockfile changes, sign releases, and verify provenance before production promotion. |
+| T-10 | Compromised dependency, build, or service worker | Pinned lockfiles, production JavaScript advisory audit, RustSec, unit/build gates, and bundle budget are defined. Every CI native bundle gets a SHA-256 receipt bound to the source revision, working-tree state, CI run, declared toolchains, and lockfile digest; push builds also receive GitHub artifact attestations. The PWA precaches versioned static assets only and has no RPC/auth runtime cache. | An attestation proves which workflow produced bytes; it does not make an unreviewed workflow trustworthy or replace platform release signing. Protect CI, review lockfile changes, verify provenance, and sign releases before promotion. |
 | T-11 | Exported data survives the client lifecycle | Downloads require an explicit user gesture and are not used as client state or a system of record. | Once downloaded, the file belongs to browser/OS/user retention policy. Production must govern endpoint storage, sharing, malware scanning, and deletion. |
-| T-12 | Native WebView persistence or artifact substitution | Desktop/mobile sessions remain in memory; legacy cleanup APIs remove exact historical entries without hydration. CI defines Android APK and Linux Tauri bundle producers. | Real-device lifecycle, OS backup behavior, signing, distribution, and first-green artifact receipts are separate promotion gates. |
+| T-12 | Native WebView persistence or artifact substitution | Desktop/mobile sessions remain in memory; legacy cleanup APIs remove exact historical entries without hydration. CI verifies the Android debug signature, emits native receipts/checksums, and attests push-built Android APK and Linux Tauri subjects. Android keystores are explicitly ignored. | The APK is debug-signed and Linux bundles are unsigned. Release signing, key custody, distribution, real-device lifecycle/backup checks, and the first green remote receipts remain separate promotion gates. |
 
 ## Automated release baseline
 
@@ -89,3 +89,9 @@ record the exact source revision plus CI artifact/run links. A material change
 to authentication, persistence, CORS/CSP, proxy trust, gateway limits, upstream
 routing, ACL enforcement, exports, native bridges, or a new data sink requires
 a threat-model review.
+
+For a published push build, download the artifact and verify each subject with
+`gh attestation verify <path> -R gabriel2320/epiton`, then compare its
+`SHA256SUMS` and `receipt.json`. A valid GitHub attestation is provenance
+evidence only; the receipt's `signing.productionEligible` must remain `false`
+for Android debug and unsigned Linux bundles.

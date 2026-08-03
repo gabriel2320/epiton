@@ -23,6 +23,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm check:tryton-canary
+      - run: pnpm check:native-artifacts
       - run: pnpm --filter @epiton/protocol build
       - run: pnpm --filter @epiton/view-engine build
       - run: pnpm --filter @epiton/intelligence build
@@ -56,6 +57,10 @@ jobs:
 
   desktop:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -91,16 +96,38 @@ jobs:
         working-directory: apps/desktop/src-tauri
       - name: Build Tauri Linux bundles
         run: pnpm --filter @epiton/desktop build:linux
+      - name: Record unsigned Linux bundle receipt
+        run: >-
+          node scripts/native-artifact-receipt.mjs
+          --kind linux-unsigned
+          --output .artifacts/native/linux-unsigned/receipt.json
+          apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+          apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+      - name: Attest Linux bundles and receipt
+        if: github.event_name == 'push'
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            .artifacts/native/linux-unsigned/receipt.json
+            .artifacts/native/linux-unsigned/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: epiton-desktop-linux
           path: |
             apps/desktop/src-tauri/target/release/bundle/deb/*
             apps/desktop/src-tauri/target/release/bundle/appimage/*
+            .artifacts/native/linux-unsigned/receipt.json
+            .artifacts/native/linux-unsigned/SHA256SUMS
           if-no-files-found: error
 
   mobile-android:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -117,13 +144,45 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Sync the Epiton static adapter into Capacitor
         run: pnpm --filter @epiton/mobile sync:android
-      - name: Build unsigned Android debug APK
+      - name: Build Android debug APK
         run: ./gradlew assembleDebug
         working-directory: apps/mobile/android
+      - name: Verify Android debug signature
+        shell: bash
+        run: |
+          mapfile -t apksigner_candidates < <(find "${ANDROID_HOME:?}/build-tools" -type f -name apksigner -print)
+          if [ "${#apksigner_candidates[@]}" -eq 0 ]; then
+            echo "Android SDK did not provide apksigner"
+            exit 1
+          fi
+          apksigner_path="${apksigner_candidates[0]}"
+          if [ ! -x "$apksigner_path" ]; then
+            echo "apksigner is not executable: $apksigner_path"
+            exit 1
+          fi
+          "$apksigner_path" verify --verbose --print-certs \
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Record Android debug artifact receipt
+        run: >-
+          node scripts/native-artifact-receipt.mjs
+          --kind android-debug
+          --output .artifacts/native/android-debug/receipt.json
+          apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Attest Android debug APK and receipt
+        if: github.event_name == 'push'
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            .artifacts/native/android-debug/receipt.json
+            .artifacts/native/android-debug/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: epiton-mobile-android-debug
-          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            .artifacts/native/android-debug/receipt.json
+            .artifacts/native/android-debug/SHA256SUMS
           if-no-files-found: error
 
   lab-compat:

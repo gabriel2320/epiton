@@ -12,6 +12,7 @@ coverage/
 playwright-report/
 test-results/
 tests/compat/receipts/
+.artifacts/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
 apps/gateway/target/

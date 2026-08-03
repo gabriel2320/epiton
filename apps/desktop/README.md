@@ -12,8 +12,21 @@ pnpm --filter @epiton/desktop build:linux # DEB + AppImage
 ```
 
 Requires Rust + platform WebView dependencies.
-CI builds and uploads unsigned Linux DEB/AppImage artifacts. Platform signing
-and real-device acceptance remain release gates.
+CI builds and uploads unsigned Linux DEB/AppImage artifacts with a shared
+`epiton.native-artifacts.v1` receipt and `SHA256SUMS`; push builds also get
+GitHub artifact attestations. The receipt remains explicitly non-promotable.
+Platform signing, signing-key custody/distribution, and real-device acceptance
+remain release gates.
+
+After a local Linux build, generate the same receipt from the repository root:
+
+```bash
+node scripts/native-artifact-receipt.mjs \
+  --kind linux-unsigned \
+  --output .artifacts/native/linux-unsigned/receipt.json \
+  apps/desktop/src-tauri/target/release/bundle/deb/*.deb \
+  apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+```
 
 ## Shell depth
 

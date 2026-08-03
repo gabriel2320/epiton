@@ -334,9 +334,11 @@ The deterministic mock suite passes 16/16, the production Next host passes
 
 The CI workflow now takes its pnpm version from `packageManager`, removing the
 bootstrap conflict that prevented recent remote jobs from reaching the gates.
-Its unsigned APK and Tauri DEB/AppImage producers remain promotion evidence
-pending the first green run after publication; no native artifact, signing,
-device, penetration-test, WCAG, PHI, or clinical claim is inferred here.
+Its debug-signed APK and unsigned Tauri DEB/AppImage producers now emit
+SHA-256/source/toolchain receipts and attach GitHub attestations on push. They
+remain promotion evidence pending the first green run after publication; no
+release signing, device, penetration-test, WCAG, PHI, or clinical claim is
+inferred here.
 
 ### Out of scope (hard)
 
