@@ -22,6 +22,7 @@ import { Alert, Button, ConfirmDialog, MetaStrip, Panel, StateBlock } from "@epi
 import {
   type ChildScreenExitDecision,
   type RecordValues,
+  type ViewButtonMeta,
   type ViewField,
   aggregateGraphData,
   evalContext,
@@ -79,7 +80,7 @@ import { ListFormView } from "./ListFormView";
 import { RecordHistoryPanel } from "./RecordHistoryPanel";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
-import { VirtualPartyTable } from "./VirtualPartyTable";
+import { type TreeRowAction, VirtualPartyTable } from "./VirtualPartyTable";
 import {
   WorkspaceKeywordActions,
   WorkspaceListActionToolbar,
@@ -91,7 +92,11 @@ import {
 } from "./modelWorkspace/WorkspaceSearchControls";
 import { actionDomainDefaults, hydrateDefaultMany2OneNames } from "./modelWorkspace/actionDefaults";
 import { buttonRpcContext, isActionButton } from "./modelWorkspace/actionToolbar";
-import { beginButtonFlight, finishButtonFlight } from "./modelWorkspace/buttonFlight";
+import {
+  beginButtonFlight,
+  buttonProjectionRefetchPolicy,
+  finishButtonFlight,
+} from "./modelWorkspace/buttonFlight";
 import {
   adjacentSelectedId,
   effectiveSelectedIds,
@@ -130,6 +135,10 @@ import { noticeTone } from "./modelWorkspace/workspaceUi";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;
+
+type PendingWorkspaceButton =
+  | { kind: "form"; name: string; meta: ViewButtonMeta }
+  | { kind: "tree"; id: number; action: TreeRowAction };
 
 /** Generic Tryton model workspace — opens any model via fields_view_get + CRUD.
  * Remount with `key={model}` from the shell when switching models.
@@ -178,6 +187,8 @@ export function ModelWorkspace(props: {
   const [sorts, setSorts] = useState<Array<{ id: string; desc: boolean }>>([]);
   const [forceTreeEdit, setForceTreeEdit] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null);
+  const [pendingButtonConfirmation, setPendingButtonConfirmation] =
+    useState<PendingWorkspaceButton | null>(null);
   const [csvImportText, setCsvImportText] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedTreeIds, setExpandedTreeIds] = useState<Set<number>>(() => new Set());
@@ -204,6 +215,10 @@ export function ModelWorkspace(props: {
   const dirtyRef = useRef(false);
   const openRelationDraftRef = useRef(false);
   const buttonFlightRef = useRef<string | null>(null);
+  const refetchWhenButtonIdle = useCallback(
+    () => buttonProjectionRefetchPolicy(buttonFlightRef),
+    [],
+  );
   const keyHandlersRef = useRef<{
     startNew: () => Promise<void>;
     requestDelete: (ids: number[]) => void;
@@ -248,6 +263,8 @@ export function ModelWorkspace(props: {
     queryKey: ["view-search", props.model, session?.userId, rpcScope],
     enabled: Boolean(client && session?.userId),
     staleTime: 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client || !session) return [];
       return loadViewSearches(client, props.model, session.userId, rpcContext);
@@ -430,6 +447,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "form-view", formViewId, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       return parseFieldsViewGet(
@@ -442,6 +461,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "tree-view", treeViewId, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       return parseFieldsViewGet(
@@ -454,6 +475,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "calendar-view", calendarViewId, rpcScope],
     enabled: Boolean(client && hasCalendarView),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       try {
@@ -531,6 +554,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "list-form-view", listFormViewId, rpcScope],
     enabled: Boolean(client && viewMode === "list-form"),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       try {
@@ -547,6 +572,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "graph-view", graphViewId, rpcScope],
     enabled: Boolean(client && viewMode === "graph"),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       try {
@@ -650,6 +677,8 @@ export function ModelWorkspace(props: {
     ],
     enabled: Boolean(client && treeViewQuery.isSuccess && listDomainResult.ok),
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return [];
       return client.searchRead(
@@ -873,6 +902,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "count", JSON.stringify(listDomain), rpcScope],
     enabled: Boolean(client && treeViewQuery.isSuccess && listDomainResult.ok),
     staleTime: 30_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       try {
@@ -900,6 +931,8 @@ export function ModelWorkspace(props: {
     ],
     enabled: Boolean(client && domainTabs.some((tab) => tab.count)),
     staleTime: 30_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return {} as Record<number, number>;
       const counts: Record<number, number> = {};
@@ -947,6 +980,8 @@ export function ModelWorkspace(props: {
   const recordQuery = useQuery({
     queryKey: ["model", props.model, selectedId, "fields", recordReadFields.join(","), rpcScope],
     enabled: Boolean(client && selectedId && formViewQuery.isSuccess),
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async (): Promise<{ recordId: number; values: RecordValues } | null> => {
       const requestedId = selectedId;
       if (!client || requestedId == null) return null;
@@ -1006,6 +1041,8 @@ export function ModelWorkspace(props: {
     queryKey: ["model", props.model, "acl-rows", rpcScope],
     enabled: Boolean(client),
     staleTime: 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) return null;
       return modelHasAccessRows(client, props.model);
@@ -1017,6 +1054,8 @@ export function ModelWorkspace(props: {
     enabled: Boolean(client && session),
     staleTime: 60_000,
     retry: false,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async () => {
       if (!client) throw new Error("No client");
       return getModelAccess(client, props.model, sessionContext);
@@ -1330,7 +1369,7 @@ export function ModelWorkspace(props: {
     closeRelationEditor,
   ]);
 
-  async function runButton(name: string, meta?: { type?: string }) {
+  async function runButton(name: string, meta?: ViewButtonMeta) {
     if (!client || !selectedId) {
       setNotice(t("workspace.selectBeforeButton"));
       return;
@@ -1366,6 +1405,14 @@ export function ModelWorkspace(props: {
     } finally {
       if (finishButtonFlight(buttonFlightRef, flightKey)) setButtonFlight(null);
     }
+  }
+
+  function requestRunButton(name: string, meta: ViewButtonMeta = {}) {
+    if (meta.confirm) {
+      setPendingButtonConfirmation({ kind: "form", name, meta });
+      return;
+    }
+    void runButton(name, meta);
   }
 
   const treeIsEditable = useMemo(
@@ -1468,6 +1515,14 @@ export function ModelWorkspace(props: {
     } finally {
       if (finishButtonFlight(buttonFlightRef, flightKey)) setButtonFlight(null);
     }
+  }
+
+  function requestTreeButton(id: number, action: TreeRowAction) {
+    if (action.confirm) {
+      setPendingButtonConfirmation({ kind: "tree", id, action });
+      return;
+    }
+    void runTreeButton(id, action);
   }
 
   async function addTreeRow() {
@@ -1705,6 +1760,26 @@ export function ModelWorkspace(props: {
           if (pendingDeleteIds?.length) deleteMutation.mutate(pendingDeleteIds);
         }}
       />
+      <ConfirmDialog
+        open={pendingButtonConfirmation != null}
+        title={
+          pendingButtonConfirmation?.kind === "form"
+            ? (pendingButtonConfirmation.meta.confirm ?? "")
+            : (pendingButtonConfirmation?.action.confirm ?? "")
+        }
+        confirmLabel={t("workspace.confirm")}
+        cancelLabel={t("workspace.cancel")}
+        onCancel={() => setPendingButtonConfirmation(null)}
+        onConfirm={() => {
+          const pending = pendingButtonConfirmation;
+          setPendingButtonConfirmation(null);
+          if (pending?.kind === "form") {
+            void runButton(pending.name, pending.meta);
+          } else if (pending?.kind === "tree") {
+            void runTreeButton(pending.id, pending.action);
+          }
+        }}
+      />
       <CsvImportDialog
         open={csvImportText != null}
         csvText={csvImportText ?? ""}
@@ -1938,7 +2013,7 @@ export function ModelWorkspace(props: {
                   },
                 });
               }}
-              onRowAction={(id, action) => void runTreeButton(id, action)}
+              onRowAction={requestTreeButton}
               onToggleExpand={(id) => {
                 setExpandedTreeIds((prev) => {
                   const next = new Set(prev);
@@ -2100,7 +2175,7 @@ export function ModelWorkspace(props: {
               density,
               model: props.model,
               onChange: handleFieldChange,
-              onButton: (name, meta) => void runButton(name, meta),
+              onButton: requestRunButton,
               isButtonPending: () => buttonFlight !== null,
               onOpenRelation: (field, value, domain) => {
                 if (

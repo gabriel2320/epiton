@@ -19,6 +19,7 @@ export {
   type RecordValues,
   type RenderContext,
   type TreeColumn,
+  type ViewButtonMeta,
 } from "./render";
 export {
   parseViewLayoutAttributes,

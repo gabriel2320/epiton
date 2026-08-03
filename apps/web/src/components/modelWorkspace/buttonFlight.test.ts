@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { beginButtonFlight, finishButtonFlight } from "./buttonFlight";
+import {
+  beginButtonFlight,
+  buttonProjectionRefetchPolicy,
+  finishButtonFlight,
+} from "./buttonFlight";
 
 describe("model button single-flight", () => {
   it("rejects duplicate requests until the active RPC releases its slot", () => {
@@ -12,5 +16,15 @@ describe("model button single-flight", () => {
     expect(flight.current).toBe("prescription:7:create");
     expect(finishButtonFlight(flight, "prescription:7:create")).toBe(true);
     expect(beginButtonFlight(flight, "vaccination:8:sign")).toBe(true);
+  });
+
+  it("pauses automatic projection refetches for the duration of the RPC", () => {
+    const flight = { current: null as string | null };
+
+    expect(buttonProjectionRefetchPolicy(flight)).toBe("always");
+    expect(beginButtonFlight(flight, "prescription:7:create")).toBe(true);
+    expect(buttonProjectionRefetchPolicy(flight)).toBe(false);
+    expect(finishButtonFlight(flight, "prescription:7:create")).toBe(true);
+    expect(buttonProjectionRefetchPolicy(flight)).toBe("always");
   });
 });

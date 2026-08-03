@@ -1508,12 +1508,13 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   };
   await page.route("**/*", holdPrescriptionFinalize);
   const finalizePrescriptionResponse = waitForModelResponse(prescriptionFinalizeMethod);
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toBe("Crear prescripción?");
-    await dialog.accept();
-  });
   const createPrescriptionButton = page.getByRole("button", { name: "Crear", exact: true });
   await createPrescriptionButton.click();
+  const prescriptionConfirmation = page.getByRole("alertdialog", {
+    name: "Crear prescripción?",
+  });
+  await expect(prescriptionConfirmation).toBeVisible();
+  await prescriptionConfirmation.getByRole("button", { name: "Confirmar", exact: true }).click();
   await expect.poll(() => prescriptionFinalizeRequestCount).toBe(1);
   await expect(createPrescriptionButton).toBeDisabled();
   await expect(createPrescriptionButton).toHaveAttribute("aria-busy", "true");
@@ -1669,13 +1670,12 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(page.locator('select[name="state"]:visible')).toHaveValue("in_progress");
 
   const finalizeVaccinationResponse = waitForModelResponse("model.gnuhealth.vaccination.sign");
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toBe(
-      "¿Finalizar y firmar esta vacunación? ¡Esta vacunación será de solo lectura!",
-    );
-    await dialog.accept();
-  });
   await page.getByRole("button", { name: "Firmar", exact: true }).click();
+  const vaccinationConfirmation = page.getByRole("alertdialog", {
+    name: "¿Finalizar y firmar esta vacunación? ¡Esta vacunación será de solo lectura!",
+  });
+  await expect(vaccinationConfirmation).toBeVisible();
+  await vaccinationConfirmation.getByRole("button", { name: "Confirmar", exact: true }).click();
   const vaccinationFinalized = await finalizeVaccinationResponse;
   const vaccinationFinalizationRequest = vaccinationFinalized.request().postDataJSON() as {
     params?: unknown[];

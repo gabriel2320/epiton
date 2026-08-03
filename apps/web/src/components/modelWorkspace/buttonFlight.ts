@@ -15,3 +15,8 @@ export function finishButtonFlight(flight: ButtonFlightRef, key: string): boolea
   flight.current = null;
   return true;
 }
+
+/** Keep backend projections eager while idle, but never overlap a model-button transaction. */
+export function buttonProjectionRefetchPolicy(flight: ButtonFlightRef): "always" | false {
+  return flight.current === null ? "always" : false;
+}

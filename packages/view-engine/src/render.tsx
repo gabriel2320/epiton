@@ -16,6 +16,11 @@ import { decodeSelectionKey, encodeSelectionKey, normalizeSelectionKey } from ".
 
 export type RecordValues = Record<string, unknown>;
 
+export type ViewButtonMeta = {
+  type?: string;
+  confirm?: string;
+};
+
 export interface RenderContext {
   values: RecordValues;
   mode: "read" | "write";
@@ -23,7 +28,7 @@ export interface RenderContext {
   model?: string;
   widgets?: WidgetRegistry;
   onChange?: (name: string, value: unknown) => void;
-  onButton?: (name: string, meta?: { type?: string }) => void;
+  onButton?: (name: string, meta?: ViewButtonMeta) => void;
   isButtonPending?: (name: string) => boolean;
   onOpenRelation?: (field: ViewField, value: unknown, domain?: unknown[]) => void;
   onBinaryDownload?: (field: ViewField, value: unknown) => void;
@@ -911,12 +916,11 @@ function renderNode(
         "data-confirm": node.attrs.confirm,
         disabled: states.readonly === true || pending,
         "aria-busy": pending || undefined,
-        onClick: () => {
-          if (node.attrs.confirm && typeof globalThis.confirm === "function") {
-            if (!globalThis.confirm(node.attrs.confirm)) return;
-          }
-          ctx.onButton?.(name, { type: buttonType });
-        },
+        onClick: () =>
+          ctx.onButton?.(name, {
+            type: buttonType,
+            confirm: node.attrs.confirm,
+          }),
       },
       t(node.attrs.string ?? name, node.attrs.string ?? name),
     );

@@ -1,5 +1,5 @@
 import { type JsonObject, applyFieldChange, preValidateRecord } from "@epiton/protocol";
-import { Button, Panel, StateBlock } from "@epiton/ui";
+import { Button, ConfirmDialog, Panel, StateBlock } from "@epiton/ui";
 import {
   type ChildScreenExitDecision,
   type ChildScreenState,
@@ -7,6 +7,7 @@ import {
   type ParsedView,
   type RecordValues,
   type RelationCommandQueue,
+  type ViewButtonMeta,
   type ViewField,
   acceptChildScreenOnChange,
   applyChildScreenTrytonOnChange,
@@ -34,7 +35,11 @@ import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { RelationLinesEditor } from "./RelationLinesEditor";
 import { RelationSearch } from "./RelationSearch";
-import { beginButtonFlight, finishButtonFlight } from "./modelWorkspace/buttonFlight";
+import {
+  beginButtonFlight,
+  buttonProjectionRefetchPolicy,
+  finishButtonFlight,
+} from "./modelWorkspace/buttonFlight";
 
 interface ChildOnChangeWork {
   promise: Promise<{ failed: boolean; error?: unknown }>;
@@ -89,7 +94,15 @@ export function RelationLineForm(props: {
   const [onChangePending, setOnChangePending] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [buttonFlight, setButtonFlight] = useState<string | null>(null);
+  const [pendingButtonConfirmation, setPendingButtonConfirmation] = useState<{
+    name: string;
+    meta: ViewButtonMeta;
+  } | null>(null);
   const buttonFlightRef = useRef<string | null>(null);
+  const refetchWhenButtonIdle = useCallback(
+    () => buttonProjectionRefetchPolicy(buttonFlightRef),
+    [],
+  );
   const [nestedExitDecision, setNestedExitDecision] = useState<ChildScreenExitDecision>({
     kind: "allow",
   });
@@ -104,6 +117,8 @@ export function RelationLineForm(props: {
     queryKey: ["relation-line-form", props.model, "form", rpcScope],
     enabled: Boolean(client && props.model),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async (): Promise<ParsedView> => {
       if (!client) throw new Error(t("relationLine.noClient"));
       return parseFieldsViewGet(await client.fieldsViewGet(props.model, null, "form", rpcContext));
@@ -119,6 +134,8 @@ export function RelationLineForm(props: {
       rpcScope,
     ],
     enabled: Boolean(client && editing && viewQuery.data),
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async (): Promise<RecordValues> => {
       if (!client || props.target.kind !== "record") {
         throw new Error(t("relationLine.noRecord"));
@@ -152,6 +169,8 @@ export function RelationLineForm(props: {
       rpcScope,
     ],
     enabled: Boolean(client && props.target.kind === "new" && viewQuery.data),
+    refetchOnWindowFocus: refetchWhenButtonIdle,
+    refetchOnReconnect: refetchWhenButtonIdle,
     queryFn: async (): Promise<RecordValues> => {
       if (!client) throw new Error(t("relationLine.noClient"));
       const fields = Object.keys(viewQuery.data?.fields ?? {});
@@ -431,7 +450,7 @@ export function RelationLineForm(props: {
     props.onCancel();
   }
 
-  async function runButton(name: string, meta?: { type?: string }) {
+  async function runButton(name: string, meta?: ViewButtonMeta) {
     if (!client) return;
     if ((meta?.type ?? "").toLowerCase() === "action") {
       setNoticeIsError(false);
@@ -473,6 +492,14 @@ export function RelationLineForm(props: {
     }
   }
 
+  function requestRunButton(name: string, meta: ViewButtonMeta = {}) {
+    if (meta.confirm) {
+      setPendingButtonConfirmation({ name, meta });
+      return;
+    }
+    void runButton(name, meta);
+  }
+
   const state =
     viewQuery.isLoading ||
     (editing && recordQuery.isLoading) ||
@@ -498,6 +525,18 @@ export function RelationLineForm(props: {
 
   return (
     <Panel title={title}>
+      <ConfirmDialog
+        open={pendingButtonConfirmation != null}
+        title={pendingButtonConfirmation?.meta.confirm ?? ""}
+        confirmLabel={t("workspace.confirm")}
+        cancelLabel={t("workspace.cancel")}
+        onCancel={() => setPendingButtonConfirmation(null)}
+        onConfirm={() => {
+          const pending = pendingButtonConfirmation;
+          setPendingButtonConfirmation(null);
+          if (pending) void runButton(pending.name, pending.meta);
+        }}
+      />
       <StateBlock state={state} message={stateMessage}>
         {viewQuery.data
           ? renderView(viewQuery.data, {
@@ -506,7 +545,7 @@ export function RelationLineForm(props: {
               density,
               model: props.model,
               onChange: handleChange,
-              onButton: (name, meta) => void runButton(name, meta),
+              onButton: requestRunButton,
               isButtonPending: () => buttonFlight !== null,
               onOpenRelation: openRelation,
             })

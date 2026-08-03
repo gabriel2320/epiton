@@ -347,12 +347,7 @@ export function VirtualPartyTable(props: {
                   className="epiton-button"
                   disabled={props.rowActionsPending}
                   aria-busy={props.rowActionsPending || undefined}
-                  onClick={() => {
-                    if (action.confirm && typeof globalThis.confirm === "function") {
-                      if (!globalThis.confirm(action.confirm)) return;
-                    }
-                    props.onRowAction?.(id, action);
-                  }}
+                  onClick={() => props.onRowAction?.(id, action)}
                 >
                   {action.string ?? action.name}
                 </button>
