@@ -39,6 +39,9 @@ jobs:
 
   gateway:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     defaults:
       run:
         working-directory: apps/gateway
@@ -60,6 +63,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
+      checks: write
       id-token: write
       attestations: write
     steps:
