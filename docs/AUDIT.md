@@ -509,3 +509,52 @@ Spanish `health` workflow, eight effective role journeys, backend-owned patient
 card PDF, protected-state immutability, backup/restore, and controlled cleanup;
 it is not a clinical certification, penetration test, production deployment,
 or PHI-handling authorization.
+
+---
+
+# Epitón audit delta — 2026-08-02 (GNU Health server-truth and audit closure)
+
+The client boundary for the central GNU Health `health` slice now preserves
+Tryton as the sole clinical truth after writes, rejects stale concurrent saves,
+and carries one request correlation UUID through Epitón's gateway header and
+Tryton context. This closes the technical client/audit acceptance gate for this
+module; it does not advance the module roadmap or authorize production PHI.
+
+## Verification snapshot
+
+```text
+Epitón implementation base: 0d5e3eb390b479918cca218a90f6c6a27e6c2da2
+GNU Health implementation base: 185372d5f2ecd5cac642b4af8b1172eaf2f64ab1
+Workspace test graph: PASS — 13/13 tasks
+Unit/contract tests: PASS — 268 tests (protocol 73, view-engine 94,
+  web 73, compat 19, intelligence 4, ui 5)
+Lint: PASS — 238 files
+Web production build: PASS — 1,678 modules
+Bundle budget: PASS — largest JavaScript asset 468.1 KiB / 700 KiB
+Gateway tests: PASS — cargo test --locked 9/9
+Gateway release build: PASS — locked Docker release build
+GNU Health structural suite: PASS — 37/37
+GNU Health PostgreSQL acceptance: PASS — Tryton 8.0.7;
+  PostgreSQL 18.4; Python 3.14.6; Spanish translations 3,003
+GNU Health browser acceptance: PASS — Playwright 3/3
+Discovery: PASS — 70 gnuhealth.* models, metadata only
+Authoritative audit: PASS — 68 correlated Epitón→Tryton events
+Audit chain receipt: 2676fb4216c64e9b282ac116cd22650861689bbfe84347a276126de1fb8e63f9
+Operational recovery: PASS — receipt preserved through backup, restore
+  and controlled cleanup
+Fixture cleanup: PASS — zero synthetic clinical, role, product,
+  professional or user residue in the operational databases
+Push: not done
+```
+
+Epitón now reloads authoritative server records after clinical writes and uses
+latest-request-wins navigation, so a delayed workspace request cannot overwrite
+a newer user selection. The client retains no durable clinical state. The
+gateway audit line contains correlation, RPC, status and latency but no payload;
+the backend event contains stable references, field names and hashes but no
+clinical values, request body or response body.
+
+The remaining gates are migration of a representative GNU Health 5.0/Tryton 7
+database, PHI operating controls, clinical and Chilean regulatory approval,
+production deployment/incident exercises and the later modules. No claim from
+this delta extends beyond the central `health` slice.

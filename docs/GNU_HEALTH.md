@@ -24,6 +24,7 @@ names as proof that a clinical workflow is correct.
 | Core patient report lifecycle | Verified | The Spanish `Carnet de Identidad` action executes `patient.card` with Tryton's native report contract; GNU Health owns the PDF format and filename and Epitón previews the returned binary payload |
 | Core optimistic concurrency | Verified | Two independent Spanish Epitón sessions load the same patient snapshot; the first write refreshes `_timestamp`, Tryton rejects the stale second write, and the newest value is retained |
 | Core effective role/ACL matrix | Verified | Tryton's ACL engine checks eight synthetic identities across patient, appointment, evaluation, prescription and vaccination, including negative permissions; Epitón then exercises all eight profiles in the browser against a disposable database clone, while upstream demo accounts remain forbidden |
+| Authoritative core clinical audit | Verified | A shared UUID crosses the Epitón gateway header and Tryton context; successful central disclosures, mutations and workflow buttons append minimal SHA-256-linked evidence without request bodies, response bodies or clinical values. The gate reconciles 68 events and preserves the exact chain-head receipt through backup, restore and controlled cleanup |
 | PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
 The stock Docker lab contains party/company modules only. Therefore
@@ -110,9 +111,16 @@ The gate then takes a live PostgreSQL backup, restores it into an independent
 database,
 and revalidates the module set, Chilean localization, protected records and
 immutability. Both databases are cleaned and required to have zero residual
-clinical fixture records. Before the browser phase, the same gate asks Tryton's
-ACL engine for the effective permissions of administration, nursing
-administration, nursing, front desk, doctor, social work, back office and an
+clinical fixture records. For every audited central clinical model RPC, Epitón
+emits the same UUID in the gateway header and Tryton context. The gateway logs only
+correlation, RPC, status and latency; Tryton appends minimal, immutable evidence
+with durable references and SHA-256-linked chain heads. The gate reconciles 68
+events and requires the exact receipt
+`2676fb4216c64e9b282ac116cd22650861689bbfe84347a276126de1fb8e63f9`
+after backup, restore and controlled cleanup. Before the browser phase, the
+same gate asks Tryton's ACL engine for the effective permissions of
+administration, nursing administration, nursing, front desk, doctor, social
+work, back office and an
 unprivileged identity on five protected core models. The engine-only identities
 are rolled back and the gate rejects the former persistent demo accounts. It
 then clones the configured database into a disposable role database and runs
@@ -120,9 +128,9 @@ all eight profiles through the Epitón UI, checking translated menu visibility,
 model access responses and create controls. The seven non-administrative users
 remain confined to that disposable database because Tryton correctly forbids
 deleting auditable users; the database is destroyed with the temporary cluster
-and is excluded from the operational backup. Auditing, PHI handling,
-observability, rollback and production readiness remain separate acceptance
-gates.
+and is excluded from the operational backup. PHI handling, migration from the
+GNU Health 5.0/Tryton 7 base, clinical/regulatory approval, production
+deployment and incident exercises remain separate acceptance gates.
 
 ## Deployment transport controls
 
