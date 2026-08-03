@@ -2026,27 +2026,30 @@ export function ModelWorkspace(props: {
             }
             currentValues={draft}
             onClose={() => setShowHistory(false)}
-            onRestore={(values) => {
-              if (!modelAccess.write) return;
-              const {
-                id: _id,
-                write_date: _wd,
-                write_uid: _wu,
-                create_date: _cd,
-                create_uid: _cu,
-                ...rest
-              } = values;
-              setScreen((current) =>
-                updateScreenValues(
-                  { ...current, relationQueues: {} },
-                  { ...current.values, ...rest },
-                ),
-              );
-              setMode("write");
-              setShowHistory(false);
-              setNotice("History values loaded into draft — Save to write");
-              props.onHistory?.("history:restore");
-            }}
+            onRestore={
+              modelAccess.write
+                ? (values) => {
+                    const {
+                      id: _id,
+                      write_date: _wd,
+                      write_uid: _wu,
+                      create_date: _cd,
+                      create_uid: _cu,
+                      ...rest
+                    } = values;
+                    setScreen((current) =>
+                      updateScreenValues(
+                        { ...current, relationQueues: {} },
+                        { ...current.values, ...rest },
+                      ),
+                    );
+                    setMode("write");
+                    setShowHistory(false);
+                    setNotice(t("history.loadedDraft"));
+                    props.onHistory?.("history:restore");
+                  }
+                : undefined
+            }
           />
         ) : null}{" "}
         <WorkspaceKeywordActions

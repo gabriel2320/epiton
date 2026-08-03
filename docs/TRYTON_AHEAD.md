@@ -55,7 +55,7 @@ frozen pure contract.
 | Attachment drag-and-drop | Drop files onto record | **Improved:** multi-file drop + rename/description + preview | Small |
 | Email compose | Record email wizards / SMTP flows | **Improved:** CC/BCC mailto + keyword-first | Small |
 | CSV column mapping UI | Map headers → fields before import | **Improved:** mapping dialog before `import_data` | Small |
-| Revision / history browser | Browse `__history__` / revisions | **Improved:** Diff vs draft + uid names + restore strip | Small |
+| Revision / history browser | `history_revisions` metadata + temporal `read` | **Improved:** native revisions, diff vs draft, uid names and restore through the ordinary writable draft/ACL path | Small |
 | Board multi-y series | Multi-series in dashboard graphs | **Improved:** board pane uses `rowsToMultiSeries` | Small |
 | Graph operators / title | y `operator` + arch string | **Improved:** sum/average/count + title in GraphView | Small |
 | Tree column footers | `sum` / `average` on tree fields | **Improved:** sticky footer over loaded rows | Small |

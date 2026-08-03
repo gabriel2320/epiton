@@ -937,6 +937,114 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
       [`gnuhealth.patient,${patientId}`]: currentPatientTimestamp,
     });
     expect(restoredWritePayload.error).toBeUndefined();
+
+    const historyRevisionsResponse = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as { method?: unknown };
+        return request.method === "model.gnuhealth.patient.history_revisions";
+      } catch {
+        return false;
+      }
+    });
+    const latestHistoricalReadResponse = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as {
+          method?: unknown;
+          params?: unknown[];
+        };
+        const context = request.params?.[2] as Record<string, unknown> | undefined;
+        return (
+          request.method === "model.gnuhealth.patient.read" &&
+          Array.isArray(request.params?.[0]) &&
+          request.params[0][0] === patientId &&
+          context?._datetime != null
+        );
+      } catch {
+        return false;
+      }
+    });
+    await concurrentPage.getByRole("button", { name: "Historial", exact: true }).click();
+
+    const historyResponse = await historyRevisionsResponse;
+    const historyRequest = historyResponse.request().postDataJSON() as { params?: unknown[] };
+    const historyPayload = (await historyResponse.json()) as {
+      error?: unknown;
+      result?: unknown[][];
+    };
+    expect(historyRequest.params?.[0]).toEqual([patientId]);
+    expect(historyPayload.error).toBeUndefined();
+    expect(historyPayload.result?.length).toBeGreaterThanOrEqual(3);
+    const latestRevision = historyPayload.result?.[0];
+    const concurrentRevision = historyPayload.result?.[1];
+    expect(latestRevision?.[1]).toBe(patientId);
+    expect(concurrentRevision?.[1]).toBe(patientId);
+
+    const latestHistoricalResponse = await latestHistoricalReadResponse;
+    const latestHistoricalRequest = latestHistoricalResponse.request().postDataJSON() as {
+      params?: unknown[];
+    };
+    const latestHistoricalPayload = (await latestHistoricalResponse.json()) as {
+      error?: unknown;
+      result?: Array<Record<string, unknown>>;
+    };
+    const latestHistoricalContext = latestHistoricalRequest.params?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(latestHistoricalRequest.params?.[0]).toEqual([patientId]);
+    expect(latestHistoricalContext?._datetime).toEqual(latestRevision?.[0]);
+    expect(latestHistoricalPayload.error).toBeUndefined();
+    expect(latestHistoricalPayload.result?.[0]?.general_info).toBe(syntheticClinicalNote);
+
+    const historyPanel = concurrentPage
+      .getByRole("heading", {
+        name: `Historial · gnuhealth.patient #${patientId}`,
+        exact: true,
+      })
+      .locator("..");
+    const revisionButtons = historyPanel.locator("ul.epiton-menu-list button");
+    await expect(revisionButtons.first()).toHaveAttribute("aria-pressed", "true");
+    expect(await revisionButtons.count()).toBeGreaterThanOrEqual(3);
+
+    const concurrentHistoricalReadResponse = concurrentPage.waitForResponse((response) => {
+      try {
+        const request = response.request().postDataJSON() as {
+          method?: unknown;
+          params?: unknown[];
+        };
+        const context = request.params?.[2] as Record<string, unknown> | undefined;
+        return (
+          request.method === "model.gnuhealth.patient.read" &&
+          Array.isArray(request.params?.[0]) &&
+          request.params[0][0] === patientId &&
+          context?._datetime != null
+        );
+      } catch {
+        return false;
+      }
+    });
+    await revisionButtons.nth(1).click();
+    const concurrentHistoricalResponse = await concurrentHistoricalReadResponse;
+    const concurrentHistoricalRequest = concurrentHistoricalResponse.request().postDataJSON() as {
+      params?: unknown[];
+    };
+    const concurrentHistoricalPayload = (await concurrentHistoricalResponse.json()) as {
+      error?: unknown;
+      result?: Array<Record<string, unknown>>;
+    };
+    const concurrentHistoricalContext = concurrentHistoricalRequest.params?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(concurrentHistoricalContext?._datetime).toEqual(concurrentRevision?.[0]);
+    expect(concurrentHistoricalPayload.error).toBeUndefined();
+    expect(concurrentHistoricalPayload.result?.[0]?.general_info).toBe(
+      syntheticConcurrentClinicalNote,
+    );
+    await expect(revisionButtons.nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      historyPanel.locator("dd").filter({
+        hasText: syntheticConcurrentClinicalNote.slice(0, 120),
+      }),
+    ).toBeVisible();
   } finally {
     await concurrentPage.close();
   }
