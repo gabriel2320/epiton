@@ -22,6 +22,7 @@ disagree, this file wins on **authority**; then the linked specialist doc.
 | Agent daily loop / gates | [`docs/AGENT_LOOP.md`](AGENT_LOOP.md) |
 | Governance / approvals / PHI | [`docs/GOVERNANCE.md`](GOVERNANCE.md) |
 | Client/gateway threat model and release baseline | [`docs/THREAT_MODEL.md`](THREAT_MODEL.md) |
+| Native artifact production-distribution gate | [`docs/NATIVE_RELEASE.md`](NATIVE_RELEASE.md) |
 | Sao/Tryton parity matrix | [`docs/COMPATIBILITY.md`](COMPATIBILITY.md) |
 | Three-layer architecture and host convergence | [`docs/THREE_LAYER_ARCHITECTURE.md`](THREE_LAYER_ARCHITECTURE.md) |
 | Tryton client capability routing inventory | [`docs/CLIENT_CAPABILITY_INVENTORY.md`](CLIENT_CAPABILITY_INVENTORY.md) |

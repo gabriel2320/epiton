@@ -87,6 +87,16 @@ The policy deliberately classifies Android debug as `debug-only` and Linux as
 binds subjects to a workflow, but does not replace Android release signing,
 Linux platform signing, key custody, or device acceptance.
 
+Release candidates remain non-promotable until
+`scripts/verify-native-release-promotion.mjs` validates both exact candidate
+sets against [`config/native-release-promotion.json`](../config/native-release-promotion.json).
+The verifier requires a clean `main` GitHub Actions revision, current pinned
+toolchain, build attestations, externally approved signature-verification
+evidence, and later physical-device acceptance authenticated by a different
+authority. Its output grants only native artifact distribution eligibility;
+the procedure and explicit non-claims are in
+[`NATIVE_RELEASE.md`](NATIVE_RELEASE.md).
+
 ## Optional future (non-core) niches
 
 These are **not** default dependencies; only consider behind a clear consumer:

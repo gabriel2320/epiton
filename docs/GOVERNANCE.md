@@ -83,6 +83,7 @@ triggers are maintained in [`THREAT_MODEL.md`](THREAT_MODEL.md).
 | Deny-only strict ACL guard on mutations | `EPITON_STRICT_ACL=true` |
 | Bundle size budget | `pnpm check:bundle` |
 | Browser accessibility/performance regression baseline | `pnpm test:e2e:release` with versioned limits in `config/client-release-budgets.json` |
+| Native distribution promotion | `pnpm check:native-promotion` plus the separately approved evidence flow in [`NATIVE_RELEASE.md`](NATIVE_RELEASE.md) |
 | CSP topology | Production browser must use same-origin edge → gateway → trytond |
 
 Audit logs on the gateway must not include response bodies or PHI payloads.

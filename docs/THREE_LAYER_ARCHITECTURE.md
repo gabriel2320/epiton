@@ -139,9 +139,11 @@ but it must not contain Tryton behavior.
   that build/upload a debug-signed Android APK plus unsigned Linux Tauri
   DEB/AppImage bundles. Both jobs emit SHA-256/source/toolchain receipts and
   attest subjects on push. N1 remains open until both jobs produce their first
-  green Actions receipts. Device acceptance and release signing remain separate
-  promotion gates; until then Vite remains the web release bridge and N2 may
-  not begin.
+  green Actions receipts. The fail-closed native promotion contract now makes
+  signature verification and physical-device acceptance executable requirements
+  with separated authorities, while the real signed candidates and approvals
+  remain external evidence. Until that evidence exists, Vite remains the web
+  release bridge and N2 may not begin.
 
 ## Clean-room Tryton translation
 

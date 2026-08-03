@@ -15,7 +15,8 @@ outputs remain ignored; every build refreshes them from the shared
 an `epiton.native-artifacts.v1` receipt and `SHA256SUMS`; push builds also get a
 GitHub artifact attestation. Android's generated debug certificate is not a
 release signature. Release signing, key custody/distribution, and real-device
-acceptance are separate, still-open gates.
+acceptance remain external gates; their exact evidence is now enforced by the
+fail-closed [`native release promotion`](../../docs/NATIVE_RELEASE.md) contract.
 
 After a local debug build, generate the same non-promotable receipt from the
 repository root:

@@ -106,6 +106,24 @@ test("sorts Linux artifacts and requires both package formats", async (t) => {
   );
 });
 
+test("keeps signed release candidates non-promotable until the promotion gate", async (t) => {
+  const projectRoot = await fixtureRoot(t);
+  await writeFile(join(projectRoot, "epiton-release.apk"), "signed-synthetic-apk");
+
+  const receipt = await buildNativeArtifactReceipt({
+    projectRoot,
+    kind: "android-release-candidate",
+    artifactPaths: ["epiton-release.apk"],
+    revision: "d".repeat(40),
+    workingTreeDirty: false,
+    toolchain: FIXED_TOOLCHAIN,
+  });
+
+  assert.equal(receipt.signing.status, "external-verification-required");
+  assert.equal(receipt.signing.productionEligible, false);
+  assert.equal(receipt.signing.requiredPromotionGate, "signed native release promotion receipt");
+});
+
 test("rejects duplicate, symlinked, and out-of-root artifacts", async (t) => {
   const projectRoot = await fixtureRoot(t);
   const outsideRoot = await fixtureRoot(t);

@@ -23,7 +23,7 @@ remain canonical, while unresolved depth is ordered in
 | Rich views | calendar, graph, board, cross-filter, list-form | view engine + ordered workspace navigation policy + shared Shell host | focused unit tests and E2E |
 | Personalization | translations, saved searches, server favorites, domain tabs | protocol + typed controls + in-memory UI projection | protocol/web tests |
 | Realtime | authenticated bus channels, notices, action payloads, 401 invalidation | protocol bus + Shell | protocol/web tests |
-| Multiplatform | responsive web, keyboard, Tauri, Capacitor, safe areas | web + desktop/mobile shells | Next browser receipt + CI APK/Tauri SHA-256 receipts and push-attestation producers; first green remote artifacts, release signing, and real-device proof still required |
+| Multiplatform | responsive web, keyboard, Tauri, Capacitor, safe areas | web + desktop/mobile shells | Next browser receipt + CI APK/Tauri SHA-256 receipts and push-attestation producers + fail-closed native promotion contract; first green signed remote candidates and separately approved physical-device evidence still required |
 | Security boundary | same-origin gateway, CSP, memory-only state, no dynamic cache | Axum gateway + host configs + contract tests | cargo tests, persistence contract, security audit |
 
 ## Evidence ladder

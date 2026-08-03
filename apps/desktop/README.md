@@ -16,7 +16,8 @@ CI builds and uploads unsigned Linux DEB/AppImage artifacts with a shared
 `epiton.native-artifacts.v1` receipt and `SHA256SUMS`; push builds also get
 GitHub artifact attestations. The receipt remains explicitly non-promotable.
 Platform signing, signing-key custody/distribution, and real-device acceptance
-remain release gates.
+remain external release gates; their exact evidence is enforced by the
+fail-closed [`native release promotion`](../../docs/NATIVE_RELEASE.md) contract.
 
 After a local Linux build, generate the same receipt from the repository root:
 

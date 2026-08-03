@@ -24,6 +24,7 @@ jobs:
       - run: pnpm test
       - run: pnpm check:tryton-canary
       - run: pnpm check:native-artifacts
+      - run: pnpm check:native-promotion
       - run: pnpm --filter @epiton/protocol build
       - run: pnpm --filter @epiton/view-engine build
       - run: pnpm --filter @epiton/intelligence build

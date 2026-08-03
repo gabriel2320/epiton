@@ -1,0 +1,39 @@
+{
+  "schema": "epiton.native-release-policy.v1",
+  "repository": "gabriel2320/epiton",
+  "ref": "refs/heads/main",
+  "maxEvidenceAgeDays": 30,
+  "approvalAuthorities": {
+    "signingPublicKeyFingerprintSha256": "UNCONFIGURED",
+    "deviceAcceptancePublicKeyFingerprintSha256": "UNCONFIGURED"
+  },
+  "candidates": {
+    "android-release-candidate": {
+      "platform": "android",
+      "formats": ["android-apk"],
+      "signingMethod": "android-apksigner",
+      "requiredScenarios": [
+        "install-clean",
+        "launch",
+        "login-logout",
+        "restart-requires-login",
+        "os-backup-disabled",
+        "legacy-session-deleted",
+        "no-session-persistence"
+      ]
+    },
+    "linux-release-candidate": {
+      "platform": "linux",
+      "formats": ["appimage", "debian-package"],
+      "signingMethod": "linux-detached-signature",
+      "requiredScenarios": [
+        "install-deb",
+        "launch-appimage",
+        "login-logout",
+        "restart-requires-login",
+        "legacy-session-deleted",
+        "no-session-persistence"
+      ]
+    }
+  }
+}

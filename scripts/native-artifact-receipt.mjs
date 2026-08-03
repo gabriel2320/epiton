@@ -18,7 +18,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const ARTIFACT_POLICIES = {
+export const ARTIFACT_POLICIES = {
   "android-debug": {
     formats: ["android-apk"],
     signing: {
@@ -33,6 +33,22 @@ const ARTIFACT_POLICIES = {
       status: "unsigned",
       productionEligible: false,
       requiredPromotionGate: "platform signing and real-device acceptance",
+    },
+  },
+  "android-release-candidate": {
+    formats: ["android-apk"],
+    signing: {
+      status: "external-verification-required",
+      productionEligible: false,
+      requiredPromotionGate: "signed native release promotion receipt",
+    },
+  },
+  "linux-release-candidate": {
+    formats: ["debian-package", "appimage"],
+    signing: {
+      status: "external-verification-required",
+      productionEligible: false,
+      requiredPromotionGate: "signed native release promotion receipt",
     },
   },
 };
@@ -62,7 +78,7 @@ function artifactFormat(filePath) {
   return null;
 }
 
-async function sha256File(filePath) {
+export async function sha256File(filePath) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(filePath)) hash.update(chunk);
   return hash.digest("hex");
@@ -85,7 +101,7 @@ async function atomicWriteFile(filePath, value) {
   }
 }
 
-async function loadToolchain(projectRoot) {
+export async function loadToolchain(projectRoot) {
   const paths = {
     packageJson: resolve(projectRoot, "package.json"),
     webPackageJson: resolve(projectRoot, "apps/web/package.json"),
@@ -329,7 +345,9 @@ function parseArguments(args) {
     }
   }
   if (!kind || !outputPath) {
-    throw new Error("Usage: --kind <android-debug|linux-unsigned> --output <file> <artifacts...>");
+    throw new Error(
+      "Usage: --kind <android-debug|linux-unsigned|android-release-candidate|linux-release-candidate> --output <file> <artifacts...>",
+    );
   }
   return { kind, outputPath, artifactPaths };
 }

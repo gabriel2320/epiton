@@ -336,9 +336,13 @@ The CI workflow now takes its pnpm version from `packageManager`, removing the
 bootstrap conflict that prevented recent remote jobs from reaching the gates.
 Its debug-signed APK and unsigned Tauri DEB/AppImage producers now emit
 SHA-256/source/toolchain receipts and attach GitHub attestations on push. They
-remain promotion evidence pending the first green run after publication; no
-release signing, device, penetration-test, WCAG, PHI, or clinical claim is
-inferred here.
+remain non-promotable pending the first green run after publication. The
+fail-closed native promotion contract now requires exact signed candidates,
+clean `main`, current toolchains, repository attestations, separated signing and
+device approval trust roots, separately protected private keys, physical
+devices, no production data, and the complete lifecycle scenario sets. No
+actual release-signing, device, penetration-test, WCAG, PHI, or clinical
+approval is inferred until those external receipts exist.
 
 ### Out of scope (hard)
 

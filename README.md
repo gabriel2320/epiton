@@ -17,6 +17,7 @@ safer, adaptive UI. **trytond remains the system of record.**
 | [`docs/CANON.md`](docs/CANON.md) | Sources of truth and doc authority |
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | PHI, license, promotion, approvals |
 | [`docs/AGENT_LOOP.md`](docs/AGENT_LOOP.md) | Daily gates and “continua” loop |
+| [`docs/NATIVE_RELEASE.md`](docs/NATIVE_RELEASE.md) | Fail-closed Android/Linux distribution promotion |
 | [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | Sao/Tryton parity matrix |
 | [`docs/THREE_LAYER_ARCHITECTURE.md`](docs/THREE_LAYER_ARCHITECTURE.md) | Three-layer map and Next.js host convergence |
 | [`docs/CLIENT_CAPABILITY_INVENTORY.md`](docs/CLIENT_CAPABILITY_INVENTORY.md) | Tryton client capability ownership/evidence inventory |

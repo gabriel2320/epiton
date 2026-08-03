@@ -56,6 +56,7 @@ writing it independently.
 | Tryton 9 official-source canary | `pnpm tryton:canary:9` |
 | Canary contract tests | `pnpm check:tryton-canary` |
 | Native receipt contract tests | `pnpm check:native-artifacts` |
+| Native promotion contract tests | `pnpm check:native-promotion` |
 | Gateway tests | `cd apps/gateway && cargo test` |
 | Mock browser E2E | `pnpm test:e2e:mock` |
 | Client accessibility/performance release baseline | `pnpm test:e2e:release` |
