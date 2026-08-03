@@ -4,7 +4,7 @@ import type { ViewField } from "@epiton/view-engine";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SavedSearchDialog } from "../SavedSearchDialog";
-import { DomainFilterBuilder, builderFilterFromText } from "./DomainFilterBuilder";
+import { builderFilterFromText, DomainFilterBuilder } from "./DomainFilterBuilder";
 
 export function WorkspaceDomainTabs(props: {
   tabs: ActWindowDomainTab[];

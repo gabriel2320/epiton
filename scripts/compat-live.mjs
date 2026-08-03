@@ -267,7 +267,7 @@ async function main() {
     await client.model("party.party", "write", [[partyId], { code: "COMPAT" }]);
     const read = await client.model("party.party", "read", [[partyId], ["name", "code"]]);
     const row = Array.isArray(read) ? read[0] : null;
-    if (!row || row.code !== "COMPAT") throw new Error("write/read mismatch");
+    if (row?.code !== "COMPAT") throw new Error("write/read mismatch");
 
     const copies = await copyRecords(client, "party.party", [partyId]);
     const copyId = copies[0];

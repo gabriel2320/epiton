@@ -13,8 +13,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --external react",
-    "dev": "tsup src/index.ts --format esm --dts --watch --external react",
+    "build": "tsdown src/index.ts --format esm --dts --clean --platform neutral --deps.never-bundle react",
+    "dev": "tsdown src/index.ts --format esm --dts --watch --platform neutral --deps.never-bundle react",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -24,9 +24,9 @@
   "devDependencies": {
     "@types/react": "^19.0.2",
     "react": "^19.0.0",
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "tsdown": "0.22.14",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "date-fns": "^4.4.0"

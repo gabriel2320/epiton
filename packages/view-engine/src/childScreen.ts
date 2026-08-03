@@ -2,15 +2,14 @@ import type { ViewField } from "./parse";
 import type { O2MCommand } from "./relations";
 import type { RecordValues } from "./render";
 import {
-  type RelationCommandQueue,
-  type ScreenState,
   createRelationQueue,
   createScreen,
   hydrateScreenFromRecord,
   idsFromRelationValue,
-  relationQueueHasChanges,
+  type RelationCommandQueue,
   relationQueueOnChangeValue,
   relationQueueWithTrytonTimestamps,
+  type ScreenState,
   screenIsDirty,
   screenTrytonTimestamps,
   screenValuesForSave,

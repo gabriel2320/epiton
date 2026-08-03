@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createScreen } from "../../lib/screen";
 import {
-  type HandleFieldChangeOptions,
-  type RecordLifecycleRefs,
-  type ScheduleOnChangeOptions,
   bumpScreenGeneration,
   flushPendingOnChange,
+  type HandleFieldChangeOptions,
   handleFieldChange,
+  type RecordLifecycleRefs,
+  type ScheduleOnChangeOptions,
 } from "./recordLifecycle";
 
 function deferred<T>() {

@@ -1,4 +1,4 @@
-import { type JsonObject, type KeywordAction, getRecordKeywords } from "@epiton/protocol";
+import { getRecordKeywords, type JsonObject, type KeywordAction } from "@epiton/protocol";
 import { Button, Panel } from "@epiton/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";

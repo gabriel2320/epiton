@@ -1,5 +1,5 @@
 /** Long-poll Tryton bus helper used by Epiton shell notifications. */
-import { type TrytonSessionAuth, sessionAuthorization } from "./auth";
+import { sessionAuthorization, type TrytonSessionAuth } from "./auth";
 
 export interface BusMessage {
   channel: string;

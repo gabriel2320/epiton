@@ -90,23 +90,25 @@ export function suggestNextActions(
   history: Array<{ model: string; action: string }>,
   limit = 5,
 ): ActionSuggestion[] {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, { model: string; action: string; score: number }>();
   for (const h of history.slice(-50)) {
-    const key = `${h.model}:${h.action}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([key, score]) => {
-      const [model, action] = key.split(":");
-      return {
-        kind: "action" as const,
-        label: `${action} on ${model}`,
-        score,
-        payload: { model, action },
-      };
+    const key = JSON.stringify([h.model, h.action]);
+    const current = counts.get(key);
+    counts.set(key, {
+      model: h.model,
+      action: h.action,
+      score: (current?.score ?? 0) + 1,
     });
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ model, action, score }) => ({
+      kind: "action" as const,
+      label: `${action} on ${model}`,
+      score,
+      payload: { model, action },
+    }));
 }
 
 export function adaptiveLayout(input: {

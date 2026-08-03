@@ -9,7 +9,7 @@ import {
 import { t } from "./i18n";
 import { parseViewLayoutAttributes } from "./layout";
 import type { ParsedView, SelectionKey, ViewField, ViewNode } from "./parse";
-import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
+import { resolveFieldWidget, type WidgetRegistry } from "./plugins";
 import { evalDomain, resolveStatesAttr } from "./pyson";
 import { relationRecordCount } from "./relations";
 import { decodeSelectionKey, encodeSelectionKey, normalizeSelectionKey } from "./selections";
@@ -208,11 +208,7 @@ function layoutGrid(node: ViewNode, view: ParsedView, ctx: RenderContext): React
   );
 }
 
-function ExpandableGroup(props: {
-  node: ViewNode;
-  view: ParsedView;
-  ctx: RenderContext;
-}) {
+function ExpandableGroup(props: { node: ViewNode; view: ParsedView; ctx: RenderContext }) {
   const regionId = useId();
   const raw = props.node.attrs.expandable?.trim().toLowerCase();
   const [expanded, setExpanded] = useState(!["0", "false", "no", "off"].includes(raw ?? ""));

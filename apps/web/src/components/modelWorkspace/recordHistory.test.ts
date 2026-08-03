@@ -1,9 +1,9 @@
 import type { JsonObject, JsonValue } from "@epiton/protocol";
 import { describe, expect, it, vi } from "vitest";
 import {
-  type RecordHistoryClient,
   formatHistoryMoment,
   listRecordHistory,
+  type RecordHistoryClient,
   readRecordHistorySnapshot,
 } from "./recordHistory";
 

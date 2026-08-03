@@ -1,10 +1,6 @@
 import { strictAclCoach } from "@epiton/intelligence";
 import {
   type ActWindowDomainTab,
-  type JsonObject,
-  type JsonValue,
-  READ_ONLY_MODEL_ACCESS,
-  type ViewSearchRow,
   copyRecords,
   createViewSearch,
   deleteViewSearch,
@@ -12,19 +8,20 @@ import {
   getKeywords,
   getModelAccess,
   importModelCsv,
+  type JsonObject,
+  type JsonValue,
   loadTreeState,
   loadViewSearches,
   modelHasAccessRows,
+  READ_ONLY_MODEL_ACCESS,
   saveTreeState,
+  type ViewSearchRow,
   viewIdForMode,
 } from "@epiton/protocol";
 import { Alert, Button, ConfirmDialog, MetaStrip, Panel, StateBlock } from "@epiton/ui";
 import {
-  type ChildScreenExitDecision,
-  type RecordValues,
-  type ViewButtonMeta,
-  type ViewField,
   aggregateGraphData,
+  type ChildScreenExitDecision,
   evalContext,
   evalDomain,
   flattenTreeRows,
@@ -37,6 +34,7 @@ import {
   parseFieldsViewGet,
   parseGraphArch,
   parseSearchDomain,
+  type RecordValues,
   renderView,
   rowsToCalendarEvents,
   rowsToMultiSeries,
@@ -48,6 +46,8 @@ import {
   treeEditable,
   treeEditablePlacement,
   treeMeta,
+  type ViewButtonMeta,
+  type ViewField,
   withMany2OneRecNames,
 } from "@epiton/view-engine";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,12 +56,12 @@ import { useTranslation } from "react-i18next";
 import { backendRpcContextKey, invalidateModelProjections } from "../lib/backendTruth";
 import { guessMime } from "../lib/mime";
 import {
-  type RelationCommandQueue,
-  type ScreenState,
   createRelationQueue,
   createScreen,
   hydrateSelectedScreen,
   isScreenReadyToSave,
+  type RelationCommandQueue,
+  type ScreenState,
   screenForSelection,
   screenIsDirty,
   screenTrytonTimestamps,
@@ -73,23 +73,10 @@ import {
 import { useAppStore } from "../lib/store";
 import { CalendarView } from "./CalendarView";
 import { CsvExportDialog } from "./CsvExportDialog";
-import { CsvImportDialog, applyCsvColumnMapping } from "./CsvImportDialog";
+import { applyCsvColumnMapping, CsvImportDialog } from "./CsvImportDialog";
 import { EmailComposeDialog } from "./EmailComposeDialog";
 import { GraphView } from "./GraphView";
 import { ListFormView } from "./ListFormView";
-import { RecordHistoryPanel } from "./RecordHistoryPanel";
-import { RelationLinesEditor } from "./RelationLinesEditor";
-import { RelationSearch } from "./RelationSearch";
-import { type TreeRowAction, VirtualPartyTable } from "./VirtualPartyTable";
-import {
-  WorkspaceKeywordActions,
-  WorkspaceListActionToolbar,
-  WorkspaceRecordActionToolbar,
-} from "./modelWorkspace/WorkspaceActionToolbars";
-import {
-  WorkspaceDomainTabs,
-  WorkspaceSearchControls,
-} from "./modelWorkspace/WorkspaceSearchControls";
 import { actionDomainDefaults, hydrateDefaultMany2OneNames } from "./modelWorkspace/actionDefaults";
 import { buttonRpcContext, isActionButton } from "./modelWorkspace/actionToolbar";
 import {
@@ -106,11 +93,11 @@ import {
   toggleSelectedId,
 } from "./modelWorkspace/listSelection";
 import {
-  type OnChangeWork,
-  type RecordLifecycleRefs,
   handleFieldChange as applyRecordFieldChange,
   bumpScreenGeneration as bumpRecordScreenGeneration,
   flushPendingOnChange as flushRecordOnChange,
+  type OnChangeWork,
+  type RecordLifecycleRefs,
   replaceDraft as replaceRecordDraft,
   scheduleOnChange as scheduleRecordOnChange,
 } from "./modelWorkspace/recordLifecycle";
@@ -122,9 +109,18 @@ import {
   screenAfterNewDefaults,
 } from "./modelWorkspace/recordSave";
 import {
-  type WorkspaceListViewMode,
+  WorkspaceKeywordActions,
+  WorkspaceListActionToolbar,
+  WorkspaceRecordActionToolbar,
+} from "./modelWorkspace/WorkspaceActionToolbars";
+import {
+  WorkspaceDomainTabs,
+  WorkspaceSearchControls,
+} from "./modelWorkspace/WorkspaceSearchControls";
+import {
   actionHasViewMode,
   initialWorkspaceViewMode,
+  type WorkspaceListViewMode,
 } from "./modelWorkspace/workspaceNavigation";
 import {
   activeWorkspaceTabDomain,
@@ -132,6 +128,10 @@ import {
   workspaceListDomainResult,
 } from "./modelWorkspace/workspaceSearch";
 import { noticeTone } from "./modelWorkspace/workspaceUi";
+import { RecordHistoryPanel } from "./RecordHistoryPanel";
+import { RelationLinesEditor } from "./RelationLinesEditor";
+import { RelationSearch } from "./RelationSearch";
+import { type TreeRowAction, VirtualPartyTable } from "./VirtualPartyTable";
 
 const DEFAULT_FIELDS = ["id", "rec_name", "name", "code", "active"];
 const PAGE_SIZE_OPTIONS = [40, 80, 120, 200] as const;

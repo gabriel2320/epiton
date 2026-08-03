@@ -28,7 +28,8 @@ describe("EpitonClient", () => {
         ["name"],
         { language: "es", epiton_correlation_id: correlationId },
       ]);
-      expect((init?.headers as Record<string, string>)["X-Correlation-Id"]).toBe(correlationId);
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      expect(headers["X-Correlation-Id"]).toBe(correlationId);
       return rpcResponse(init, { result: [{ id: 1, name: "Paciente sintético" }] });
     });
     const client = new EpitonClient({
@@ -61,7 +62,8 @@ describe("EpitonClient", () => {
       if (body.method === "common.db.login") {
         return rpcResponse(init, { result: [1, "tok-abc"] });
       }
-      const auth = (init?.headers as Record<string, string>).Authorization ?? "";
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      const auth = headers.Authorization ?? "";
       expect(auth.startsWith("Session ")).toBe(true);
       return rpcResponse(init, { result: [{ id: 1, name: "Acme" }] });
     });

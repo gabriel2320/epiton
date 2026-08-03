@@ -1,5 +1,5 @@
 import { currentWebHostEnvironment } from "./hostEnvironment";
-import { type ShellKind, detectShell } from "./nativeShell";
+import { detectShell, type ShellKind } from "./nativeShell";
 
 export interface RuntimePolicyInput {
   production: boolean;

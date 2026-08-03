@@ -1,9 +1,9 @@
 import type { EpitonClient, JsonObject } from "@epiton/protocol";
-import { type RecordValues, type ViewField, hydrateMany2OneRecNames } from "@epiton/view-engine";
+import { hydrateMany2OneRecNames, type RecordValues, type ViewField } from "@epiton/view-engine";
 import {
-  type ScreenState,
   createScreen,
   isScreenReadyToSave,
+  type ScreenState,
   screenTrytonTimestamps,
   screenValuesForSave,
   shouldApplyNewDefaults,

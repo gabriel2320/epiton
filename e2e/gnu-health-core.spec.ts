@@ -1,4 +1,4 @@
-import { type Locator, type Page, type Response, type Route, expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, type Response, type Route, test } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
 

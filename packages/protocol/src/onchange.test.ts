@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyFieldChange, buildOnChangeArgs, preValidateRecord } from "./onchange";
 import type { JsonValue } from "./onchange";
+import { applyFieldChange, buildOnChangeArgs, preValidateRecord } from "./onchange";
 
 describe("onchange", () => {
   it("buildOnChangeArgs flattens many2one", () => {

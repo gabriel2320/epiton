@@ -70,9 +70,7 @@ function shouldAutoOpen(message: unknown): boolean {
 }
 
 /** Live bus indicator with invalidate + open-record hooks (Sao parity). */
-export function BusBanner(props: {
-  onOpenRecord?: (model: string, id: number) => void;
-}) {
+export function BusBanner(props: { onOpenRecord?: (model: string, id: number) => void }) {
   const client = useAppStore((s) => s.client);
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState<BusNote[]>([]);

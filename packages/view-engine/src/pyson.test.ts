@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evalContext, evalDomain, evalPyson, evalPysonNode, resolveStatesAttr } from "./pyson";
+import { evalDomain, evalPyson, evalPysonNode, resolveStatesAttr } from "./pyson";
 
 describe("pyson JSON __class__", () => {
   it("evaluates Eval / Not / And / Or / If", () => {

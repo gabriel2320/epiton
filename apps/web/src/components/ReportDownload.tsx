@@ -1,4 +1,4 @@
-import { type JsonObject, executeReport } from "@epiton/protocol";
+import { executeReport, type JsonObject } from "@epiton/protocol";
 import { Alert, Button, Panel } from "@epiton/ui";
 import {
   aggregateGraphData,

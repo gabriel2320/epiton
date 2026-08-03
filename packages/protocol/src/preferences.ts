@@ -4,9 +4,9 @@
 
 import type { EpitonClient, JsonObject } from "./index";
 import {
-  type SessionPreferences,
   buildSessionContext,
   requireUserPreferences,
+  type SessionPreferences,
 } from "./session_context";
 
 /** Call res.user.set_preferences(values), propagating Tryton rejections. */

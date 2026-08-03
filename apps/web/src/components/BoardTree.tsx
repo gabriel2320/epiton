@@ -22,7 +22,7 @@ export function BoardTree(props: {
     );
   }
   return (
-    <div className="epiton-board-tree" aria-label="Board tree">
+    <div className="epiton-board-tree" role="region" aria-label="Board tree">
       <div className="epiton-board-tree-head">
         {cols.map((c) => (
           <span key={c.name}>{c.string}</span>

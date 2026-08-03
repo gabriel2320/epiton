@@ -1,8 +1,8 @@
-import { type FieldOnChangeMeta, type JsonObject, applyFieldChange } from "@epiton/protocol";
-import { type RecordValues, hydrateMany2OneRecNames } from "@epiton/view-engine";
+import { applyFieldChange, type FieldOnChangeMeta, type JsonObject } from "@epiton/protocol";
+import { hydrateMany2OneRecNames, type RecordValues } from "@epiton/view-engine";
 import {
-  type ScreenState,
   acceptLatestAsyncScreenUpdate,
+  type ScreenState,
   updateScreenValues,
 } from "../../lib/screen";
 

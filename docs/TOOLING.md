@@ -20,7 +20,7 @@ Agents: [`../AGENTS.md`](../AGENTS.md).
 | **ReportLab** | PDF generation | **Reject (core)** | Same: server reports, not client PDF authors. |
 | **FastAPI** | HTTP API | **Reject (core)** | Gateway is already **Axum**. A second Python API would split auth/CSP/audit. |
 | **Next.js 16** | Web application host | **Adopt progressively** | App Router is the target host; the Tryton runtime stays a client island while server layout/document concerns remain server-first. |
-| **Vite 6** | Embedded native assets + existing web bridge | **Keep narrowly** | Next CSP/PWA/E2E now pass. After N2, remove the Vite web entrypoint but retain its minimal static adapter while Tauri/Capacitor embed local assets. It must not contain a parallel UI or Tryton behavior. |
+| **Vite 8** | Embedded native assets + existing web bridge | **Keep narrowly** | Next CSP/PWA/E2E now pass. After N2, remove the Vite web entrypoint but retain its minimal static adapter while Tauri/Capacitor embed local assets. It must not contain a parallel UI or Tryton behavior. |
 | **Tailwind** | Utility CSS | **Keep (already)** | Tailwind CSS **4** uses the host adapter (`@tailwindcss/postcss` for Next, `@tailwindcss/vite` during the bridge). |
 | **shadcn/ui** | Component recipes | **Adopt selectively** | `@epiton/ui` ships Input/Badge/Tabs/Separator/MetaStrip/Alert/ConfirmDialog. Prefer recipes over CLI dump. |
 
@@ -49,6 +49,26 @@ replace native-shell receipts: CI now builds an Android debug APK and Linux
 Tauri DEB/AppImage bundles, with their first green Actions receipts still
 required. Next request-time nonce/Proxy behavior remains server-hosted rather
 than being weakened into a static export.
+
+## Reproducible client toolchain
+
+| Layer | Pinned baseline |
+|-------|-----------------|
+| JavaScript runtime | Node 24.18.1 LTS + pnpm 11.18.0 |
+| TypeScript/web tests | TypeScript 7.0.2 + Vite 8.2.0 + Vitest 4.1.10 |
+| Library bundling | tsdown 0.22.14 (`--platform neutral`; React remains external) |
+| Formatting/lint | Biome 2.5.6 |
+| Desktop | Tauri JS 2.11.x + Rust 1.97.1 |
+| Android | Capacitor 8.5.x + JDK 21 + SDK 36 + AGP 8.13.0 + Gradle 8.14.3 |
+
+`.node-version`, `packageManager`, `engines`, `rust-toolchain.toml`, the Android
+Gradle sources, and CI all carry the same baseline. Dependency ranges accept
+compatible patch releases; the lockfile records the exact resolved graph.
+
+The four publishable TypeScript libraries use `tsdown` instead of `tsup`.
+`tsdown` supports the TypeScript 7 declaration pipeline used here; neutral
+output preserves the existing `.js`/`.d.ts` package exports, and React is kept
+external in UI bundles so consumers retain a single React runtime.
 
 ## Optional future (non-core) niches
 

@@ -9,9 +9,9 @@ import {
   updateScreenValues,
 } from "../../lib/screen";
 import {
-  type SaveRecordOptions,
   leaveWriteModeTransition,
   readRecordSnapshot,
+  type SaveRecordOptions,
   saveRecord,
   screenAfterDiscard,
   screenAfterNewDefaults,

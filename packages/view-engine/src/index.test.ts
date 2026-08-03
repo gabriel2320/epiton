@@ -6,7 +6,6 @@ import {
   treeButtons,
   treeColumns,
   treeEditable,
-  treeEditablePlacement,
 } from "./index";
 
 describe("view-engine", () => {

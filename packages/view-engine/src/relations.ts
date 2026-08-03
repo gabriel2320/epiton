@@ -92,6 +92,8 @@ export function toTrytonO2M(commands: O2MCommand[]): unknown[][] {
       case "remove":
         return ["remove", [c.id]];
     }
+    const exhaustive: never = c;
+    return exhaustive;
   });
 }
 

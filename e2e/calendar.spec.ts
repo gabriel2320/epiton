@@ -1,5 +1,5 @@
-import { type Page, expect, test } from "@playwright/test";
-import { type MockTryton, installMockTryton, loginThroughBackendMenu } from "./support/mockTryton";
+import { expect, type Page, test } from "@playwright/test";
+import { installMockTryton, loginThroughBackendMenu, type MockTryton } from "./support/mockTryton";
 
 type JsonObject = Record<string, unknown>;
 
@@ -8,11 +8,17 @@ async function openCalendar(page: Page, mock: MockTryton) {
     .locator("aside")
     .getByRole("button", { name: "Synthetic Calendar", exact: true })
     .click();
-  await expect(page.getByRole("tab", { name: "synthetic.calendar" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Synthetic Calendar" })).toBeVisible();
   await page.getByRole("button", { name: "Calendar", exact: true }).click();
   const calendar = page.locator(".epiton-calendar");
   await expect(calendar).toBeVisible();
   await expect(calendar.getByText("Synthetic Calendar Alpha", { exact: true })).toBeVisible();
+  expect(
+    mock.calls.some(
+      (call) =>
+        call.method === "model.synthetic.calendar.fields_view_get" && call.params[1] === "calendar",
+    ),
+  ).toBe(true);
   await expect(
     calendar.locator(`.fc-daygrid-day[data-date="${mock.calendarDates.initial}"]`),
   ).toBeVisible();

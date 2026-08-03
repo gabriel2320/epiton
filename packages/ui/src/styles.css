@@ -36,7 +36,8 @@ body,
 
 body {
   font-family: var(--epiton-font-body);
-  background: radial-gradient(1200px 600px at 10% -10%, rgb(61 214 198 / 18%), transparent 55%),
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgb(61 214 198 / 18%), transparent 55%),
     radial-gradient(900px 500px at 100% 0%, rgb(240 160 90 / 14%), transparent 50%),
     var(--epiton-bg);
   color: var(--epiton-fg);

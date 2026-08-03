@@ -1118,7 +1118,9 @@ html[data-shell="tauri"] {
   padding: 0.85rem 1rem;
   color: var(--epiton-muted);
   text-align: center;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .epiton-dropzone-active {

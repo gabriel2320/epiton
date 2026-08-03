@@ -2,8 +2,8 @@ import type { JsonObject } from "@epiton/protocol";
 import { applyFieldChange } from "@epiton/protocol";
 import { Button, StateBlock } from "@epiton/ui";
 import {
-  type RecordValues,
   parseFieldsViewGet,
+  type RecordValues,
   renderView,
   trytonTimestampsForRecords,
   withTrytonTimestampContext,

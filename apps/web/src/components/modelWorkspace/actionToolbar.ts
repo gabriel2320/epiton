@@ -1,4 +1,5 @@
 import type { JsonObject } from "@epiton/protocol";
+
 export type { WorkspaceListViewMode } from "./workspaceNavigation";
 
 export interface ListActionAvailabilityInput {

@@ -1,8 +1,8 @@
 import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
-  type BoardLayout,
   applyBoardOrder,
+  type BoardLayout,
   parseBoardLayout,
   parseFieldsViewGet,
 } from "@epiton/view-engine";

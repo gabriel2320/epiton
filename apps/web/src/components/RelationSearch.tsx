@@ -1,6 +1,6 @@
 import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
-import { type ViewField, evalDomain } from "@epiton/view-engine";
+import { evalDomain, type ViewField } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

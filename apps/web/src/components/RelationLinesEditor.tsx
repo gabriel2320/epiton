@@ -3,18 +3,18 @@ import { Button, Panel } from "@epiton/ui";
 import {
   type ChildScreenExitDecision,
   type ChildScreenTarget,
-  type ParsedView,
-  type RecordValues,
-  type RelationCommandQueue,
-  type ViewField,
   childScreenTargetKey,
   createRelationQueue,
+  type ParsedView,
   parseFieldsViewGet,
+  type RecordValues,
+  type RelationCommandQueue,
   relationQueueWireValue,
   relationQueueWithTrytonTimestamps,
   removeChildScreen,
   treeColumns,
   trytonTimestampsForRecords,
+  type ViewField,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";

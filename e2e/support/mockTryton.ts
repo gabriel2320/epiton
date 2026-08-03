@@ -176,6 +176,19 @@ const wizardReportBoardAction = {
   views: [[null, "board"]],
 };
 
+const calendarAction = {
+  id: 920,
+  res_model: "synthetic.calendar",
+  name: "Synthetic Calendar",
+  domain: [],
+  context: {},
+  views: [
+    [null, "tree"],
+    [null, "form"],
+    [null, "calendar"],
+  ],
+};
+
 const syntheticWizardAction = {
   id: 911,
   name: "Synthetic Wizard",
@@ -625,7 +638,7 @@ export async function installMockTryton(
           id: 3,
           name: "Synthetic Calendar",
           parent: null,
-          action: "synthetic.calendar",
+          action: "ir.action.act_window,920",
         });
       }
       return menus;
@@ -679,12 +692,12 @@ export async function installMockTryton(
 
     if (
       method === "model.ir.action.act_window.search_read" &&
-      (options.includeBoard || options.includeWizardReportBoard)
+      (options.includeBoard || options.includeWizardReportBoard || options.includeCalendar)
     ) {
       const requestedIds = domainIds(params[0]);
-      const actions = options.includeWizardReportBoard
-        ? [...boardActions.values(), wizardReportBoardAction]
-        : [...boardActions.values()];
+      const actions = [...boardActions.values()];
+      if (options.includeWizardReportBoard) actions.push(wizardReportBoardAction);
+      if (options.includeCalendar) actions.push(calendarAction);
       const rows = actions.filter(
         (row) => requestedIds == null || requestedIds.includes(Number(row.id)),
       );

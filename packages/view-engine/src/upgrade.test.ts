@@ -36,6 +36,42 @@ describe("calendar/graph helpers", () => {
     expect(events[0]?.start).toContain("2026-07-01");
   });
 
+  it("normalizes Tryton datetime values for FullCalendar without changing timezone", () => {
+    const events = rowsToCalendarEvents([
+      {
+        id: 3,
+        name: "Legacy visit",
+        start: "2026-08-08 09:00:00",
+        end: {
+          __class__: "datetime",
+          year: 2026,
+          month: 8,
+          day: 8,
+          hour: 10,
+          minute: 7,
+          second: 31,
+          microsecond: 456000,
+        },
+      },
+    ]);
+
+    expect(events[0]).toMatchObject({
+      start: "2026-08-08T09:00:00",
+      end: "2026-08-08T10:07:31.456",
+    });
+  });
+
+  it("maps typed Tryton dates to all-day calendar events and skips invalid objects", () => {
+    const events = rowsToCalendarEvents([
+      { id: 4, name: "All day", start: { __class__: "date", year: 2026, month: 8, day: 9 } },
+      { id: 5, name: "Invalid", start: { __class__: "date", year: 2026, month: 2, day: 30 } },
+    ]);
+
+    expect(events).toEqual([
+      { id: 4, title: "All day", start: "2026-08-09", end: null, color: null },
+    ]);
+  });
+
   it("uses the display label of hydrated Many2One calendar values", () => {
     const events = rowsToCalendarEvents(
       [

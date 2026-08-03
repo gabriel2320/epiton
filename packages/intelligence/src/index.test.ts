@@ -20,6 +20,29 @@ describe("intelligence", () => {
     expect(suggestions[0]?.payload.action).toBe("create");
   });
 
+  it("keeps colon-delimited actions distinct", () => {
+    const suggestions = suggestNextActions([
+      { model: "synthetic.calendar", action: "calendar:create" },
+      { model: "synthetic.calendar", action: "calendar:create" },
+      { model: "synthetic.calendar", action: "calendar:open" },
+    ]);
+
+    expect(suggestions).toEqual([
+      {
+        kind: "action",
+        label: "calendar:create on synthetic.calendar",
+        score: 2,
+        payload: { model: "synthetic.calendar", action: "calendar:create" },
+      },
+      {
+        kind: "action",
+        label: "calendar:open on synthetic.calendar",
+        score: 1,
+        payload: { model: "synthetic.calendar", action: "calendar:open" },
+      },
+    ]);
+  });
+
   it("adapts layout by viewport and preset", () => {
     expect(adaptiveLayout({ viewportWidth: 480, preset: "general", preferTree: true }).layout).toBe(
       "cards",

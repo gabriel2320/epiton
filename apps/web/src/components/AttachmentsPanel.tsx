@@ -394,6 +394,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
             </Button>
           </div>
           {preview.mime.startsWith("image/") ? (
+            // biome-ignore lint/performance/noImgElement: a local object URL must render without a Next image optimizer round-trip.
             <img src={preview.url} alt={preview.name} className="epiton-attachment-image" />
           ) : (
             <PdfPreview url={preview.url} title={preview.name} />

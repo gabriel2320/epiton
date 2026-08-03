@@ -1,4 +1,4 @@
-const SERVICE_WORKER = String.raw`
+const SERVICE_WORKER = `
 const CACHE_PREFIX = "epiton-next-static-";
 const CACHE_NAME = "epiton-next-static-v1";
 

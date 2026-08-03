@@ -11,16 +11,16 @@ import {
 import { Button } from "@epiton/ui";
 import { parseFieldsViewGet } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BoardWorkspace } from "../components/BoardWorkspace";
 import { BusBanner } from "../components/BusBanner";
 import { CardsWorkspace } from "../components/CardsWorkspace";
 import { CommandPalette } from "../components/CommandPalette";
 import { MenuTree } from "../components/MenuTree";
+import { workspaceHostForViews } from "../components/modelWorkspace/workspaceNavigation";
 import { PreferencesPanel } from "../components/PreferencesPanel";
 import { ToolDrawer } from "../components/ToolDrawer";
-import { workspaceHostForViews } from "../components/modelWorkspace/workspaceNavigation";
 import { backendRpcContextKey, backendSessionScopeKey } from "../lib/backendTruth";
 import { applyShellDataset, setShellTitle } from "../lib/nativeShell";
 import { clearSecureSession } from "../lib/secureSessionBridge";

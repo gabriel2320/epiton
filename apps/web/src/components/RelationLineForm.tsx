@@ -1,30 +1,30 @@
-import { type JsonObject, applyFieldChange, preValidateRecord } from "@epiton/protocol";
+import { applyFieldChange, type JsonObject, preValidateRecord } from "@epiton/protocol";
 import { Button, ConfirmDialog, Panel, StateBlock } from "@epiton/ui";
 import {
-  type ChildScreenExitDecision,
-  type ChildScreenState,
-  type ChildScreenTarget,
-  type ParsedView,
-  type RecordValues,
-  type RelationCommandQueue,
-  type ViewButtonMeta,
-  type ViewField,
   acceptChildScreenOnChange,
   applyChildScreenTrytonOnChange,
   beginChildScreenOnChange,
+  type ChildScreenExitDecision,
+  type ChildScreenState,
+  type ChildScreenTarget,
   cancelChildScreen,
   childScreenExitDecision,
   commitChildScreen,
   createChildScreen,
   createRelationQueue,
   hydrateChildScreen,
+  type ParsedView,
   parseFieldsViewGet,
+  type RecordValues,
+  type RelationCommandQueue,
   relationQueueOnChangeValue,
   renderView,
   screenTrytonTimestamps,
   screenValuesForOnChange,
   setChildScreenRelationQueue,
   updateChildScreenValues,
+  type ViewButtonMeta,
+  type ViewField,
   validateChildScreen,
   withTrytonTimestampContext,
 } from "@epiton/view-engine";
@@ -33,13 +33,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
-import { RelationLinesEditor } from "./RelationLinesEditor";
-import { RelationSearch } from "./RelationSearch";
 import {
   beginButtonFlight,
   buttonProjectionRefetchPolicy,
   finishButtonFlight,
 } from "./modelWorkspace/buttonFlight";
+import { RelationLinesEditor } from "./RelationLinesEditor";
+import { RelationSearch } from "./RelationSearch";
 
 interface ChildOnChangeWork {
   promise: Promise<{ failed: boolean; error?: unknown }>;

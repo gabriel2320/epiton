@@ -4,7 +4,6 @@ import {
   type DomainCombinator,
   type DomainFilter,
   type DomainOperator,
-  type ViewField,
   decodeDomainFilter,
   decodeSelectionKey,
   encodeDomainFilter,
@@ -13,6 +12,7 @@ import {
   parseDomainValue,
   parseSearchDomain,
   selectionValueText,
+  type ViewField,
 } from "@epiton/view-engine";
 import { useState } from "react";
 

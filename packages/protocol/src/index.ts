@@ -1,70 +1,70 @@
 import { sessionAuthorization } from "./auth";
 
-export { sessionAuthorization } from "./auth";
-export { pollBus } from "./bus";
-export { BusClient, type BusClientOptions, type BusMessage } from "./busClient";
 export {
   getModelAccess,
+  type ModelAccess,
   modelHasAccessRows,
   READ_ONLY_MODEL_ACCESS,
-  type ModelAccess,
 } from "./acl";
 export {
+  type ActWindowDomainTab,
   openActionUrl,
+  type ResolvedAction,
   resolveAction,
   resolveWorkspaceModel,
-  type ActWindowDomainTab,
-  type ResolvedAction,
 } from "./actions";
+export { sessionAuthorization } from "./auth";
+export { resolveBoardAction } from "./board";
+export { pollBus } from "./bus";
+export { BusClient, type BusClientOptions, type BusMessage } from "./busClient";
+export { copyRecords } from "./copy";
+export { listDatabases } from "./databases";
+export { csvEscape, exportModelCsv, rowsToCsv } from "./export_csv";
+export { importModelCsv, parseCsv } from "./import_csv";
 export {
-  wizardCreate,
-  wizardDataForState,
-  wizardDelete,
-  wizardExecute,
-  type WizardExecuteResult,
-  type WizardSession,
-} from "./wizards";
+  type ActionKeyword,
+  getKeywords,
+  getRecordKeywords,
+  type KeywordAction,
+} from "./keywords";
+export { loadMenus, setMenuFavorite, type TrytonMenu } from "./menus";
+export {
+  applyFieldChange,
+  buildOnChangeArgs,
+  type FieldOnChangeMeta,
+  type OnChangeValues,
+  preValidateRecord,
+} from "./onchange";
+export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
 export {
   executeReport,
   type ReportExecutionOptions,
   type ReportExecutionResult,
 } from "./reports";
 export {
-  applyFieldChange,
-  buildOnChangeArgs,
-  preValidateRecord,
-  type FieldOnChangeMeta,
-  type OnChangeValues,
-} from "./onchange";
-export {
   asJsonObject,
   buildSessionContext,
   loadUserPreferences,
-  viewIdForMode,
   type SessionPreferences,
+  viewIdForMode,
 } from "./session_context";
-export { wizardActionRefs } from "./wizard_actions";
-export { csvEscape, exportModelCsv, rowsToCsv } from "./export_csv";
-export { importModelCsv, parseCsv } from "./import_csv";
-export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
-export { resolveBoardAction } from "./board";
-export { copyRecords } from "./copy";
-export { listDatabases } from "./databases";
-export {
-  getKeywords,
-  getRecordKeywords,
-  type ActionKeyword,
-  type KeywordAction,
-} from "./keywords";
+export { loadTranslationCatalog, type TranslationRow } from "./translations";
+export { loadTreeState, saveTreeState, serializeTreeDomain } from "./tree_state";
 export {
   createViewSearch,
   deleteViewSearch,
   loadViewSearches,
   type ViewSearchRow,
 } from "./view_search";
-export { loadTranslationCatalog, type TranslationRow } from "./translations";
-export { loadTreeState, saveTreeState, serializeTreeDomain } from "./tree_state";
-export { loadMenus, setMenuFavorite, type TrytonMenu } from "./menus";
+export { wizardActionRefs } from "./wizard_actions";
+export {
+  type WizardExecuteResult,
+  type WizardSession,
+  wizardCreate,
+  wizardDataForState,
+  wizardDelete,
+  wizardExecute,
+} from "./wizards";
 
 export type JsonRpcId = string | number | null;
 
@@ -444,8 +444,8 @@ export class EpitonClient {
       throw malformedRpcResponse("Malformed JSON-RPC response: id mismatch", parsed);
     }
 
-    const hasResult = Object.prototype.hasOwnProperty.call(payload, "result");
-    const hasError = Object.prototype.hasOwnProperty.call(payload, "error");
+    const hasResult = Object.hasOwn(payload, "result");
+    const hasError = Object.hasOwn(payload, "error");
     if (hasResult === hasError) {
       throw malformedRpcResponse(
         "Malformed JSON-RPC response: expected exactly one of result or error",

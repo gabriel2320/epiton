@@ -1,5 +1,4 @@
 import {
-  type SelectionKey,
   decodeSelectionKey,
   encodeSelectionKey,
   formatTrytonDate,
@@ -7,6 +6,7 @@ import {
   normalizeSelectionKey,
   parseTrytonDateInput,
   parseTrytonTimeInput,
+  type SelectionKey,
 } from "@epiton/view-engine";
 import type { ColumnDef, SortingState, Updater } from "@tanstack/react-table";
 import {
@@ -240,6 +240,8 @@ export function VirtualPartyTable(props: {
           return (
             <span
               className="epiton-tree-drag"
+              role="button"
+              tabIndex={0}
               draggable
               title="Drag to reorder siblings"
               aria-label={`Reorder ${id}`}

@@ -1,17 +1,17 @@
 import {
+  buildSessionContext,
   type JsonObject,
   type JsonValue,
-  buildSessionContext,
   reloadSessionPreferences,
 } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
-  type RecordValues,
-  type ViewField,
   hydrateRelationSelections,
   parseFieldsViewGet,
+  type RecordValues,
   relationSelectionRequests,
   renderView,
+  type ViewField,
 } from "@epiton/view-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";

@@ -112,6 +112,27 @@ export function formatTrytonDate(value: unknown, withTime = false): string {
   return withTime ? format(parsed, "yyyy-MM-dd'T'HH:mm") : format(parsed, "yyyy-MM-dd");
 }
 
+/** Format a Tryton date/datetime as the timezone-free ISO value FullCalendar expects. */
+export function formatTrytonCalendarDate(value: unknown): string {
+  if (value == null || value === "") return "";
+
+  const temporal = asTrytonTemporal(value);
+  if (temporal) {
+    const date = `${pad(temporal.year, 4)}-${pad(temporal.month)}-${pad(temporal.day)}`;
+    if (temporal.__class__ === "date") return date;
+    const fraction = temporal.microsecond
+      ? `.${pad(temporal.microsecond, 6).replace(/0+$/, "")}`
+      : "";
+    return `${date}T${pad(temporal.hour)}:${pad(temporal.minute)}:${pad(temporal.second)}${fraction}`;
+  }
+  if (typeof value !== "string") return "";
+
+  const raw = value.trim();
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?(?:\.\d{1,6})?$/.test(raw)
+    ? raw.replace(" ", "T")
+    : raw;
+}
+
 /** Encode an HTML date input with the exact typed JSON shape expected by Tryton 8. */
 export function parseTrytonDateInput(
   value: string,
