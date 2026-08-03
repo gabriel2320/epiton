@@ -481,6 +481,8 @@ export function VirtualPartyTable(props: {
             return (
               <tr
                 key={row.id}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 className={cn(
                   id === props.selectedId
                     ? "bg-[color-mix(in_oklab,var(--epiton-accent)_16%,transparent)]"
@@ -492,8 +494,8 @@ export function VirtualPartyTable(props: {
                   top: 0,
                   transform: `translateY(${virtualRow.start}px)`,
                   width: "100%",
-                  display: "table",
-                  tableLayout: "fixed",
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${row.getVisibleCells().length}, minmax(0, 1fr))`,
                 }}
                 onClick={() => props.onSelect(id)}
                 onDoubleClick={() => props.onOpen?.(id)}

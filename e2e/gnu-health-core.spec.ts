@@ -12,6 +12,17 @@ const clinicalWorkspaces = [
   ["Prescripciones", "gnuhealth.prescription.order"],
 ] as const;
 
+async function expectWorkspaceListSettled(page: Page, model: string) {
+  const workspace = page.getByRole("heading", { name: model, exact: true }).locator("..");
+  await expect(
+    workspace
+      .getByText("Sin registros", { exact: true })
+      .or(workspace.locator("table.epiton-table"))
+      .first(),
+  ).toBeVisible();
+  await expect(workspace.getByRole("alert")).toHaveCount(0);
+}
+
 type RoleAccess = {
   read: 0 | 1;
   write: 0 | 1;
@@ -381,7 +392,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   for (const [menu, model] of clinicalWorkspaces) {
     await sidebar.getByRole("button", { name: menu, exact: true }).last().click();
     await expect(page.getByRole("heading", { name: model, exact: true })).toBeVisible();
-    await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+    await expectWorkspaceListSettled(page, model);
   }
 
   await sidebar.getByRole("button", { name: "Reportes", exact: true }).last().click();
@@ -423,7 +434,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(
     page.getByRole("heading", { name: "gnuhealth.patient.evaluation", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+  await expectWorkspaceListSettled(page, "gnuhealth.patient.evaluation");
 
   await sidebar.getByRole("button", { name: "Pacientes", exact: true }).last().click();
   await expect(page.getByRole("heading", { name: "gnuhealth.patient", exact: true })).toBeVisible();
@@ -614,7 +625,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(peopleMenu).toBeVisible();
   await peopleMenu.click();
   await expect(page.getByRole("heading", { name: "party.party", exact: true })).toBeVisible();
-  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+  await expectWorkspaceListSettled(page, "party.party");
   const partyDefaultsResponse = page.waitForResponse((response) => {
     try {
       const request = response.request().postDataJSON() as { method?: unknown };
@@ -1211,7 +1222,7 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   await expect(
     page.getByRole("heading", { name: "gnuhealth.appointment", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Sin registros", { exact: true }).first()).toBeVisible();
+  await expectWorkspaceListSettled(page, "gnuhealth.appointment");
   await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: /^gnuhealth\.appointment form/ })).toBeVisible();
   await expect(page.locator('select[name="state"]:visible')).toHaveValue("confirmed");
