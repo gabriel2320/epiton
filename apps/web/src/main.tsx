@@ -1,31 +1,18 @@
-import "./lib/i18n";
 import "./styles/tailwind.css";
 import "./styles/app.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { App } from "./App";
+import { configureWebHostEnvironment } from "./lib/hostEnvironment";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
-    },
-  },
+configureWebHostEnvironment({
+  production: import.meta.env.PROD,
+  development: import.meta.env.DEV,
+  configuredGateway: import.meta.env.VITE_EPITON_GATEWAY_URL,
+  configuredRpcSuffix: import.meta.env.VITE_EPITON_RPC_SUFFIX,
+  configuredBusEnabled: import.meta.env.VITE_EPITON_BUS_ENABLED,
 });
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Missing #root");
+async function bootstrap(): Promise<void> {
+  const { mountEpiton } = await import("./mount");
+  mountEpiton({ development: import.meta.env.DEV });
+}
 
-createRoot(root).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-      {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
-    </QueryClientProvider>
-  </StrictMode>,
-);
+void bootstrap();

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Epiton</string>
+    <string name="title_activity_main">Epiton</string>
+    <string name="package_name">app.epiton.mobile</string>
+    <string name="custom_url_scheme">app.epiton.mobile</string>
+</resources>

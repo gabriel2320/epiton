@@ -1,6 +1,6 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": { "enabled": true },
+  "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -10,8 +10,9 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "a11y": {
+        "noStaticElementInteractions": "off",
         "useButtonType": "off",
         "useKeyWithClickEvents": "off",
         "useSemanticElements": "off",
@@ -19,6 +20,7 @@
         "noAutofocus": "off"
       },
       "suspicious": {
+        "noArrayIndexKey": "off",
         "noExplicitAny": "warn"
       },
       "style": {
@@ -26,16 +28,51 @@
       }
     }
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/**", "e2e/**", "playwright*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUndeclaredEnvVars": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/styles/app.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    }
+  ],
   "files": {
-    "ignore": [
-      "**/dist/**",
-      "**/node_modules/**",
-      "**/target/**",
-      "**/.turbo/**",
-      "**/dev-dist/**",
-      "**/www/**",
-      "**/test-results/**",
-      "**/playwright-report/**"
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/target",
+      "!**/apps/desktop/src-tauri/gen",
+      "!**/apps/mobile/android/app/build",
+      "!**/apps/mobile/android/build",
+      "!**/apps/mobile/android/app/src/main/assets",
+      "!**/apps/mobile/android/capacitor-cordova-android-plugins",
+      "!**/.turbo",
+      "!**/.next",
+      "!**/dev-dist",
+      "!**/www",
+      "!**/test-results",
+      "!**/tests/compat/receipts",
+      "!**/playwright-report"
     ]
   }
 }

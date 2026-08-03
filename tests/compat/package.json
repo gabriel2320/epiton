@@ -10,7 +10,7 @@
   "devDependencies": {
     "@epiton/protocol": "workspace:*",
     "@epiton/view-engine": "workspace:*",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

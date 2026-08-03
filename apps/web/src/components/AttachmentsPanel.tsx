@@ -1,7 +1,9 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel } from "@epiton/ui";
+import { trytonTimestampsForRecords, withTrytonTimestampContext } from "@epiton/view-engine";
 import { useCallback, useEffect, useState } from "react";
-import { useAppStore } from "../lib/store";
 import { guessMime } from "../lib/mime";
+import { useAppStore } from "../lib/store";
 import { PdfPreview } from "./PdfPreview";
 
 /** Sao-parity attachments: list / upload / download / link / rename via ir.attachment. */
@@ -29,7 +31,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
       const result = await client.searchRead(
         "ir.attachment",
         domain as never,
-        ["name", "resource", "type", "data_size", "link", "description"],
+        ["name", "resource", "type", "data_size", "link", "description", "_timestamp"],
         0,
         40,
       );
@@ -43,6 +45,16 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
       setMessage(err instanceof Error ? err.message : "Attachments unavailable");
     }
   }, [client, props.model, props.recordId, resource]);
+
+  function mutationContextFor(id: number): JsonObject {
+    return withTrytonTimestampContext(
+      {},
+      trytonTimestampsForRecords(
+        "ir.attachment",
+        rows.filter((row) => row.id === id),
+      ),
+    ) as JsonObject;
+  }
 
   useEffect(() => {
     if (props.recordId != null) void load();
@@ -143,7 +155,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
         "ir.attachment",
         "write",
         [[id], { name: editName.trim() || `attachment-${id}`, description: editDescription }],
-        {},
+        mutationContextFor(id),
       );
       setEditId(null);
       setMessage(`Updated #${id}`);
@@ -209,7 +221,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
     if (!globalThis.confirm(`Delete attachment #${id}?`)) return;
     setBusy(true);
     try {
-      await client.model("ir.attachment", "delete", [[id]], {});
+      await client.model("ir.attachment", "delete", [[id]], mutationContextFor(id));
       if (editId === id) setEditId(null);
       await load();
     } catch (err) {
@@ -382,6 +394,7 @@ export function AttachmentsPanel(props: { model: string; recordId?: number }) {
             </Button>
           </div>
           {preview.mime.startsWith("image/") ? (
+            // biome-ignore lint/performance/noImgElement: a local object URL must render without a Next image optimizer round-trip.
             <img src={preview.url} alt={preview.name} className="epiton-attachment-image" />
           ) : (
             <PdfPreview url={preview.url} title={preview.name} />

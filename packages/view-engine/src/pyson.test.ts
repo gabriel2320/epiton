@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evalContext, evalDomain, evalPyson, evalPysonNode, resolveStatesAttr } from "./pyson";
+import { evalDomain, evalPyson, evalPysonNode, resolveStatesAttr } from "./pyson";
 
 describe("pyson JSON __class__", () => {
   it("evaluates Eval / Not / And / Or / If", () => {
@@ -67,6 +67,23 @@ describe("pyson JSON __class__", () => {
     );
     expect(states.invisible).toBe(false);
     expect(states.readonly).toBe(false);
+  });
+
+  it("resolves decoded fields_view_get states", () => {
+    const states = resolveStatesAttr(
+      {
+        readonly: {
+          __class__: "Not",
+          v: {
+            __class__: "equal",
+            s1: { __class__: "Eval", v: "state" },
+            s2: "draft",
+          },
+        },
+      },
+      { state: "done" },
+    );
+    expect(states.readonly).toBe(true);
   });
 
   it("keeps string Eval/Not fallback", () => {

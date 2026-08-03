@@ -1,3 +1,13 @@
+import {
+  decodeSelectionKey,
+  encodeSelectionKey,
+  formatTrytonDate,
+  formatTrytonTime,
+  normalizeSelectionKey,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+  type SelectionKey,
+} from "@epiton/view-engine";
 import type { ColumnDef, SortingState, Updater } from "@tanstack/react-table";
 import {
   flexRender,
@@ -10,12 +20,14 @@ import { useMemo, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 
 type TreeCol = {
+  key?: string;
   name: string;
   string: string;
   type?: string;
+  widget?: string;
   readonly?: boolean;
   relation?: string;
-  selection?: Array<[string, string]>;
+  selection?: Array<[SelectionKey, string]>;
   aggregate?: "sum" | "average";
 };
 
@@ -26,9 +38,14 @@ export type TreeRowAction = {
   confirm?: string;
 };
 
-function cellDisplay(value: unknown): string {
+function cellDisplay(value: unknown, field?: TreeCol): string {
   if (value == null) return "";
   if (Array.isArray(value)) return String(value[1] ?? value[0] ?? "");
+  if (field?.widget === "time" || field?.type === "time") return formatTrytonTime(value);
+  if (field?.widget === "date" || field?.type === "date") return formatTrytonDate(value);
+  if (field?.type === "datetime" || field?.type === "timestamp") {
+    return formatTrytonDate(value, true).replace("T", " ");
+  }
   return String(value);
 }
 
@@ -53,13 +70,13 @@ function EditableCell(props: {
           props.onEditRelation?.(props.id, props.field, props.value);
         }}
       >
-        {cellDisplay(props.value) || "Select…"}
+        {cellDisplay(props.value, props.field) || "Select…"}
       </button>
     );
   }
 
   if (readonly || type === "many2one" || type === "one2many" || type === "many2many") {
-    return <span>{cellDisplay(props.value)}</span>;
+    return <span>{cellDisplay(props.value, props.field)}</span>;
   }
 
   if (type === "boolean") {
@@ -75,41 +92,61 @@ function EditableCell(props: {
   }
 
   if (type === "selection" && props.field.selection?.length) {
+    const selectedKey = normalizeSelectionKey(props.value);
+    const selectedValue = selectedKey == null ? "" : encodeSelectionKey(selectedKey);
     return (
       <select
         className="epiton-tree-edit"
-        value={props.value == null ? "" : String(props.value)}
+        value={selectedValue}
         aria-label={props.field.string}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => {
           const next = e.target.value;
-          if (String(props.value ?? "") === next) return;
-          props.onCommit(props.id, props.field.name, next === "" ? null : next);
+          if (selectedValue === next) return;
+          const selected = decodeSelectionKey(props.field.selection ?? [], next);
+          props.onCommit(props.id, props.field.name, next === "" ? null : selected);
         }}
       >
         <option value="">—</option>
-        {props.field.selection.map(([k, label]) => (
-          <option key={k} value={k}>
-            {label}
-          </option>
-        ))}
+        {props.field.selection
+          .filter(([key]) => key !== null)
+          .map(([key, label], index) => (
+            <option key={`${encodeSelectionKey(key)}-${index}`} value={encodeSelectionKey(key)}>
+              {label}
+            </option>
+          ))}
       </select>
     );
   }
 
-  if (type === "date" || type === "datetime" || type === "timestamp") {
-    const withTime = type !== "date";
-    const display = formatTreeDate(props.value, withTime);
+  const temporalWidget =
+    props.field.widget === "date" || props.field.widget === "time" ? props.field.widget : undefined;
+  if (
+    temporalWidget ||
+    type === "date" ||
+    type === "datetime" ||
+    type === "timestamp" ||
+    type === "time"
+  ) {
+    const inputKind =
+      temporalWidget ?? (type === "date" ? "date" : type === "time" ? "time" : "datetime");
+    const display =
+      inputKind === "time"
+        ? formatTrytonTime(props.value)
+        : formatTrytonDate(props.value, inputKind === "datetime");
     return (
       <input
         className="epiton-tree-edit"
-        type={withTime ? "datetime-local" : "date"}
+        type={inputKind === "datetime" ? "datetime-local" : inputKind}
         defaultValue={display}
         aria-label={props.field.string}
         onClick={(e) => e.stopPropagation()}
         onBlur={(e) => {
-          const next = parseTreeDate(e.target.value, withTime);
-          if (String(props.value ?? "") === String(next ?? "")) return;
+          if (display === e.target.value) return;
+          const next =
+            inputKind === "time"
+              ? parseTrytonTimeInput(e.target.value, props.value)
+              : parseTrytonDateInput(e.target.value, inputKind === "datetime", props.value);
           props.onCommit(props.id, props.field.name, next);
         }}
         onKeyDown={(e) => {
@@ -125,7 +162,7 @@ function EditableCell(props: {
     <input
       className="epiton-tree-edit"
       type={inputType}
-      defaultValue={cellDisplay(props.value)}
+      defaultValue={cellDisplay(props.value, props.field)}
       aria-label={props.field.string}
       onClick={(e) => e.stopPropagation()}
       onBlur={(e) => {
@@ -145,20 +182,6 @@ function EditableCell(props: {
   );
 }
 
-function formatTreeDate(value: unknown, withTime: boolean): string {
-  if (value == null || value === "") return "";
-  const raw = String(value);
-  if (!withTime) return raw.slice(0, 10);
-  return raw.slice(0, 16).replace(" ", "T");
-}
-
-function parseTreeDate(value: string, withTime: boolean): string | null {
-  if (!value) return null;
-  if (withTime)
-    return value.length === 16 ? `${value.replace("T", " ")}:00` : value.replace("T", " ");
-  return value.slice(0, 10);
-}
-
 export function VirtualPartyTable(props: {
   rows: Array<Record<string, unknown>>;
   columns: TreeCol[];
@@ -166,6 +189,7 @@ export function VirtualPartyTable(props: {
   selectedIds?: number[];
   editable?: boolean;
   rowActions?: TreeRowAction[];
+  rowActionsPending?: boolean;
   /** Hierarchy metadata aligned 1:1 with `rows` (after flatten). */
   rowMeta?: Array<{ depth: number; hasChildren: boolean; expanded?: boolean }>;
   onToggleExpand?: (id: number) => void;
@@ -194,7 +218,12 @@ export function VirtualPartyTable(props: {
   function handleSortingChange(updater: Updater<SortingState>) {
     setSorting((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      props.onSortChange?.(next.map((s) => ({ id: s.id, desc: Boolean(s.desc) })));
+      props.onSortChange?.(
+        next.map((s) => ({
+          id: props.columns.find((column) => (column.key ?? column.name) === s.id)?.name ?? s.id,
+          desc: Boolean(s.desc),
+        })),
+      );
       return next;
     });
   }
@@ -211,6 +240,8 @@ export function VirtualPartyTable(props: {
           return (
             <span
               className="epiton-tree-drag"
+              role="button"
+              tabIndex={0}
               draggable
               title="Drag to reorder siblings"
               aria-label={`Reorder ${id}`}
@@ -282,7 +313,8 @@ export function VirtualPartyTable(props: {
     }
     for (const c of props.columns) {
       cols.push({
-        accessorKey: c.name,
+        id: c.key ?? c.name,
+        accessorFn: (row) => row[c.name],
         header: c.string,
         cell: (info) => {
           const id = Number(info.row.original.id);
@@ -297,7 +329,7 @@ export function VirtualPartyTable(props: {
               />
             );
           }
-          return cellDisplay(info.getValue());
+          return cellDisplay(info.getValue(), c);
         },
       });
     }
@@ -315,12 +347,9 @@ export function VirtualPartyTable(props: {
                   key={action.name}
                   type="button"
                   className="epiton-button"
-                  onClick={() => {
-                    if (action.confirm && typeof globalThis.confirm === "function") {
-                      if (!globalThis.confirm(action.confirm)) return;
-                    }
-                    props.onRowAction?.(id, action);
-                  }}
+                  disabled={props.rowActionsPending}
+                  aria-busy={props.rowActionsPending || undefined}
+                  onClick={() => props.onRowAction?.(id, action)}
                 >
                   {action.string ?? action.name}
                 </button>
@@ -341,6 +370,7 @@ export function VirtualPartyTable(props: {
     props.rowMeta,
     props.onToggleExpand,
     props.onRowAction,
+    props.rowActionsPending,
     rowActions,
     hierarchical,
     reorderable,
@@ -392,7 +422,7 @@ export function VirtualPartyTable(props: {
       if (!count) continue;
       const value = col.aggregate === "average" ? sum / count : sum;
       const label = col.aggregate === "average" ? "avg" : "sum";
-      map.set(col.name, `${label} ${formatAgg(value)}`);
+      map.set(col.key ?? col.name, `${label} ${formatAgg(value)}`);
     }
     return map;
   }, [props.columns, props.rows]);
@@ -448,6 +478,8 @@ export function VirtualPartyTable(props: {
             return (
               <tr
                 key={row.id}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 className={cn(
                   id === props.selectedId
                     ? "bg-[color-mix(in_oklab,var(--epiton-accent)_16%,transparent)]"
@@ -459,8 +491,8 @@ export function VirtualPartyTable(props: {
                   top: 0,
                   transform: `translateY(${virtualRow.start}px)`,
                   width: "100%",
-                  display: "table",
-                  tableLayout: "fixed",
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${row.getVisibleCells().length}, minmax(0, 1fr))`,
                 }}
                 onClick={() => props.onSelect(id)}
                 onDoubleClick={() => props.onOpen?.(id)}

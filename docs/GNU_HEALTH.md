@@ -1,69 +1,173 @@
-# GNU Health / HIS matrix
+# GNU Health compatibility contract
 
-Epiton targets Tryton RPC compatibility first. GNU Health modules install on trytond and should open through the same view engine.
+Epitón supports GNU Health through the same dynamic Tryton contract used for
+every module: menus, actions, `fields_view_get`, PYSON, relations, wizards,
+reports, and Session RPC. It does not maintain a parallel clinical API, schema,
+workspace preset, or list of hard-coded patient/appointment widgets.
 
-| Module / model (typical) | Expected view types | Epiton gap | Plugin plan |
-|--------------------------|---------------------|------------|-------------|
-| `gnuhealth.patient` | form, tree | Validate arch widgets | Patient badge widget |
-| `gnuhealth.appointment` | calendar, form | Calendar renderer MVP | Full calendar pack |
-| `gnuhealth.prescription.order` | form + O2M lines | Embedded O2M line form | Nested notebook polish |
-| `gnuhealth.lab` | form, tree | Binary/report attach | Lab result panel |
-| `gnuhealth.hospital.bed` | tree | OK with stock tree | Floor map optional |
-| Maternity / neonatology extensions | form notebooks | Notebook/page supported | Specialty presets |
-| FHIR bridge (if present) | REST | Use gateway REST proxy | Not in UI v1 |
+This keeps the client compatible with the GNU Health version and modules that
+the connected trytond instance actually exposes. It also avoids treating model
+names as proof that a clinical workflow is correct.
 
-## Workspace preset
+## Current evidence
 
-`clinical` preset favorites:
+| Boundary | Status | Meaning |
+|----------|--------|---------|
+| Generic Tryton 7/8 protocol | Verified | Core metadata, CRUD, actions, keywords, attachments |
+| Generic browser CRUD | Verified | Browser → gateway → trytond → browser on both tiers |
+| GNU Health namespace discovery | Implemented | Reads `ir.model` metadata for `gnuhealth.*` only |
+| Chilean `health` core RPC profile | Verified | Pinned Tryton 8/PostgreSQL synthetic lab; Spanish session, exact activated modules and five critical view contracts |
+| GNU Health core browser rendering | Verified | Spanish menus and live patient, appointment, evaluation, prescription and vaccination workspaces through gateway → trytond |
+| Core patient CRUD | Verified | Synthetic person/patient create, read, update and delete, including Chilean federation and Many2One behavior |
+| Appointment lifecycle slice | Verified | Synthetic appointment defaults, patient relation, create, `checked_in` transition and delete |
+| Protected core clinical lifecycles | Verified | Evaluation create/update with delete denied; prescription with nested line create/finalize; vaccination create/sign; one in-flight button RPC in the client, terminal replay rejected by Tryton, and final state, immutability and unique longitudinal events checked by the backend fixture |
+| Core patient report lifecycle | Verified | The Spanish `Carnet de Identidad` action executes `patient.card` with Tryton's native report contract; GNU Health owns the PDF format and filename and Epitón previews the returned binary payload |
+| Core optimistic concurrency | Verified | Two independent Spanish Epitón sessions load the same patient snapshot; the first write refreshes `_timestamp`, Tryton rejects the stale second write, and the newest value is retained |
+| Core effective role/ACL matrix | Verified | Tryton's ACL engine checks eight synthetic identities across patient, appointment, evaluation, prescription and vaccination, including negative permissions; Epitón then exercises all eight profiles in the browser against a disposable database clone, while upstream demo accounts remain forbidden |
+| Authoritative core clinical audit | Verified | A shared UUID crosses the Epitón gateway header and Tryton context; successful central disclosures, mutations and workflow buttons append minimal SHA-256-linked evidence without request bodies, response bodies or clinical values. The gate reconciles 68 events and preserves the exact chain-head receipt through backup, restore and controlled cleanup |
+| PHI / clinical production readiness | **Not claimed** | Requires separate security, clinical, and operational governance |
 
-- `gnuhealth.patient`
-- `gnuhealth.appointment`
-- `party.party`
+The stock Docker lab contains party/company modules only. Therefore
+`pnpm gh:check` exits `2` there by design. Exit `0` means at least one
+`gnuhealth.*` model was discovered and its tree/form view capability was
+probed; it does **not** certify that model's workflow.
 
-## Widget plugins
+## Metadata-only discovery
 
-Epiton view-engine exposes a registry (`clinicalWidgetRegistry`) for GH relations:
-
-| Key | Widget |
-|-----|--------|
-| `relation:gnuhealth.patient` | Patient badge |
-| `model:gnuhealth.patient.name` | Patient badge |
-| `relation:gnuhealth.appointment` | Appointment chip |
-
-Enable via workspace preset **Clinical (GH)** in the shell (`useClinicalWidgets`).
-
-## Lab bootstrap (no PHI)
-
-Default `docker/` lab ships party/company only — **not** GNU Health.
-
-1. Point Epiton at a Tryton 7.x server that already has `health_*` / `gnuhealth.*` modules installed, **or**
-2. Build the optional scaffold image (fill in pinned wheels first):
-
-```bash
-# after editing docker/Dockerfile.gnuhealth with real package pins
-docker build -f docker/Dockerfile.gnuhealth -t epiton/tryton-gh:7.0 docker/
-```
-
-3. Probe models (synthetic admin only):
+Run against a synthetic, dedicated GNU Health environment:
 
 ```bash
 pnpm --filter @epiton/protocol build
-pnpm gh:check
+EPITON_GH_ENVIRONMENT_KIND=synthetic-gnu-health pnpm gh:check
 ```
 
-`gh:check` exits `2` when no GH models are present (expected on the stock lab), `0` when at least one opens via `fields_view_get`.
+For the pinned Chilean core, add
+`EPITON_GH_PROFILE=health-core-cl`. That stricter profile fails unless the
+authenticated preference is Spanish, the activated module set is exactly
+`health` plus its seven Tryton dependencies, the translated root menus are
+present, and the patient, appointment, evaluation, prescription and vaccination
+views expose their required metadata. This profile remains read-only and
+synthetic; business writes belong to the browser gate below.
 
-Compose profile sketch (optional override):
+Connection variables follow the other lab scripts:
+`EPITON_BASE`, `EPITON_DB`, `EPITON_USER`, and `EPITON_PASSWORD`. They are used
+in memory and are deliberately excluded from the receipt.
 
-```yaml
-# docker-compose.gnuhealth.yml (local override — do not commit secrets)
-services:
-  tryton:
-    image: epiton/tryton-gh:7.0
+The default receipt is
+`tests/compat/receipts/gnu-health-latest.json` (gitignored, mode `0600`) with
+schema `epiton.gnu-health-discovery.v1`. It contains only:
+
+- an operator-supplied environment kind;
+- technical `gnuhealth.*` model names;
+- whether tree/form metadata could be obtained;
+- explicit flags confirming no business-row reads, writes, or PHI.
+- for the optional Chilean core profile, language/module/menu evidence and
+  technical required-view field counts.
+
+Upstream error details are redacted. The probe never searches, reads, creates,
+writes, deletes, or exports GNU Health business records.
+
+## Browser gate
+
+The GPL backend source tree can opt into the Epitón browser boundary after its
+clean PostgreSQL validation:
+
+```bash
+EPITON_TEST_CLIENT_GATE=1 ./scripts/test_health_postgresql.sh
 ```
+
+The gate starts a temporary trytond HTTP listener and the Epitón gateway, then
+runs `e2e/gnu-health-core.spec.ts` against an isolated web port. It proves that
+the authenticated Spanish menu can open patient, appointment, evaluation,
+prescription and vaccination workspaces from live Tryton view metadata. With
+synthetic data it creates and updates a person/patient, exercises Chilean
+federation and Many2One behavior, creates an appointment from server defaults,
+persists `checked_in` and deletes it. It then creates and updates an evaluation,
+creates and finalizes a prescription with a nested medication line, and creates
+and signs a vaccination with lot and expiry data. Two independent authenticated
+pages also load the same patient snapshot: the first write succeeds and returns
+a fresh `_timestamp`, while Tryton rejects the second page's stale write and the
+newest backend value remains visible. Parent and nested timestamps travel only
+in Tryton's reserved RPC context, never in clinical values or x2many command
+tuples. Finally, the scenario returns to the patient, opens the translated
+`Carnet de Identidad` print action and previews the real `patient.card` PDF. The
+assertion fixes the wire boundary to
+`Report.execute(ids, data, context)`, accepts Tryton's encoded bytes envelope,
+and requires the backend-provided extension and filename instead of a
+client-selected format.
+
+The scenario rejects page/console errors, duplicate IDs, inaccessible form
+controls, layout overlaps and unusable relations. It also observes the effective
+evaluation access returned by Tryton and requires the delete controls to remain
+disabled. While prescription finalization is deliberately held at the network
+boundary, the initiating button remains disabled and busy and a second click
+does not emit another RPC. After completion, the backend fixture requires
+Tryton to reject public button replay on the terminal records and verifies the
+final protected records, rejected mutations and one longitudinal event for
+each prescription and vaccination. Native Tryton JSON-RPC has no durable
+idempotency-key contract, so this evidence is deliberately limited to client
+single-flight, server state-machine enforcement and optimistic concurrency.
+The gate then takes a live PostgreSQL backup, restores it into an independent
+database,
+and revalidates the module set, Chilean localization, protected records and
+immutability. Both databases are cleaned and required to have zero residual
+clinical fixture records. For every audited central clinical model RPC, Epitón
+emits the same UUID in the gateway header and Tryton context. The gateway logs only
+correlation, RPC, status and latency; Tryton appends minimal, immutable evidence
+with durable references and SHA-256-linked chain heads. The gate reconciles 68
+events and requires the exact receipt
+`2676fb4216c64e9b282ac116cd22650861689bbfe84347a276126de1fb8e63f9`
+after backup, restore and controlled cleanup. Before the browser phase, the
+same gate asks Tryton's ACL engine for the effective permissions of
+administration, nursing administration, nursing, front desk, doctor, social
+work, back office and an
+unprivileged identity on five protected core models. The engine-only identities
+are rolled back and the gate rejects the former persistent demo accounts. It
+then clones the configured database into a disposable role database and runs
+all eight profiles through the Epitón UI, checking translated menu visibility,
+model access responses and create controls. The seven non-administrative users
+remain confined to that disposable database because Tryton correctly forbids
+deleting auditable users; the database is destroyed with the temporary cluster
+and is excluded from the operational backup. PHI handling, migration from the
+GNU Health 5.0/Tryton 7 base, clinical/regulatory approval, production
+deployment and incident exercises remain separate acceptance gates.
+
+## Deployment transport controls
+
+The production web host pins traffic to its own origin or to a same-origin path
+configured with `VITE_EPITON_GATEWAY_URL` (Vite) or
+`NEXT_PUBLIC_EPITON_GATEWAY_URL` (Next). Deployments can select `auto`, `rpc`, or
+`bare` through `VITE_EPITON_RPC_SUFFIX` or `NEXT_PUBLIC_EPITON_RPC_SUFFIX`. Bus polling is
+disabled unless the deployment sets `VITE_EPITON_BUS_ENABLED=true` or
+`NEXT_PUBLIC_EPITON_BUS_ENABLED=true` and its proxy exposes the Tryton bus
+route. These are transport capabilities only; none changes server-side GNU
+Health authority or persists session state.
+
+## Dedicated lab requirements
+
+`docker/Dockerfile.gnuhealth` remains an intentionally non-functional scaffold.
+The verified Chilean core is assembled in the separate GPL GNU Health source
+tree with exact Python/Tryton locks and a disposable PostgreSQL cluster; GNU
+Health code is not copied into this Apache-2.0 client. A fully supported browser
+lab must still:
+
+1. retain the exact GNU Health and Tryton package pins;
+2. use a disposable database and synthetic fixtures only;
+3. route the browser through the Epitón gateway;
+4. run the verified core profile before model-specific browser scenarios;
+5. pass the synthetic browser lifecycle gate;
+6. clean up all synthetic writes and publish only redacted receipts;
+7. add evidence to `COMPATIBILITY.md` before changing any support claim.
+
+Prefer composing against a maintained GNU Health trytond image over adding
+GNU Health or Proteus to the Epitón runtime. Proteus remains an isolated lab
+oracle; it is not shipped in the UI, gateway, or production images.
 
 ## Rules
 
-- No real PHI in fixtures or screenshots.
-- Fail-closed clinical writes belong to the HIS (e.g. Epione); Epiton remains a Tryton-compatible client.
-- Custom GH widgets register via view-engine plugin registry without forking modules.
+- No real PHI/PII in fixtures, screenshots, logs, receipts, or agent context.
+- No clinical model names in runtime presets or special-case render paths.
+- Server views, domains, states, ACLs, wizards, and reports remain authoritative.
+- Optional industry widgets must be supplied by a separate, versioned plugin
+  and cannot be used as compatibility evidence by themselves.
+- Epitón is a Tryton client, not a clinical system of record.

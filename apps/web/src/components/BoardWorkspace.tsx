@@ -1,59 +1,40 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
-  type BoardLayout,
   applyBoardOrder,
+  type BoardLayout,
   parseBoardLayout,
   parseFieldsViewGet,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { type BoardActionsCtx, BoardPane, type BoardSelection } from "./BoardPane";
-
-function layoutStorageKey(model: string): string {
-  return `epiton.board.order.${model}`;
-}
-
-function loadOrder(model: string): string[] {
-  try {
-    const raw = sessionStorage.getItem(layoutStorageKey(model));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveOrder(model: string, order: string[]) {
-  try {
-    sessionStorage.setItem(layoutStorageKey(model), JSON.stringify(order));
-  } catch {
-    /* ignore quota */
-  }
-}
 
 /** Interactive Tryton board: embedded screens + native DnD + selection cross-filter. */
 export function BoardWorkspace(props: {
   model: string;
-  onOpen: (actionOrModel: string) => void;
+  onOpen: (actionOrModel: string, context: JsonObject) => void;
   onOpenRecord?: (model: string, id: number) => void;
 }) {
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
-  const [order, setOrder] = useState<string[]>(() => loadOrder(props.model));
+  const sessionRpcScope = backendRpcContextKey(sessionContext);
+  const [order, setOrder] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [activeSelection, setActiveSelection] = useState<BoardSelection | null>(null);
   const [actionsCtx, setActionsCtx] = useState<BoardActionsCtx>({});
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: model changes define a new volatile board projection.
   useEffect(() => {
-    setOrder(loadOrder(props.model));
+    setOrder([]);
     setActiveSelection(null);
     setActionsCtx({});
   }, [props.model]);
 
   const boardQuery = useQuery({
-    queryKey: ["model", props.model, "board-view"],
+    queryKey: ["model", props.model, "board-view", sessionRpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -96,7 +77,6 @@ export function BoardWorkspace(props: {
     next.splice(from, 1);
     next.splice(to, 0, fromId);
     setOrder(next);
-    saveOrder(props.model, next);
   }
 
   function onDragStart(e: DragEvent, id: string) {
@@ -142,7 +122,6 @@ export function BoardWorkspace(props: {
             variant="ghost"
             onClick={() => {
               setOrder([]);
-              saveOrder(props.model, []);
             }}
           >
             Reset layout

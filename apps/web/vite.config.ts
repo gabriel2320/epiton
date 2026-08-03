@@ -11,25 +11,24 @@ const isProd = process.env.NODE_ENV === "production" || process.env.EPITON_CSP =
  * Prefer deploying web behind epiton-gateway so connect-src can stay `'self'`.
  * Dev keeps broader connect for direct trytond URLs.
  */
-function buildCsp(prod: boolean): string {
+function buildCsp(prod: boolean, includeFrameAncestors = true): string {
   const scriptSrc = prod ? "script-src 'self'" : "script-src 'self' 'unsafe-inline'";
-  const connectSrc = prod
-    ? "connect-src 'self' ws: wss:"
-    : "connect-src 'self' http: https: ws: wss:";
-  return [
+  const connectSrc = prod ? "connect-src 'self'" : "connect-src 'self' http: https: ws: wss:";
+  const directives = [
     "default-src 'self'",
     scriptSrc,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
     "img-src 'self' data: blob:",
     connectSrc,
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
     "object-src 'none'",
-  ].join("; ");
+  ];
+  if (includeFrameAncestors) directives.splice(-1, 0, "frame-ancestors 'none'");
+  return directives.join("; ");
 }
 
 const securityHeaders = {
@@ -52,12 +51,15 @@ export default defineConfig(({ mode }) => {
           if (!prod) return html;
           return html.replace(
             /http-equiv="Content-Security-Policy"\s+content="[^"]*"/,
-            `http-equiv="Content-Security-Policy" content="${buildCsp(true)}"`,
+            `http-equiv="Content-Security-Policy" content="${buildCsp(true, false)}"`,
           );
         },
       },
       VitePWA({
         registerType: "autoUpdate",
+        // Backend truth is never a PWA runtime cache entry. Workbox may only
+        // precache versioned build assets emitted by this production build.
+        workbox: { runtimeCaching: [] },
         manifest: {
           name: "Epiton",
           short_name: "Epiton",

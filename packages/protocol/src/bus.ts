@@ -13,6 +13,9 @@ export async function pollBus(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ channels, last_message: lastMessage }),
+    cache: "no-store",
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
   });
   if (!response.ok) {
     throw new Error(`Bus HTTP ${response.status}`);

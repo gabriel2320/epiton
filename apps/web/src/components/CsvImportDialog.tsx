@@ -59,7 +59,6 @@ export function CsvImportDialog(props: {
         <div className="epiton-csv-map">
           {parsed.headers.map((header, col) => (
             // Column order is the CSV identity; headers may duplicate.
-            // biome-ignore lint/suspicious/noArrayIndexKey: stable CSV column slot
             <label key={col} className="epiton-csv-map-row">
               <span className="epiton-csv-map-header">{header || `(col ${col + 1})`}</span>
               <select

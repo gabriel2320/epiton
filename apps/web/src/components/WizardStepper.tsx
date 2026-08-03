@@ -1,6 +1,6 @@
 import {
-  type JsonObject,
   applyFieldChange,
+  type JsonObject,
   wizardCreate,
   wizardDataForState,
   wizardDelete,
@@ -9,13 +9,13 @@ import {
 import { Button, Panel, StateBlock } from "@epiton/ui";
 import {
   type ParsedView,
+  parseWizardPayload,
   type RecordValues,
+  renderView,
   type ViewField,
   type WizardButton,
-  parseWizardPayload,
-  renderView,
 } from "@epiton/view-engine";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../lib/store";
 import { RelationSearch } from "./RelationSearch";
 
@@ -32,11 +32,27 @@ interface WizardRuntime {
   context: JsonObject;
 }
 
-const DEFAULT_WIZARDS = ["ir.module.activate_upgrade", "ir.translation.export", "res.user.config"];
+function wizardContext(
+  initialContext: JsonObject | null | undefined,
+  activeId: number | null | undefined,
+  activeIds: number[] | undefined,
+  activeModel: string | null | undefined,
+  actionId: number | null | undefined,
+): JsonObject {
+  const context: JsonObject = { ...(initialContext ?? {}) };
+  if (activeId != null) context.active_id = activeId;
+  if (activeIds?.length) context.active_ids = activeIds;
+  else if (activeId != null) context.active_ids = [activeId];
+  if (activeModel) context.active_model = activeModel;
+  if (actionId != null) context.action_id = actionId;
+  return context;
+}
 
 /** Sao-compatible wizard stepper: create → execute(state) → button transitions → delete. */
 export function WizardStepper(props: {
   initialWizard?: string | null;
+  /** Invocation context from an action host such as a board pane. */
+  initialContext?: JsonObject | null;
   activeId?: number | null;
   activeIds?: number[];
   activeModel?: string | null;
@@ -47,7 +63,7 @@ export function WizardStepper(props: {
 }) {
   const client = useAppStore((s) => s.client);
   const density = useAppStore((s) => s.density);
-  const [wizardName, setWizardName] = useState(props.initialWizard ?? "ir.module.activate_upgrade");
+  const [wizardName, setWizardName] = useState(props.initialWizard ?? "");
   const [runtime, setRuntime] = useState<WizardRuntime | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "data">("idle");
   const [message, setMessage] = useState("Pick a wizard and start");
@@ -58,15 +74,20 @@ export function WizardStepper(props: {
   const runtimeRef = useRef<WizardRuntime | null>(null);
   runtimeRef.current = runtime;
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const invocationContext = useMemo(
+    () =>
+      wizardContext(
+        props.initialContext,
+        props.activeId,
+        props.activeIds,
+        props.activeModel,
+        props.actionId,
+      ),
+    [props.initialContext, props.activeId, props.activeIds, props.activeModel, props.actionId],
+  );
 
   function buildContext(): JsonObject {
-    const ctx: JsonObject = {};
-    if (props.activeId != null) ctx.active_id = props.activeId;
-    if (props.activeIds?.length) ctx.active_ids = props.activeIds;
-    else if (props.activeId != null) ctx.active_ids = [props.activeId];
-    if (props.activeModel) ctx.active_model = props.activeModel;
-    if (props.actionId != null) ctx.action_id = props.actionId;
-    return ctx;
+    return { ...invocationContext };
   }
 
   function handleFieldChange(name: string, value: unknown) {
@@ -108,6 +129,11 @@ export function WizardStepper(props: {
 
   async function start(name = wizardName) {
     if (!client) return;
+    if (!name.trim()) {
+      setStatus("error");
+      setMessage("Choose a wizard supplied by a backend action or enter its technical name");
+      return;
+    }
     setWizardName(name);
     setStatus("loading");
     try {
@@ -236,12 +262,7 @@ export function WizardStepper(props: {
       setWizardName(wizard);
       setStatus("loading");
       try {
-        const context: JsonObject = {};
-        if (props.activeId != null) context.active_id = props.activeId;
-        if (props.activeIds?.length) context.active_ids = props.activeIds;
-        else if (props.activeId != null) context.active_ids = [props.activeId];
-        if (props.activeModel) context.active_model = props.activeModel;
-        if (props.actionId != null) context.action_id = props.actionId;
+        const context = { ...invocationContext };
         const session = await wizardCreate(client, wizard, context);
         if (cancelled) return;
         const executed = await wizardExecute(client, session, {}, session.startState, context);
@@ -287,15 +308,7 @@ export function WizardStepper(props: {
     return () => {
       cancelled = true;
     };
-  }, [
-    props.autoStart,
-    props.initialWizard,
-    props.activeId,
-    props.activeIds,
-    props.activeModel,
-    props.actionId,
-    client,
-  ]);
+  }, [props.autoStart, props.initialWizard, invocationContext, client]);
 
   useEffect(() => {
     return () => {
@@ -310,14 +323,9 @@ export function WizardStepper(props: {
           value={wizardName}
           onChange={(e) => setWizardName(e.target.value)}
           aria-label="Wizard technical name"
-          list="epiton-wizard-suggestions"
+          placeholder="wizard technical name"
           style={{ minWidth: "16rem" }}
         />
-        <datalist id="epiton-wizard-suggestions">
-          {DEFAULT_WIZARDS.map((w) => (
-            <option key={w} value={w} />
-          ))}
-        </datalist>
         <Button variant="primary" onClick={() => void start()}>
           Start
         </Button>
@@ -348,6 +356,7 @@ export function WizardStepper(props: {
             field={relationField}
             recordValues={runtime.values}
             domain={relationDomain}
+            context={runtime.context}
             mode="write"
             onCancel={() => {
               setRelationField(null);

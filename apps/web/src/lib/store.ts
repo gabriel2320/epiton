@@ -1,6 +1,7 @@
 import type { Density, WorkspacePreset } from "@epiton/intelligence";
 import type { EpitonClient, JsonObject, SessionPreferences } from "@epiton/protocol";
 import { create } from "zustand";
+import { normalizeConnectionBaseUrl, runtimeConnectionPolicy } from "./runtimeConfig";
 
 export type UiState = "loading" | "empty" | "error" | "data";
 
@@ -34,18 +35,20 @@ interface AppStore {
   setPreferences: (preferences: SessionPreferences, sessionContext: JsonObject) => void;
   setError: (error: string | null) => void;
   setCommandOpen: (open: boolean) => void;
+  clearAuthentication: () => void;
 }
 
-const saved =
-  typeof localStorage !== "undefined" ? localStorage.getItem("epiton.connection") : null;
+const runtimePolicy = runtimeConnectionPolicy();
+const initialConnection: ConnectionConfig = {
+  baseUrl: runtimePolicy.baseUrl,
+  database: "epiton_lab",
+};
 
 export const useAppStore = create<AppStore>((set) => ({
   theme: "dark",
   density: "comfortable",
   preset: "general",
-  connection: saved
-    ? (JSON.parse(saved) as ConnectionConfig)
-    : { baseUrl: "http://localhost:8000", database: "epiton_lab" },
+  connection: initialConnection,
   session: null,
   client: null,
   preferences: {},
@@ -56,12 +59,29 @@ export const useAppStore = create<AppStore>((set) => ({
   setDensity: (density) => set({ density }),
   setPreset: (preset) => set({ preset }),
   setConnection: (connection) => {
-    localStorage.setItem("epiton.connection", JSON.stringify(connection));
-    set({ connection });
+    const safeConnection = {
+      baseUrl: runtimePolicy.serverLocked
+        ? runtimePolicy.baseUrl
+        : normalizeConnectionBaseUrl(connection.baseUrl),
+      database: connection.database.trim() || initialConnection.database,
+    };
+    set({ connection: safeConnection });
   },
   setSession: (session) => set({ session }),
   setClient: (client) => set({ client }),
   setPreferences: (preferences, sessionContext) => set({ preferences, sessionContext }),
   setError: (error) => set({ error }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
+  clearAuthentication: () =>
+    set({
+      theme: "dark",
+      density: "comfortable",
+      preset: "general",
+      session: null,
+      client: null,
+      preferences: {},
+      sessionContext: {},
+      error: null,
+      commandOpen: false,
+    }),
 }));

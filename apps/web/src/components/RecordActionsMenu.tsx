@@ -1,24 +1,33 @@
-import { type KeywordAction, getRecordKeywords } from "@epiton/protocol";
+import { getRecordKeywords, type JsonObject, type KeywordAction } from "@epiton/protocol";
 import { Button, Panel } from "@epiton/ui";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
+import { buttonRpcContext } from "./modelWorkspace/actionToolbar";
 
 /** Sao-style Relate / Print / Action menus from ir.action.keyword. */
 export function RecordActionsMenu(props: {
   model: string;
   recordId: number | null;
-  onOpen: (ref: string, source: string) => void;
+  context: JsonObject;
+  onOpen: (ref: string, source: string, context: JsonObject) => void;
 }) {
+  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
-  const sessionContext = useAppStore((s) => s.sessionContext);
+  const actionContext =
+    props.recordId == null
+      ? props.context
+      : buttonRpcContext(props.context, props.model, [props.recordId]);
+  const rpcScope = backendRpcContextKey(actionContext);
 
   const keywordsQuery = useQuery({
-    queryKey: ["keywords", props.model, props.recordId],
+    queryKey: ["keywords", props.model, props.recordId, rpcScope],
     enabled: Boolean(client && props.model),
     staleTime: 60_000,
     queryFn: async () => {
       if (!client) return { relate: [], print: [], action: [] };
-      return getRecordKeywords(client, props.model, props.recordId, sessionContext);
+      return getRecordKeywords(client, props.model, props.recordId, actionContext);
     },
   });
 
@@ -28,19 +37,27 @@ export function RecordActionsMenu(props: {
   const empty = !relate.length && !print.length && !action.length;
 
   return (
-    <Panel title="Actions">
-      {keywordsQuery.isLoading ? <p role="status">Loading keywords…</p> : null}
+    <Panel title={t("workspace.actions")}>
+      {keywordsQuery.isLoading ? <p role="status">{t("workspace.loadingKeywords")}</p> : null}
       {empty && !keywordsQuery.isLoading ? (
         <p className="text-sm text-[var(--epiton-muted)]" role="status">
-          No relate / print / form actions
+          {t("workspace.noKeywordActions")}
         </p>
       ) : null}
-      <ActionGroup label="Relate" items={relate} onPick={(a) => props.onOpen(a.ref, "relate")} />
-      <ActionGroup label="Print" items={print} onPick={(a) => props.onOpen(a.ref, "print")} />
       <ActionGroup
-        label="Action"
+        label={t("workspace.relate")}
+        items={relate}
+        onPick={(a) => props.onOpen(a.ref, "relate", actionContext)}
+      />
+      <ActionGroup
+        label={t("workspace.print")}
+        items={print}
+        onPick={(a) => props.onOpen(a.ref, "print", actionContext)}
+      />
+      <ActionGroup
+        label={t("workspace.action")}
         items={action}
-        onPick={(a) => props.onOpen(a.ref, "form_action")}
+        onPick={(a) => props.onOpen(a.ref, "form_action", actionContext)}
       />
     </Panel>
   );

@@ -1,7 +1,12 @@
 .epiton-shell {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
   min-height: 100vh;
+}
+
+.epiton-main,
+.epiton-sidebar {
+  min-width: 0;
 }
 
 .epiton-sidebar {
@@ -61,9 +66,27 @@
   gap: 0.85rem;
 }
 
+.epiton-login-fields {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.epiton-login-fields label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.epiton-login-fields small {
+  color: var(--epiton-muted);
+  line-height: 1.4;
+}
+
 .epiton-login-card input,
 .epiton-toolbar input,
 .epiton-toolbar select,
+.epiton-filter-builder input,
+.epiton-filter-builder select,
 .epiton-command input {
   width: 100%;
   border-radius: 12px;
@@ -142,11 +165,193 @@
   display: grid;
   gap: 0.35rem;
   margin-bottom: 0.85rem;
+  min-width: 0;
+}
+
+.epiton-field-label,
+.epiton-label,
+.epiton-field-help {
+  color: var(--epiton-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.epiton-label {
+  align-self: center;
+  cursor: default;
+}
+
+.epiton-field-help {
+  display: block;
+}
+
+.epiton-form,
+.epiton-sheet,
+.epiton-group,
+.epiton-page,
+.epiton-layout-cell,
+.epiton-paned,
+.epiton-paned-pane {
+  min-width: 0;
+}
+
+.epiton-form,
+.epiton-sheet,
+.epiton-group,
+.epiton-page {
+  container-name: epiton-layout;
+  container-type: inline-size;
+}
+
+.epiton-group-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.epiton-layout-grid {
+  display: grid;
+  grid-template-columns: var(--epiton-layout-template, repeat(4, minmax(0, 1fr)));
+  gap: 0.75rem 0.85rem;
+  align-items: start;
+}
+
+.epiton-model-workspace {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 44rem), 1fr));
+  gap: 1rem;
+}
+
+.epiton-model-workspace > * {
+  min-width: 0;
+}
+
+.epiton-layout-cell > .epiton-field {
+  height: 100%;
+  margin-bottom: 0;
+}
+
+.epiton-layout-cell[data-xexpand="true"] > * {
+  width: 100%;
+}
+
+.epiton-layout-cell[data-yexpand="true"] > * {
+  min-height: 100%;
+}
+
+@container epiton-layout (min-width: 45rem) and (max-width: 72rem) {
+  .epiton-layout-grid {
+    grid-template-columns: minmax(10rem, 0.35fr) minmax(0, 1fr) !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell {
+    grid-row: auto !important;
+    justify-self: stretch !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell[data-layout-role="label"] {
+    grid-column: 1 !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell[data-layout-role="control"] {
+    grid-column: 2 !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell[data-layout-role="wide"] {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@container epiton-layout (max-width: 44.999rem) {
+  .epiton-layout-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .epiton-layout-grid > .epiton-layout-cell {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: stretch !important;
+  }
+}
+
+.epiton-layout-newline,
+.epiton-layout-separator {
+  grid-column: 1 / -1 !important;
+  grid-row: auto !important;
+}
+
+.epiton-newline {
+  display: block;
+  height: 0;
+}
+
+.epiton-separator {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--epiton-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.epiton-separator::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--epiton-border);
+}
+
+.epiton-expandable-group {
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+}
+
+.epiton-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.epiton-paned {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--epiton-border);
+  border-radius: 10px;
+}
+
+.epiton-paned-horizontal {
+  grid-template-columns:
+    minmax(0, var(--epiton-pane-position, 1fr)) 1px
+    minmax(0, 1fr);
+}
+
+.epiton-paned-vertical {
+  grid-template-rows:
+    minmax(0, var(--epiton-pane-position, 1fr)) 1px
+    minmax(0, 1fr);
+}
+
+.epiton-paned-pane {
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.epiton-paned-divider {
+  background: var(--epiton-border);
 }
 
 .epiton-field input,
 .epiton-field textarea,
 .epiton-field select {
+  min-width: 0;
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--epiton-border);
@@ -156,12 +361,141 @@
   font: inherit;
 }
 
+.epiton-field input[type="checkbox"],
+.epiton-field input[type="radio"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.25rem 0;
+  padding: 0;
+  justify-self: start;
+  accent-color: var(--epiton-accent);
+}
+
+.epiton-m2o,
+.epiton-reference {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.epiton-m2o > input,
+.epiton-reference > input,
+.epiton-reference > select {
+  width: auto;
+}
+
+.epiton-o2m,
+.epiton-binary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.epiton-field button {
+  min-width: 0;
+  border: 1px solid var(--epiton-border);
+  border-radius: 8px;
+  background: var(--epiton-bg-elevated);
+  color: var(--epiton-fg);
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.epiton-field button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .epiton-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.85rem;
   align-items: center;
+}
+
+.epiton-search-controls {
+  margin-bottom: 0.85rem;
+  container-type: inline-size;
+}
+
+.epiton-search-toolbar {
+  margin-bottom: 0.5rem;
+}
+
+.epiton-search-input {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.epiton-filter-builder {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid var(--epiton-border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--epiton-accent) 5%, var(--epiton-bg));
+}
+
+.epiton-filter-builder-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.epiton-filter-builder-heading label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--epiton-muted);
+  font-size: 0.85rem;
+}
+
+.epiton-filter-clauses {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.epiton-filter-clause {
+  display: grid;
+  grid-template-columns: auto minmax(7rem, 1fr) minmax(6.5rem, 0.8fr) minmax(9rem, 1.5fr) minmax(
+      8rem,
+      1fr
+    ) auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.epiton-filter-clause > button:last-child {
+  grid-column: -2 / -1;
+}
+
+@container (max-width: 52rem) {
+  .epiton-filter-clause {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .epiton-filter-clause > :not(.epiton-filter-clause-number) {
+    grid-column: 2;
+  }
+}
+
+.epiton-filter-clause-number {
+  color: var(--epiton-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.epiton-filter-error {
+  margin: 0.25rem 0 0;
+  color: var(--epiton-danger, #b42318);
+  font-size: 0.85rem;
 }
 
 .epiton-breadcrumbs {
@@ -659,11 +993,15 @@
   background: color-mix(in srgb, var(--epiton-accent) 14%, var(--epiton-bg));
 }
 
-.epiton-notebook-panel,
-.epiton-notebook .epiton-page {
+.epiton-notebook-panel {
   border: 1px solid var(--epiton-border);
   border-radius: 10px;
   padding: 0.65rem 0.85rem;
+}
+
+.epiton-notebook .epiton-page {
+  border: 0;
+  padding: 0;
 }
 
 .epiton-tree-edit {
@@ -729,6 +1067,17 @@
   padding: 0;
 }
 
+.epiton-menu-list .epiton-menu-toggle,
+.epiton-menu-list .epiton-menu-fav {
+  width: 1.25rem;
+}
+
+.epiton-menu-row > button:last-child {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+}
+
 .epiton-tree-drag {
   display: inline-flex;
   cursor: grab;
@@ -769,7 +1118,9 @@ html[data-shell="tauri"] {
   padding: 0.85rem 1rem;
   color: var(--epiton-muted);
   text-align: center;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .epiton-dropzone-active {
@@ -918,11 +1269,41 @@ html[data-shell="tauri"] {
 
 @media (max-width: 900px) {
   .epiton-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .epiton-sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--epiton-border);
+  }
+
+  .epiton-model-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 719px) {
+  .epiton-filter-clause {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .epiton-filter-clause > :not(.epiton-filter-clause-number) {
+    grid-column: 2;
+  }
+
+  .epiton-layout-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .epiton-layout-cell {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: stretch !important;
+  }
+
+  .epiton-paned-horizontal,
+  .epiton-paned-vertical {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1px auto;
   }
 }

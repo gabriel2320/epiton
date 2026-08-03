@@ -33,6 +33,8 @@ export type FieldType =
   | "dict"
   | "unknown";
 
+export type SelectionKey = string | number | boolean | null;
+
 export interface ViewField {
   name: string;
   string?: string;
@@ -40,7 +42,7 @@ export interface ViewField {
   readonly?: boolean;
   required?: boolean;
   relation?: string;
-  selection?: Array<[string, string]>;
+  selection?: Array<[SelectionKey, string]>;
   help?: string;
   /** Arch widget= override (email, url, password, …). */
   widget?: string;
@@ -48,8 +50,18 @@ export interface ViewField {
   filename?: string;
   /** Static or PYSON-encoded domain from fields_view_get. */
   domain?: unknown;
+  /** Static or PYSON-encoded RPC context for relation-backed fields. */
+  context?: unknown;
+  /** Dynamic readonly/required/invisible flags from fields_view_get. */
+  states?: unknown;
   on_change?: string[];
   on_change_with?: string[];
+  /** View policy: run Model.pre_validate before accepting an embedded record. */
+  pre_validate?: boolean;
+  /** View policy: allow creation from this relation widget (default true). */
+  create?: boolean;
+  /** View policy: allow deletion from this relation widget (default true). */
+  delete?: boolean;
 }
 
 export interface ViewNode {
@@ -163,6 +175,11 @@ function mapFieldType(raw: unknown): FieldType {
   return (allowed.includes(t as FieldType) ? t : "unknown") as FieldType;
 }
 
+function booleanViewAttr(raw: string | undefined): boolean | undefined {
+  if (raw === undefined) return undefined;
+  return !["0", "false", "no"].includes(raw.trim().toLowerCase());
+}
+
 export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView {
   const archRaw = payload.arch ?? payload.arch_tree ?? payload.arch_form;
   if (typeof archRaw !== "string") {
@@ -198,9 +215,11 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
       relation: typeof meta.relation === "string" ? meta.relation : undefined,
       help: typeof meta.help === "string" ? meta.help : undefined,
       selection: Array.isArray(meta.selection)
-        ? (meta.selection as Array<[string, string]>)
+        ? (meta.selection as Array<[SelectionKey, string]>)
         : undefined,
       domain: meta.domain,
+      context: meta.context,
+      states: meta.states,
       on_change: Array.isArray(meta.on_change) ? meta.on_change.map(String) : undefined,
       on_change_with: Array.isArray(meta.on_change_with)
         ? meta.on_change_with.map(String)
@@ -220,10 +239,18 @@ export function parseFieldsViewGet(payload: Record<string, unknown>): ParsedView
     }
     if (node.tag === "field" && node.attrs.name) {
       const field = fields[node.attrs.name];
-      if (field && node.attrs.widget) {
-        field.widget = node.attrs.widget;
-        const widgetType = mapFieldType(node.attrs.widget);
-        if (widgetType !== "unknown") field.type = widgetType;
+      if (field) {
+        if (node.attrs.widget) {
+          field.widget = node.attrs.widget;
+          const widgetType = mapFieldType(node.attrs.widget);
+          if (widgetType !== "unknown") field.type = widgetType;
+        }
+        const preValidate = booleanViewAttr(node.attrs.pre_validate);
+        const create = booleanViewAttr(node.attrs.create);
+        const deleteRecords = booleanViewAttr(node.attrs.delete);
+        if (preValidate !== undefined) field.pre_validate = preValidate;
+        if (create !== undefined) field.create = create;
+        if (deleteRecords !== undefined) field.delete = deleteRecords;
       }
     }
     for (const child of node.children) walk(child);

@@ -11,10 +11,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  buildOnChangeArgs,
   copyRecords,
   createClient,
   exportModelCsv,
+  loadMenus,
   loadUserPreferences,
+  preValidateRecord,
   resolveAction,
   resolveWorkspaceModel,
 } from "../packages/protocol/dist/index.js";
@@ -52,6 +55,7 @@ async function main() {
   const database = process.env.EPITON_DB ?? "epiton_lab";
   const username = process.env.EPITON_USER ?? "admin";
   const password = process.env.EPITON_PASSWORD ?? "admin";
+  const series = process.env.EPITON_COMPAT_SERIES ?? "unknown";
 
   console.log(`compat:live → ${baseUrl} db=${database}`);
 
@@ -112,6 +116,100 @@ async function main() {
     return { fields: Object.keys(parsed.fields).length };
   });
 
+  await tryCheck(
+    "relation_child_boundary",
+    "fields_view_get + on_change_with + pre_validate on transient relation child",
+    async () => {
+      const partyForm = parseFieldsViewGet(await client.fieldsViewGet("party.party", null, "form"));
+      const parentField = Object.values(partyForm.fields).find(
+        (field) =>
+          field.type === "one2many" &&
+          field.pre_validate === true &&
+          typeof field.relation === "string",
+      );
+      if (!parentField?.relation) {
+        throw new Error("party form has no pre_validate one2many relation");
+      }
+
+      const childForm = parseFieldsViewGet(
+        await client.fieldsViewGet(parentField.relation, null, "form"),
+      );
+      const changedField = Object.values(childForm.fields).find((field) =>
+        Object.values(childForm.fields).some(
+          (candidate) =>
+            candidate.name !== field.name && candidate.on_change_with?.includes(field.name),
+        ),
+      );
+      if (!changedField) throw new Error("relation has no on_change_with dependency");
+
+      const dependents = Object.values(childForm.fields).filter(
+        (field) =>
+          field.name !== changedField.name && field.on_change_with?.includes(changedField.name),
+      );
+      const rows = await client.searchRead("party.party", [], ["id"], 0, 1);
+      let parentId = rows[0] ? Number(rows[0].id) : null;
+      let createdParentId = null;
+      if (!parentId) {
+        const created = await client.model("party.party", "create", [
+          [{ name: `EpitonRelation ${Date.now()}`, active: true }],
+        ]);
+        parentId = Array.isArray(created) ? Number(created[0]) : Number(created);
+        if (!Number.isFinite(parentId)) throw new Error("could not create relation probe parent");
+        createdParentId = parentId;
+      }
+
+      try {
+        const defaults = await client.model(parentField.relation, "default_get", [
+          Object.keys(childForm.fields),
+          {},
+        ]);
+        const values = {
+          ...(defaults && typeof defaults === "object" && !Array.isArray(defaults) ? defaults : {}),
+          id: -1,
+          party: parentId,
+          code: "EPITON-LIVE-RELATION",
+          [changedField.name]: null,
+        };
+        const dependentNames = dependents.map((field) => field.name);
+        const argumentNames = [
+          "id",
+          ...dependentNames,
+          ...dependents.flatMap((field) => field.on_change_with ?? []),
+        ];
+        const args = buildOnChangeArgs(values, [...new Set(argumentNames)], childForm.fields);
+        const patch = await client.model(parentField.relation, "on_change_with", [
+          args,
+          dependentNames,
+        ]);
+        if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+          throw new Error("on_change_with did not return an object patch");
+        }
+
+        const validation = await preValidateRecord(
+          client,
+          parentField.relation,
+          { ...values, ...patch },
+          childForm.fields,
+        );
+        if (validation !== null) {
+          throw new Error(`pre_validate returned ${JSON.stringify(validation)}`);
+        }
+        return {
+          parentField: parentField.name,
+          relation: parentField.relation,
+          changedField: changedField.name,
+          dependents: dependentNames,
+          patchKeys: Object.keys(patch),
+          validation: "accepted",
+        };
+      } finally {
+        if (createdParentId != null) {
+          await client.model("party.party", "delete", [[createdParentId]]);
+        }
+      }
+    },
+  );
+
   await tryCheck("fields_view_get_graph", "model.*.fields_view_get graph", async () => {
     try {
       const fv = await client.fieldsViewGet("party.party", null, "graph");
@@ -169,7 +267,7 @@ async function main() {
     await client.model("party.party", "write", [[partyId], { code: "COMPAT" }]);
     const read = await client.model("party.party", "read", [[partyId], ["name", "code"]]);
     const row = Array.isArray(read) ? read[0] : null;
-    if (!row || row.code !== "COMPAT") throw new Error("write/read mismatch");
+    if (row?.code !== "COMPAT") throw new Error("write/read mismatch");
 
     const copies = await copyRecords(client, "party.party", [partyId]);
     const copyId = copies[0];
@@ -213,6 +311,14 @@ async function main() {
       10,
     );
     return { roots: menus.length };
+  });
+
+  await tryCheck("menu_favorites", "ir.ui.menu.search_read + ir.ui.menu.favorite.get", async () => {
+    const menus = await loadMenus(client);
+    return {
+      menus: menus.length,
+      favorites: menus.filter((menu) => menu.favorite).length,
+    };
   });
 
   await tryCheck("attachment_model", "ir.attachment.search_read", async () => {
@@ -261,13 +367,18 @@ async function main() {
   const receipt = {
     schema: "epiton.compat-live.v1",
     at: new Date().toISOString(),
-    target: { baseUrl, database, username },
+    target: {
+      series,
+      databaseKind: "disposable-lab",
+      transport: "gateway",
+    },
     summary: { passed, failed, skipped, total: checks.length },
     checks,
   };
 
   mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, "compat-live-latest.json");
+  const safeSeries = series.replace(/[^0-9A-Za-z.-]/g, "-");
+  const outPath = join(outDir, `compat-live-${safeSeries}-latest.json`);
   writeFileSync(outPath, `${JSON.stringify(receipt, null, 2)}\n`);
   console.log(`\nsummary pass=${passed} fail=${failed} skip=${skipped} → ${outPath}`);
 

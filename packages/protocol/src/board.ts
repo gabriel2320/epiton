@@ -3,7 +3,7 @@
  */
 
 import { type ResolvedAction, resolveAction } from "./actions";
-import type { EpitonClient } from "./index";
+import type { EpitonClient, JsonObject } from "./index";
 
 /**
  * Resolve a board action name: numeric id, ir.action ref, XML fs_id, or model.
@@ -11,16 +11,17 @@ import type { EpitonClient } from "./index";
 export async function resolveBoardAction(
   client: EpitonClient,
   name: string,
+  context: JsonObject = {},
 ): Promise<ResolvedAction> {
   const trimmed = name.trim();
   if (!trimmed) return { kind: "unsupported", ref: name, reason: "empty" };
 
   if (trimmed.includes(",")) {
-    return resolveAction(client, trimmed);
+    return resolveAction(client, trimmed, context);
   }
 
   if (/^\d+$/.test(trimmed)) {
-    return resolveAction(client, `ir.action.act_window,${trimmed}`);
+    return resolveAction(client, `ir.action.act_window,${trimmed}`, context);
   }
 
   try {
@@ -33,14 +34,16 @@ export async function resolveBoardAction(
       ["model", "db_id"],
       0,
       1,
+      null,
+      context,
     );
     const row = rows[0];
     if (row && typeof row.model === "string" && row.db_id != null) {
-      return resolveAction(client, `${row.model},${row.db_id}`);
+      return resolveAction(client, `${row.model},${row.db_id}`, context);
     }
   } catch {
     // Fall through
   }
 
-  return resolveAction(client, trimmed);
+  return resolveAction(client, trimmed, context);
 }

@@ -1,13 +1,25 @@
-import type { ReactNode } from "react";
-import { createElement, useState } from "react";
-import { formatTrytonDate, parseTrytonDateInput } from "./dates";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { createElement, useId, useState } from "react";
+import {
+  formatTrytonDate,
+  formatTrytonTime,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+} from "./dates";
 import { t } from "./i18n";
-import type { ParsedView, ViewField, ViewNode } from "./parse";
-import { type WidgetRegistry, resolveFieldWidget } from "./plugins";
+import { parseViewLayoutAttributes } from "./layout";
+import type { ParsedView, SelectionKey, ViewField, ViewNode } from "./parse";
+import { resolveFieldWidget, type WidgetRegistry } from "./plugins";
 import { evalDomain, resolveStatesAttr } from "./pyson";
 import { relationRecordCount } from "./relations";
+import { decodeSelectionKey, encodeSelectionKey, normalizeSelectionKey } from "./selections";
 
 export type RecordValues = Record<string, unknown>;
+
+export type ViewButtonMeta = {
+  type?: string;
+  confirm?: string;
+};
 
 export interface RenderContext {
   values: RecordValues;
@@ -16,7 +28,8 @@ export interface RenderContext {
   model?: string;
   widgets?: WidgetRegistry;
   onChange?: (name: string, value: unknown) => void;
-  onButton?: (name: string, meta?: { type?: string }) => void;
+  onButton?: (name: string, meta?: ViewButtonMeta) => void;
+  isButtonPending?: (name: string) => boolean;
   onOpenRelation?: (field: ViewField, value: unknown, domain?: unknown[]) => void;
   onBinaryDownload?: (field: ViewField, value: unknown) => void;
   renderField?: (field: ViewField, value: unknown) => ReactNode;
@@ -26,30 +39,34 @@ export interface RenderContext {
 function NotebookHost(props: {
   pages: Array<{ key: string; title: string; content: ReactNode }>;
   density: string;
-  storageKey?: string;
 }) {
-  const storageKey = props.storageKey ? `epiton.notebook.${props.storageKey}` : null;
-  const [active, setActive] = useState(() => {
-    if (!storageKey) return 0;
-    try {
-      const raw = sessionStorage.getItem(storageKey);
-      const n = raw == null ? 0 : Number(raw);
-      return Number.isFinite(n) ? n : 0;
-    } catch {
-      return 0;
-    }
-  });
+  const notebookId = useId();
+  const [active, setActive] = useState(0);
   const safe = Math.min(active, Math.max(0, props.pages.length - 1));
-  const current = props.pages[safe];
 
   function selectPage(i: number) {
     setActive(i);
-    if (!storageKey) return;
-    try {
-      sessionStorage.setItem(storageKey, String(i));
-    } catch {
-      /* ignore quota */
+  }
+
+  function moveFocus(event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) {
+    let next = currentIndex;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      next = (currentIndex + 1) % props.pages.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      next = (currentIndex - 1 + props.pages.length) % props.pages.length;
+    } else if (event.key === "Home") {
+      next = 0;
+    } else if (event.key === "End") {
+      next = props.pages.length - 1;
+    } else {
+      return;
     }
+    event.preventDefault();
+    selectPage(next);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      .item(next)
+      .focus();
   }
 
   return createElement(
@@ -66,25 +83,239 @@ function NotebookHost(props: {
             type: "button",
             role: "tab",
             "aria-selected": i === safe,
+            "aria-controls": `${notebookId}-panel-${i}`,
+            id: `${notebookId}-tab-${i}`,
             className: "epiton-notebook-tab",
             "data-active": i === safe,
+            tabIndex: i === safe ? 0 : -1,
             onClick: () => selectPage(i),
+            onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => moveFocus(event, i),
           },
           page.title,
         ),
       ),
     ),
-    current
-      ? createElement(
-          "div",
-          {
-            className: "epiton-notebook-panel",
-            role: "tabpanel",
-            "aria-label": current.title,
-          },
-          current.content,
-        )
+    props.pages.map((page, i) =>
+      createElement(
+        "div",
+        {
+          key: page.key,
+          className: "epiton-notebook-panel",
+          role: "tabpanel",
+          id: `${notebookId}-panel-${i}`,
+          "aria-labelledby": `${notebookId}-tab-${i}`,
+          hidden: i !== safe,
+        },
+        page.content,
+      ),
+    ),
+  );
+}
+
+function alignmentKeyword(value: number): "start" | "center" | "end" {
+  if (value <= 0.25) return "start";
+  if (value >= 0.75) return "end";
+  return "center";
+}
+
+function layoutGridStyle(node: ViewNode): CSSProperties {
+  const layout = parseViewLayoutAttributes(node.attrs);
+  const template =
+    layout.columns === null
+      ? "repeat(auto-fit, minmax(min(100%, 12rem), 1fr))"
+      : `repeat(${layout.columns}, minmax(0, 1fr))`;
+  return { "--epiton-layout-template": template } as CSSProperties;
+}
+
+function layoutCellStyle(node: ViewNode, parent: ViewNode): CSSProperties {
+  const layout = parseViewLayoutAttributes(node.attrs);
+  const fullWidth =
+    node.tag === "newline" ||
+    node.tag === "separator" ||
+    (node.attrs.colspan === undefined &&
+      (["notebook", "hpaned", "vpaned", "sheet"].includes(node.tag) ||
+        (node.tag === "group" && parent.tag === "form")));
+  return {
+    ...(fullWidth ? { gridColumn: "1 / -1" } : { gridColumnEnd: `span ${layout.colspan}` }),
+    gridRowEnd: `span ${layout.rowspan}`,
+    justifySelf: layout.xfill ? "stretch" : alignmentKeyword(layout.xalign),
+    alignSelf: layout.yfill ? "stretch" : alignmentKeyword(layout.yalign),
+  };
+}
+
+function fieldNodeIsInvisible(node: ViewNode, view: ParsedView, values: RecordValues): boolean {
+  const name = node.attrs.name ?? "";
+  return (
+    resolveStatesAttr(node.attrs.states, values).invisible === true ||
+    resolveStatesAttr(view.fields[name]?.states, values).invisible === true
+  );
+}
+
+function renderLayoutChildren(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode[] {
+  return node.children.map((child, index) => {
+    const previous = node.children[index - 1];
+    const next = node.children[index + 1];
+    const hasExplicitLabel =
+      child.tag === "field" &&
+      Boolean(child.attrs.name) &&
+      previous?.tag === "label" &&
+      previous.attrs.name === child.attrs.name &&
+      !resolveStatesAttr(previous.attrs.states, ctx.values).invisible &&
+      !fieldNodeIsInvisible(child, view, ctx.values);
+    const labelsFollowingField =
+      child.tag === "label" &&
+      Boolean(child.attrs.name) &&
+      next?.tag === "field" &&
+      next.attrs.name === child.attrs.name &&
+      !resolveStatesAttr(child.attrs.states, ctx.values).invisible &&
+      !fieldNodeIsInvisible(next, view, ctx.values);
+    const rendered = renderNode(child, view, ctx, { hideFieldLabel: hasExplicitLabel });
+    if (rendered === null || rendered === undefined || rendered === false) return null;
+    const layout = parseViewLayoutAttributes(child.attrs);
+    const flowClass =
+      child.tag === "newline"
+        ? " epiton-layout-newline"
+        : child.tag === "separator"
+          ? " epiton-layout-separator"
+          : "";
+    return createElement(
+      "div",
+      {
+        key: `${child.tag}-${child.attrs.name ?? child.attrs.string ?? index}-${index}`,
+        className: `epiton-layout-cell${flowClass}`,
+        style: layoutCellStyle(child, node),
+        "data-colspan": child.attrs.colspan ?? "default",
+        "data-rowspan": layout.rowspan,
+        "data-xexpand": layout.xexpand,
+        "data-yexpand": layout.yexpand,
+        "data-layout-role": labelsFollowingField ? "label" : hasExplicitLabel ? "control" : "wide",
+      },
+      rendered,
+    );
+  });
+}
+
+function layoutGrid(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode {
+  const layout = parseViewLayoutAttributes(node.attrs);
+  return createElement(
+    "div",
+    {
+      className: `epiton-layout-grid epiton-${node.tag}-grid`,
+      style: layoutGridStyle(node),
+      "data-layout-columns": layout.columns ?? "auto",
+    },
+    renderLayoutChildren(node, view, ctx),
+  );
+}
+
+function ExpandableGroup(props: { node: ViewNode; view: ParsedView; ctx: RenderContext }) {
+  const regionId = useId();
+  const raw = props.node.attrs.expandable?.trim().toLowerCase();
+  const [expanded, setExpanded] = useState(!["0", "false", "no", "off"].includes(raw ?? ""));
+  const title = props.node.attrs.string ?? "Section";
+
+  return createElement(
+    "section",
+    {
+      className: `epiton-group epiton-expandable-group density-${props.ctx.density}`,
+      "data-string": props.node.attrs.string,
+    },
+    createElement(
+      "h3",
+      { className: "epiton-group-title" },
+      createElement(
+        "button",
+        {
+          type: "button",
+          className: "epiton-group-toggle",
+          "aria-expanded": expanded,
+          "aria-controls": regionId,
+          onClick: () => setExpanded((current) => !current),
+        },
+        createElement("span", { "aria-hidden": true }, expanded ? "▾" : "▸"),
+        title,
+      ),
+    ),
+    createElement(
+      "div",
+      { id: regionId, hidden: !expanded },
+      layoutGrid(props.node, props.view, props.ctx),
+    ),
+  );
+}
+
+function renderContainerNode(
+  node: ViewNode,
+  view: ParsedView,
+  ctx: RenderContext,
+  showTitle = true,
+): ReactNode {
+  if (node.tag === "group" && node.attrs.expandable !== undefined) {
+    return createElement(ExpandableGroup, { node, view, ctx });
+  }
+  return createElement(
+    "section",
+    {
+      className: `epiton-${node.tag} density-${ctx.density}`,
+      "data-string": node.attrs.string,
+    },
+    showTitle && node.attrs.string
+      ? createElement("h3", { className: "epiton-group-title" }, node.attrs.string)
       : null,
+    layoutGrid(node, view, ctx),
+  );
+}
+
+function renderPanedNode(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode {
+  const horizontal = node.tag === "hpaned";
+  const layout = parseViewLayoutAttributes(node.attrs);
+  const panes = node.children.slice(0, 2);
+  const style = (
+    layout.position === null ? undefined : { "--epiton-pane-position": `${layout.position}px` }
+  ) as CSSProperties | undefined;
+  const children: ReactNode[] = [];
+
+  panes.forEach((pane, index) => {
+    if (index > 0) {
+      children.push(
+        createElement("div", {
+          key: "divider",
+          className: "epiton-paned-divider",
+          role: "separator",
+          "aria-orientation": horizontal ? "vertical" : "horizontal",
+        }),
+      );
+    }
+    const contentNodes = pane.tag === "child" ? pane.children : [pane];
+    children.push(
+      createElement(
+        "div",
+        { key: `pane-${index}`, className: "epiton-paned-pane" },
+        contentNodes.map((child, childIndex) =>
+          createElement(
+            "div",
+            { key: `${child.tag}-${child.attrs.name ?? childIndex}` },
+            renderNode(child, view, ctx),
+          ),
+        ),
+      ),
+    );
+  });
+
+  return createElement(
+    "div",
+    {
+      className: `epiton-paned epiton-paned-${horizontal ? "horizontal" : "vertical"}`,
+      role: "group",
+      "aria-label":
+        node.attrs.string ??
+        (horizontal
+          ? t("epiton.horizontalSplit", "Horizontal split")
+          : t("epiton.verticalSplit", "Vertical split")),
+      "data-position": layout.position ?? undefined,
+      style,
+    },
+    children,
   );
 }
 
@@ -116,19 +347,34 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   }
 
   if (field.type === "selection" && field.selection) {
+    const selectedKey = normalizeSelectionKey(value);
     return createElement(
       "select",
       {
         ...common,
-        value: value == null ? "" : String(value),
-        onChange: (e: { target: { value: string } }) => ctx.onChange?.(field.name, e.target.value),
+        value: selectedKey === undefined ? "" : encodeSelectionKey(selectedKey),
+        onChange: (e: { target: { value: string } }) => {
+          const selected = decodeSelectionKey(field.selection ?? [], e.target.value);
+          ctx.onChange?.(field.name, selected);
+        },
       },
-      field.selection.map(([k, label]) => createElement("option", { key: k, value: k }, label)),
+      field.selection.map(([k, label], index) =>
+        createElement(
+          "option",
+          { key: `${encodeSelectionKey(k)}-${index}`, value: encodeSelectionKey(k) },
+          label,
+        ),
+      ),
     );
   }
 
   if (field.type === "multiselection" && field.selection) {
-    const selected = Array.isArray(value) ? value.map(String) : [];
+    const selected = Array.isArray(value)
+      ? value
+          .map(normalizeSelectionKey)
+          .filter((key): key is SelectionKey => key !== undefined)
+          .map(encodeSelectionKey)
+      : [];
     return createElement(
       "select",
       {
@@ -137,11 +383,22 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         value: selected,
         size: Math.min(6, field.selection.length || 3),
         onChange: (e: { target: { selectedOptions: HTMLCollectionOf<HTMLOptionElement> } }) => {
-          const next = Array.from(e.target.selectedOptions).map((o) => o.value);
-          ctx.onChange?.(field.name, next);
+          const next = Array.from(e.target.selectedOptions).map((option) => {
+            return decodeSelectionKey(field.selection ?? [], option.value);
+          });
+          ctx.onChange?.(
+            field.name,
+            next.filter((key): key is SelectionKey => key !== undefined),
+          );
         },
       },
-      field.selection.map(([k, label]) => createElement("option", { key: k, value: k }, label)),
+      field.selection.map(([k, label], index) =>
+        createElement(
+          "option",
+          { key: `${encodeSelectionKey(k)}-${index}`, value: encodeSelectionKey(k) },
+          label,
+        ),
+      ),
     );
   }
 
@@ -150,7 +407,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     const idPart = Array.isArray(value) ? String(value[1] ?? "") : "";
     const models = field.selection?.length
       ? field.selection
-      : ([[modelPart || "", modelPart || "model"]] as Array<[string, string]>);
+      : [[modelPart || "", modelPart || "model"]];
     return createElement(
       "div",
       { className: "epiton-reference" },
@@ -170,7 +427,11 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
             },
             createElement("option", { value: "" }, "— model —"),
             models.map(([k, label]) =>
-              createElement("option", { key: k || label, value: k }, label || k),
+              createElement(
+                "option",
+                { key: String(k || label), value: String(k ?? "") },
+                label || String(k ?? ""),
+              ),
             ),
           )
         : createElement("input", {
@@ -213,7 +474,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
                 );
               },
             },
-            "Open",
+            t("epiton.open", "Open"),
           )
         : null,
     );
@@ -308,7 +569,11 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
       createElement(
         "span",
         null,
-        hasData ? (fileLabel ? `File: ${fileLabel}` : "Binary attached") : "No file",
+        hasData
+          ? fileLabel
+            ? `${t("epiton.file", "File")}: ${fileLabel}`
+            : t("epiton.binaryAttached", "Binary attached")
+          : t("epiton.noFile", "No file"),
       ),
       createElement(
         "button",
@@ -320,7 +585,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
             ctx.onBinaryDownload?.(field, value);
           },
         },
-        "Download",
+        t("epiton.download", "Download"),
       ),
       ctx.mode === "write"
         ? createElement("input", {
@@ -351,14 +616,18 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
     return createElement(
       "div",
       { className: "epiton-o2m", "data-relation": field.relation ?? "" },
-      createElement("div", { className: "epiton-o2m-count" }, `${count} record(s)`),
+      createElement(
+        "div",
+        { className: "epiton-o2m-count" },
+        `${count} ${t("epiton.records", "record(s)")}`,
+      ),
       createElement(
         "button",
         {
           type: "button",
           onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
-        "Open lines",
+        t("epiton.openLines", "Open lines"),
       ),
     );
   }
@@ -382,7 +651,7 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
           disabled: ctx.mode === "read",
           onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
-        "Search",
+        t("epiton.search", "Search"),
       ),
       createElement(
         "button",
@@ -391,19 +660,30 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
           disabled: value == null,
           onClick: () => ctx.onOpenRelation?.(field, value, domain),
         },
-        "Open",
+        t("epiton.open", "Open"),
       ),
     );
   }
 
-  if (field.type === "date" || field.type === "datetime") {
-    const withTime = field.type === "datetime";
+  const temporalWidget =
+    field.widget === "date" || field.widget === "time" ? field.widget : undefined;
+  if (temporalWidget || field.type === "date" || field.type === "datetime") {
+    const inputKind = temporalWidget ?? (field.type === "date" ? "date" : "datetime");
+    const display =
+      inputKind === "time"
+        ? formatTrytonTime(value)
+        : formatTrytonDate(value, inputKind === "datetime");
     return createElement("input", {
       ...common,
-      type: withTime ? "datetime-local" : "date",
-      value: formatTrytonDate(value, withTime),
-      onChange: (e: { target: { value: string } }) =>
-        ctx.onChange?.(field.name, parseTrytonDateInput(e.target.value, withTime)),
+      type: inputKind === "datetime" ? "datetime-local" : inputKind,
+      value: display,
+      onChange: (e: { target: { value: string } }) => {
+        const next =
+          inputKind === "time"
+            ? parseTrytonTimeInput(e.target.value, value)
+            : parseTrytonDateInput(e.target.value, inputKind === "datetime", value);
+        ctx.onChange?.(field.name, next);
+      },
     });
   }
 
@@ -414,7 +694,9 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   }
   if (effectiveType === "url" && ctx.mode === "read" && value) {
     const href = String(value);
-    if (href.startsWith("javascript:")) return "(blocked javascript: URL)";
+    if (href.startsWith("javascript:")) {
+      return `(${t("epiton.blockedJavascriptUrl", "blocked javascript: URL")})`;
+    }
     return createElement(
       "a",
       {
@@ -445,12 +727,16 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
         },
       }),
       blocked
-        ? createElement("span", { className: "epiton-field-label" }, "javascript: blocked")
+        ? createElement(
+            "span",
+            { className: "epiton-field-label" },
+            t("epiton.blockedJavascriptUrl", "javascript: blocked"),
+          )
         : href
           ? createElement(
               "a",
               { href, target: "_blank", rel: "noopener noreferrer", className: "epiton-url" },
-              "Open",
+              t("epiton.open", "Open"),
             )
           : null,
     );
@@ -468,12 +754,26 @@ function renderInput(field: ViewField, value: unknown, ctx: RenderContext): Reac
   return createElement("input", {
     ...common,
     type: inputType,
+    step: field.type === "integer" ? "1" : inputType === "number" ? "any" : undefined,
     value: value == null ? "" : String(value),
-    onChange: (e: { target: { value: string } }) => ctx.onChange?.(field.name, e.target.value),
+    onChange: (e: { target: { value: string } }) => {
+      const raw = e.target.value;
+      if (field.type === "integer" || field.type === "float") {
+        const number = Number(raw);
+        ctx.onChange?.(field.name, raw === "" ? null : Number.isFinite(number) ? number : raw);
+        return;
+      }
+      ctx.onChange?.(field.name, raw);
+    },
   });
 }
 
-function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): ReactNode {
+function renderNode(
+  node: ViewNode,
+  view: ParsedView,
+  ctx: RenderContext,
+  options: { hideFieldLabel?: boolean } = {},
+): ReactNode {
   if (node.tag === "tree") {
     return createElement(
       "div",
@@ -491,31 +791,34 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       pages.push({
         key: `${page.attrs.string ?? "page"}-${i}`,
         title: page.attrs.string ?? `Page ${pages.length + 1}`,
-        content: createElement(
-          "div",
-          { className: "epiton-page" },
-          page.children.map((c, j) => createElement("div", { key: j }, renderNode(c, view, ctx))),
-        ),
+        content: renderContainerNode(page, view, ctx, false),
       });
     });
     return createElement(NotebookHost, {
       pages,
       density: ctx.density,
-      storageKey: ctx.model ? `${ctx.model}:${pages.map((p) => p.key).join("|")}` : undefined,
     });
   }
 
   if (node.tag === "form" || node.tag === "sheet" || node.tag === "group" || node.tag === "page") {
+    return renderContainerNode(node, view, ctx);
+  }
+
+  if (node.tag === "hpaned" || node.tag === "vpaned") {
+    return renderPanedNode(node, view, ctx);
+  }
+
+  if (node.tag === "child") {
     return createElement(
-      "section",
-      {
-        className: `epiton-${node.tag} density-${ctx.density}`,
-        "data-string": node.attrs.string,
-      },
-      node.attrs.string
-        ? createElement("h3", { className: "epiton-group-title" }, node.attrs.string)
-        : null,
-      node.children.map((c, i) => createElement("div", { key: i }, renderNode(c, view, ctx))),
+      "div",
+      { className: "epiton-paned-child" },
+      node.children.map((child, index) =>
+        createElement(
+          "div",
+          { key: `${child.tag}-${child.attrs.name ?? index}` },
+          renderNode(child, view, ctx),
+        ),
+      ),
     );
   }
 
@@ -526,7 +829,13 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       type: "char" as const,
       string: node.attrs.string ?? name,
     };
-    const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    const fieldStates = resolveStatesAttr(field.states, ctx.values);
+    const nodeStates = resolveStatesAttr(node.attrs.states, ctx.values);
+    const states = {
+      invisible: fieldStates.invisible || nodeStates.invisible,
+      readonly: fieldStates.readonly || nodeStates.readonly,
+      required: fieldStates.required || nodeStates.required,
+    };
     if (states.invisible) return null;
     const value = ctx.values[name];
     let domain = field.domain;
@@ -546,19 +855,38 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
       widget: node.attrs.widget ?? field.widget,
     };
     return createElement(
-      "label",
-      { className: "epiton-field", htmlFor: `epiton-field-${name}` },
-      createElement("span", { className: "epiton-field-label" }, fieldLabel(fieldWithFlags, name)),
+      "div",
+      {
+        className: "epiton-field",
+        "data-field-name": name,
+        "data-has-explicit-label": options.hideFieldLabel || undefined,
+      },
+      options.hideFieldLabel
+        ? null
+        : createElement(
+            "label",
+            { className: "epiton-field-label", htmlFor: `epiton-field-${name}` },
+            fieldLabel(fieldWithFlags, name),
+          ),
       renderInput(fieldWithFlags, value, ctx),
       field.help ? createElement("small", { className: "epiton-field-help" }, field.help) : null,
     );
   }
 
   if (node.tag === "label") {
+    const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    const name = node.attrs.name ?? "";
+    const fieldStates = resolveStatesAttr(view.fields[name]?.states, ctx.values);
+    if (states.invisible || fieldStates.invisible) return null;
+    const label = node.attrs.string ?? fieldLabel(view.fields[name], name || node.text || "");
     return createElement(
-      "div",
-      { className: "epiton-label" },
-      node.attrs.string ?? node.attrs.name ?? node.text ?? "",
+      "label",
+      {
+        className: "epiton-label",
+        htmlFor: name ? `epiton-field-${name}` : undefined,
+        "data-field-name": name || undefined,
+      },
+      label,
     );
   }
 
@@ -574,6 +902,7 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
     const name = node.attrs.name ?? "";
     const buttonType = node.attrs.type;
     const states = resolveStatesAttr(node.attrs.states, ctx.values);
+    const pending = ctx.isButtonPending?.(name) ?? false;
     if (states.invisible) return null;
     return createElement(
       "button",
@@ -581,13 +910,13 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
         type: "button",
         className: "epiton-button",
         "data-confirm": node.attrs.confirm,
-        disabled: states.readonly === true,
-        onClick: () => {
-          if (node.attrs.confirm && typeof globalThis.confirm === "function") {
-            if (!globalThis.confirm(node.attrs.confirm)) return;
-          }
-          ctx.onButton?.(name, { type: buttonType });
-        },
+        disabled: states.readonly === true || pending,
+        "aria-busy": pending || undefined,
+        onClick: () =>
+          ctx.onButton?.(name, {
+            type: buttonType,
+            confirm: node.attrs.confirm,
+          }),
       },
       t(node.attrs.string ?? name, node.attrs.string ?? name),
     );
@@ -602,8 +931,16 @@ function renderNode(node: ViewNode, view: ParsedView, ctx: RenderContext): React
     );
   }
 
-  if (node.tag === "newline" || node.tag === "separator") {
-    return createElement("hr", { className: `epiton-${node.tag}` });
+  if (node.tag === "newline") {
+    return createElement("span", { className: "epiton-newline", "aria-hidden": true });
+  }
+
+  if (node.tag === "separator") {
+    return createElement(
+      "div",
+      { className: "epiton-separator", role: "separator" },
+      node.attrs.string ? createElement("span", null, node.attrs.string) : null,
+    );
   }
 
   return createElement(
@@ -618,37 +955,18 @@ export function renderView(view: ParsedView, ctx: RenderContext): ReactNode {
     "div",
     { className: `epiton-view epiton-view-${view.type}`, "data-mode": ctx.mode },
     renderNode(view.arch, view, ctx),
-    view.buttons.length
-      ? createElement(
-          "footer",
-          { className: "epiton-view-actions" },
-          view.buttons.map((b) =>
-            createElement(
-              "button",
-              {
-                key: b.name,
-                type: "button",
-                onClick: () => {
-                  if (b.confirm && typeof globalThis.confirm === "function") {
-                    if (!globalThis.confirm(b.confirm)) return;
-                  }
-                  ctx.onButton?.(b.name, { type: b.type });
-                },
-              },
-              t(b.string ?? b.name, b.string ?? b.name),
-            ),
-          ),
-        )
-      : null,
   );
 }
 
 export interface TreeColumn {
+  /** Stable per-occurrence key because Tryton may render one field more than once. */
+  key: string;
   name: string;
   string: string;
   type?: string;
+  widget?: string;
   readonly?: boolean;
-  selection?: Array<[string, string]>;
+  selection?: Array<[SelectionKey, string]>;
   /** Sao `optional="1"` — hidden by default, user can toggle. */
   optional?: boolean;
   /** Sao tree footer aggregate from `sum="1"` / `average="1"`. */
@@ -669,13 +987,18 @@ export function treeEditable(view: ParsedView): boolean {
 
 export function treeColumns(view: ParsedView): TreeColumn[] {
   const cols: TreeColumn[] = [];
+  const occurrences = new Map<string, number>();
   const walk = (n: ViewNode) => {
     if (n.tag === "field" && n.attrs.name) {
       const meta = view.fields[n.attrs.name];
+      const occurrence = occurrences.get(n.attrs.name) ?? 0;
+      occurrences.set(n.attrs.name, occurrence + 1);
       cols.push({
+        key: `${n.attrs.name}:${occurrence}`,
         name: n.attrs.name,
         string: t(meta?.string ?? n.attrs.string ?? n.attrs.name),
         type: meta?.type,
+        widget: n.attrs.widget ?? meta?.widget,
         readonly: Boolean(meta?.readonly) || n.attrs.readonly === "1",
         selection: meta?.selection,
         optional: n.attrs.optional === "1" || n.attrs.optional === "true",

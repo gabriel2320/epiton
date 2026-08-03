@@ -1,7 +1,10 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel, StateBlock } from "@epiton/ui";
-import { type ViewField, evalDomain } from "@epiton/view-engine";
+import { evalDomain, type ViewField } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 
 /** Domain-aware many2one / many2many search picker. */
@@ -9,11 +12,14 @@ export function RelationSearch(props: {
   field: ViewField;
   recordValues: Record<string, unknown>;
   domain?: unknown[];
+  context?: JsonObject;
   mode: "read" | "write";
   onPick: (id: number, recName: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
+  const sessionContext = useAppStore((s) => s.sessionContext);
   const [q, setQ] = useState("");
   const domain = useMemo(() => {
     if (props.domain) return props.domain;
@@ -28,23 +34,25 @@ export function RelationSearch(props: {
   }, [domain, q]);
 
   const relation = props.field.relation ?? "";
+  const rpcContext = useMemo(
+    () => ({ ...sessionContext, ...(props.context ?? {}) }),
+    [sessionContext, props.context],
+  );
+  const rpcScope = backendRpcContextKey(rpcContext);
   const listQuery = useQuery({
-    queryKey: ["relation-search", relation, JSON.stringify(searchDomain)],
+    queryKey: ["relation-search", relation, JSON.stringify(searchDomain), rpcScope],
     enabled: Boolean(client && relation),
     queryFn: async () => {
       if (!client || !relation) return [];
-      try {
-        return await client.searchRead(
-          relation,
-          searchDomain as never[],
-          ["id", "rec_name", "name"],
-          0,
-          40,
-          null,
-        );
-      } catch {
-        return await client.searchRead(relation, [], ["id", "rec_name"], 0, 40, null);
-      }
+      return client.searchRead(
+        relation,
+        searchDomain as never[],
+        ["id", "rec_name"],
+        0,
+        40,
+        null,
+        rpcContext,
+      );
     },
   });
 
@@ -57,29 +65,30 @@ export function RelationSearch(props: {
         : "empty";
 
   return (
-    <Panel title={`Search ${props.field.string ?? props.field.name}`}>
+    <Panel title={t("relation.searchTitle", { field: props.field.string ?? props.field.name })}>
       <p className="text-sm text-[var(--epiton-muted)]" role="status">
-        {relation || "no relation"} · domain clauses: {Array.isArray(domain) ? domain.length : 0}
+        {relation || t("relation.noRelation")} ·{" "}
+        {t("relation.domainClauses", { count: Array.isArray(domain) ? domain.length : 0 })}
       </p>
       <div className="epiton-toolbar">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Filter by name"
-          aria-label="Relation search"
+          placeholder={t("relation.filterByName")}
+          aria-label={t("relation.searchAria")}
           disabled={props.mode === "read"}
         />
-        <Button onClick={() => listQuery.refetch()}>Refresh</Button>
-        <Button onClick={props.onCancel}>Close</Button>
+        <Button onClick={() => listQuery.refetch()}>{t("workspace.refresh")}</Button>
+        <Button onClick={props.onCancel}>{t("shell.close")}</Button>
       </div>
       <StateBlock
         state={state}
-        message={listQuery.isError ? listQuery.error.message : "No matching records"}
+        message={listQuery.isError ? listQuery.error.message : t("relation.noMatches")}
       >
         <ul className="epiton-menu-list">
           {(listQuery.data ?? []).map((row) => {
             const id = Number(row.id);
-            const label = String(row.rec_name ?? row.name ?? id);
+            const label = String(row.rec_name ?? id);
             return (
               <li key={id}>
                 <button

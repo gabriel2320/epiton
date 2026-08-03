@@ -1,58 +1,70 @@
 import { sessionAuthorization } from "./auth";
 
-export { sessionAuthorization } from "./auth";
-export { pollBus } from "./bus";
-export { BusClient, type BusMessage } from "./busClient";
-export { modelHasAccessRows } from "./acl";
 export {
+  getModelAccess,
+  type ModelAccess,
+  modelHasAccessRows,
+  READ_ONLY_MODEL_ACCESS,
+} from "./acl";
+export {
+  type ActWindowDomainTab,
   openActionUrl,
+  type ResolvedAction,
   resolveAction,
   resolveWorkspaceModel,
-  type ActWindowDomainTab,
-  type ResolvedAction,
 } from "./actions";
+export { sessionAuthorization } from "./auth";
+export { resolveBoardAction } from "./board";
+export { pollBus } from "./bus";
+export { BusClient, type BusClientOptions, type BusMessage } from "./busClient";
+export { copyRecords } from "./copy";
+export { listDatabases } from "./databases";
+export { csvEscape, exportModelCsv, rowsToCsv } from "./export_csv";
+export { importModelCsv, parseCsv } from "./import_csv";
 export {
-  wizardCreate,
-  wizardDataForState,
-  wizardDelete,
-  wizardExecute,
-  type WizardExecuteResult,
-  type WizardSession,
-} from "./wizards";
+  type ActionKeyword,
+  getKeywords,
+  getRecordKeywords,
+  type KeywordAction,
+} from "./keywords";
+export { loadMenus, setMenuFavorite, type TrytonMenu } from "./menus";
 export {
   applyFieldChange,
   buildOnChangeArgs,
   type FieldOnChangeMeta,
   type OnChangeValues,
+  preValidateRecord,
 } from "./onchange";
+export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
+export {
+  executeReport,
+  type ReportExecutionOptions,
+  type ReportExecutionResult,
+} from "./reports";
 export {
   asJsonObject,
   buildSessionContext,
   loadUserPreferences,
-  viewIdForMode,
   type SessionPreferences,
+  viewIdForMode,
 } from "./session_context";
-export { wizardActionRefs } from "./wizard_actions";
-export { csvEscape, exportModelCsv, rowsToCsv } from "./export_csv";
-export { importModelCsv, parseCsv } from "./import_csv";
-export { reloadSessionPreferences, saveUserPreferences } from "./preferences";
-export { resolveBoardAction } from "./board";
-export { copyRecords } from "./copy";
-export { listDatabases } from "./databases";
-export {
-  getKeywords,
-  getRecordKeywords,
-  type ActionKeyword,
-  type KeywordAction,
-} from "./keywords";
+export { loadTranslationCatalog, type TranslationRow } from "./translations";
+export { loadTreeState, saveTreeState, serializeTreeDomain } from "./tree_state";
 export {
   createViewSearch,
   deleteViewSearch,
   loadViewSearches,
   type ViewSearchRow,
 } from "./view_search";
-export { loadTranslationCatalog, type TranslationRow } from "./translations";
-export { loadTreeState, saveTreeState, serializeTreeDomain } from "./tree_state";
+export { wizardActionRefs } from "./wizard_actions";
+export {
+  type WizardExecuteResult,
+  type WizardSession,
+  wizardCreate,
+  wizardDataForState,
+  wizardDelete,
+  wizardExecute,
+} from "./wizards";
 
 export type JsonRpcId = string | number | null;
 
@@ -79,7 +91,8 @@ export interface JsonRpcErrorBody {
 
 export interface JsonRpcFailure {
   id: JsonRpcId;
-  error: JsonRpcErrorBody;
+  /** Tryton uses both the JSON-RPC object form and a legacy [message, trace] tuple. */
+  error: JsonRpcErrorBody | JsonValue[];
 }
 
 export type JsonRpcResponse = JsonRpcSuccess | JsonRpcFailure;
@@ -90,9 +103,12 @@ export interface TrytonSession {
   session: string;
 }
 
+/** Observed upstream release series. This is discovery evidence, not a support claim. */
+export type TrytonSeries = `${number}.${number}`;
+
 export interface ServerCapabilities {
   serverVersion: string | null;
-  series: "7" | "8" | "unknown";
+  series: TrytonSeries | null;
   supportsBus: boolean;
   supportsRest: boolean;
   supportsSessionCookie: boolean;
@@ -105,12 +121,20 @@ export interface EpitonClientOptions {
   fetchImpl?: typeof fetch;
   /** Optional correlation id factory for gateway audit */
   correlationId?: () => string;
+  /** Called after the backend rejects an authenticated request. */
+  onSessionInvalidated?: () => void;
   /**
    * RPC path under the database.
    * Tryton docs use `rpc`; some 7.x docker deployments expose JSON-RPC at `/{db}/`.
    * Default: auto (`""` then `"rpc"` on first 405).
    */
   rpcSuffix?: "" | "rpc" | "auto";
+  /**
+   * Whether the deployment has enabled Tryton's authenticated bus subscription.
+   * The route may exist while subscriptions are disabled, so this is explicit and
+   * defaults to false instead of being inferred from an error response.
+   */
+  supportsBus?: boolean;
 }
 
 export class TrytonRpcError extends Error {
@@ -125,33 +149,87 @@ export class TrytonRpcError extends Error {
   }
 }
 
+export type SearchOrder = string | Array<[field: string, direction: string]> | null;
+
+function normalizeSearchOrder(order: SearchOrder): JsonValue {
+  if (order === null || Array.isArray(order)) return order;
+
+  // Tryton's RPC boundary expects a sequence of (field, direction) pairs. Keep
+  // accepting the compact strings traditionally used by EPITON callers, but
+  // normalize them before they cross the protocol boundary.
+  return order
+    .split(",")
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .map((term) => {
+      const match = /^(\S+)(?:\s+(ASC|DESC))?$/i.exec(term);
+      if (!match) {
+        throw new TrytonRpcError(`Invalid search order: ${term}`, -32602);
+      }
+      return [match[1] as string, (match[2] ?? "ASC").toUpperCase()];
+    });
+}
+
 function encodeSessionAuthorization(session: TrytonSession): string {
   return sessionAuthorization(session);
 }
 
-function parseSeries(version: string | null): ServerCapabilities["series"] {
-  if (!version) return "unknown";
-  if (version.startsWith("7.")) return "7";
-  if (version.startsWith("8.")) return "8";
-  return "unknown";
+export function trytonSeriesFromVersion(version: string | null): TrytonSeries | null {
+  if (!version) return null;
+  const match = /^\s*(\d+)\.(\d+)(?:[.+-]|$)/.exec(version);
+  return match ? (`${match[1]}.${match[2]}` as TrytonSeries) : null;
 }
 
-let rpcSeq = 1;
+function malformedRpcResponse(message: string, payload?: unknown): TrytonRpcError {
+  return payload === undefined
+    ? new TrytonRpcError(message, -32700)
+    : new TrytonRpcError(message, -32700, payload as JsonValue);
+}
+
+/**
+ * Attach gateway correlation to Tryton's public model context without mutating
+ * caller-owned parameters. Model RPCs always carry their context as the final
+ * object; non-model methods keep their original wire contract.
+ */
+export function withCorrelationContext(
+  method: string,
+  params: JsonValue[],
+  correlationId: string,
+): JsonValue[] {
+  if (!method.startsWith("model.")) return params;
+
+  const correlated = [...params];
+  const context = correlated.at(-1);
+  if (context && typeof context === "object" && !Array.isArray(context)) {
+    correlated[correlated.length - 1] = {
+      ...context,
+      epiton_correlation_id: correlationId,
+    };
+  } else {
+    correlated.push({ epiton_correlation_id: correlationId });
+  }
+  return correlated;
+}
 
 export class EpitonClient {
   readonly baseUrl: string;
   readonly database: string;
   private readonly fetchImpl: typeof fetch;
   private readonly correlationId?: () => string;
+  private readonly onSessionInvalidated?: () => void;
+  private readonly configuredBusSupport: boolean;
   private session: TrytonSession | null = null;
   private capabilities: ServerCapabilities | null = null;
   private rpcSuffix: "" | "rpc";
+  private rpcSeq = 1;
 
   constructor(options: EpitonClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.database = options.database;
     this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.correlationId = options.correlationId;
+    this.onSessionInvalidated = options.onSessionInvalidated;
+    this.configuredBusSupport = options.supportsBus === true;
     const suffix = options.rpcSuffix ?? "auto";
     this.rpcSuffix = suffix === "rpc" ? "rpc" : "";
     if (suffix === "auto") {
@@ -180,7 +258,9 @@ export class EpitonClient {
   async detectCapabilities(): Promise<ServerCapabilities> {
     let serverVersion: string | null = null;
     try {
-      const result = await this.callUnauthenticated("common.server.version", []);
+      const result = this.session
+        ? await this.call("common.server.version", [])
+        : await this.callUnauthenticated("common.server.version", []);
       if (typeof result === "string") serverVersion = result;
       else if (Array.isArray(result) && typeof result[0] === "string") {
         serverVersion = result[0];
@@ -189,35 +269,16 @@ export class EpitonClient {
       serverVersion = null;
     }
 
-    const [supportsBus, supportsRest] = await Promise.all([
-      this.probeEndpoint(this.busUrl(), "POST"),
-      // Stock trytond does not expose a dedicated REST root; keep false unless a probe is added.
-      Promise.resolve(false),
-    ]);
-
     const caps: ServerCapabilities = {
       serverVersion,
-      series: parseSeries(serverVersion),
-      supportsBus,
-      supportsRest,
+      series: trytonSeriesFromVersion(serverVersion),
+      supportsBus: this.configuredBusSupport,
+      // Stock trytond does not expose a dedicated REST root.
+      supportsRest: false,
       supportsSessionCookie: false,
     };
     this.capabilities = caps;
     return caps;
-  }
-
-  /** Probe whether an HTTP endpoint exists (not 404 / network failure). */
-  private async probeEndpoint(url: string, method: string): Promise<boolean> {
-    try {
-      const response = await this.fetchImpl(url, {
-        method,
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: method === "POST" ? "{}" : undefined,
-      });
-      return response.status !== 404;
-    } catch {
-      return false;
-    }
   }
 
   async login(username: string, password: string, lang = "en"): Promise<TrytonSession> {
@@ -231,9 +292,15 @@ export class EpitonClient {
       throw new TrytonRpcError("Invalid login response", -32000, result);
     }
 
-    const userId = Number(result[0]);
-    const sessionToken = String(result[1]);
-    if (!Number.isFinite(userId) || !sessionToken) {
+    const userId = result[0];
+    const sessionToken = result[1];
+    if (
+      typeof userId !== "number" ||
+      !Number.isSafeInteger(userId) ||
+      userId <= 0 ||
+      typeof sessionToken !== "string" ||
+      sessionToken.length === 0
+    ) {
       throw new TrytonRpcError("Login did not return user id/session", -32000, result);
     }
 
@@ -274,16 +341,19 @@ export class EpitonClient {
     fields: string[] = [],
     offset = 0,
     limit: number | null = 80,
-    order: string | null = null,
+    order: SearchOrder = null,
     context: JsonObject = {},
   ): Promise<JsonObject[]> {
     const result = await this.model(
       model,
       "search_read",
-      [domain, offset, limit, order, fields],
+      [domain, offset, limit, normalizeSearchOrder(order), fields],
       context,
     );
-    if (!Array.isArray(result)) {
+    if (
+      !Array.isArray(result) ||
+      result.some((row) => !row || typeof row !== "object" || Array.isArray(row))
+    ) {
       throw new TrytonRpcError("search_read expected array", -32000, result);
     }
     return result as JsonObject[];
@@ -311,15 +381,19 @@ export class EpitonClient {
     params: JsonValue[],
     authenticated: boolean,
   ): Promise<JsonValue> {
-    const id = rpcSeq++;
-    const body: JsonRpcRequest = { id, method, params };
+    const id = this.rpcSeq++;
+    const correlationId = this.correlationId?.();
+    const requestParams = correlationId
+      ? withCorrelationContext(method, params, correlationId)
+      : params;
+    const body: JsonRpcRequest = { id, method, params: requestParams };
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
 
-    if (this.correlationId) {
-      headers["X-Correlation-Id"] = this.correlationId();
+    if (correlationId) {
+      headers["X-Correlation-Id"] = correlationId;
     }
 
     if (authenticated) {
@@ -333,6 +407,9 @@ export class EpitonClient {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
     });
 
     if (response.status === 405 && this.rpcSuffix === "") {
@@ -341,25 +418,77 @@ export class EpitonClient {
         method: "POST",
         headers,
         body: JSON.stringify(body),
+        cache: "no-store",
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
       });
     }
 
     if (!response.ok) {
+      if (authenticated && response.status === 401) this.invalidateSession();
       throw new TrytonRpcError(`HTTP ${response.status}`, response.status);
     }
 
-    const payload = (await response.json()) as JsonRpcResponse;
-    if ("error" in payload && payload.error) {
-      throw new TrytonRpcError(payload.error.message, payload.error.code, payload.error.data);
+    let parsed: unknown;
+    try {
+      parsed = await response.json();
+    } catch {
+      throw malformedRpcResponse("Malformed JSON-RPC response: invalid JSON");
     }
-    if (!("result" in payload)) {
-      throw new TrytonRpcError(
-        "Malformed JSON-RPC response",
-        -32700,
-        payload as unknown as JsonValue,
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw malformedRpcResponse("Malformed JSON-RPC response: expected object", parsed);
+    }
+
+    const payload = parsed as Record<string, unknown>;
+    if (payload.id !== id) {
+      throw malformedRpcResponse("Malformed JSON-RPC response: id mismatch", parsed);
+    }
+
+    const hasResult = Object.hasOwn(payload, "result");
+    const hasError = Object.hasOwn(payload, "error");
+    if (hasResult === hasError) {
+      throw malformedRpcResponse(
+        "Malformed JSON-RPC response: expected exactly one of result or error",
+        parsed,
       );
     }
-    return payload.result;
+
+    if (hasError) {
+      const error = payload.error;
+      if (Array.isArray(error)) {
+        if (typeof error[0] !== "string") {
+          throw malformedRpcResponse("Malformed JSON-RPC response: invalid legacy error", parsed);
+        }
+        throw new TrytonRpcError(error[0], -32000, error as JsonValue[]);
+      }
+      if (!error || typeof error !== "object") {
+        throw malformedRpcResponse("Malformed JSON-RPC response: invalid error object", parsed);
+      }
+      const rpcError = error as Record<string, unknown>;
+      if (
+        typeof rpcError.code !== "number" ||
+        !Number.isFinite(rpcError.code) ||
+        typeof rpcError.message !== "string"
+      ) {
+        throw malformedRpcResponse("Malformed JSON-RPC response: invalid error object", parsed);
+      }
+      throw new TrytonRpcError(
+        rpcError.message,
+        rpcError.code,
+        rpcError.data as JsonValue | undefined,
+      );
+    }
+    return payload.result as JsonValue;
+  }
+
+  private invalidateSession(): void {
+    if (!this.session) return;
+    this.session = null;
+    try {
+      this.onSessionInvalidated?.();
+    } catch {
+      // Authentication state must still be cleared if a UI observer fails.
+    }
   }
 }
 

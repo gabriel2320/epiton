@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Alert, ConfirmDialog, MetaStrip, cn } from "./index";
+import { Alert, ConfirmDialog, cn, MetaStrip } from "./index";
 
 describe("@epiton/ui", () => {
   it("joins class names", () => {

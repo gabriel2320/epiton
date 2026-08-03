@@ -3,32 +3,49 @@
   "private": true,
   "version": "0.1.0",
   "description": "Epiton — modern multiplatform Tryton-compatible client platform",
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": "24.18.1",
+    "pnpm": "11.18.0"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --filter=@epiton/web",
+    "dev:next": "pnpm --filter @epiton/web dev:next",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "format": "biome format --write .",
     "test:e2e": "playwright test",
+    "test:e2e:mock": "playwright test e2e/login.spec.ts e2e/workspace.spec.ts e2e/board.spec.ts e2e/wizard-report.spec.ts e2e/calendar.spec.ts e2e/form-layout.spec.ts e2e/filter-builder.spec.ts e2e/preferences.spec.ts e2e/release-gates.spec.ts",
+    "test:e2e:release": "playwright test e2e/release-gates.spec.ts",
+    "test:e2e:next": "pnpm check:next && playwright test --config=playwright.next.config.ts",
+    "test:e2e:live": "playwright test e2e/live-lab.spec.ts",
+    "test:e2e:gnu-health": "playwright test e2e/gnu-health-core.spec.ts",
     "lab:up": "docker compose -f docker/docker-compose.yml up -d --build",
     "lab:up:8": "docker compose -f docker/docker-compose.yml --profile tryton8 up -d --build db8 tryton8 gateway8",
     "lab:down": "docker compose -f docker/docker-compose.yml --profile tryton8 down",
     "lab:smoke": "bash docker/smoke-rpc.sh",
     "lab:smoke:live": "pnpm --filter @epiton/protocol build && node scripts/lab-smoke.mjs",
+    "lab:oracle:7": "docker compose -f docker/docker-compose.yml --profile oracle7 run --rm --build --no-deps proteus7",
+    "lab:oracle:8": "docker compose -f docker/docker-compose.yml --profile tryton8 --profile oracle8 run --rm --build --no-deps proteus8",
     "compat:live": "pnpm --filter @epiton/protocol build && pnpm --filter @epiton/view-engine build && node scripts/compat-live.mjs",
     "gh:check": "pnpm --filter @epiton/protocol build && node scripts/gh-models-check.mjs",
+    "tryton:canary:9": "node scripts/tryton-upstream-canary.mjs",
+    "check:tryton-canary": "node --test scripts/tryton-upstream-canary.test.mjs",
+    "check:native-artifacts": "node --test scripts/native-artifact-receipt.test.mjs",
+    "check:native-promotion": "node --test scripts/verify-native-release-promotion.test.mjs",
     "analyze": "pnpm --filter @epiton/web build && echo 'Open apps/web/dist/stats.html'",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "check:next": "pnpm --filter @epiton/web build:next",
     "gateway:smoke": "curl -fsS http://127.0.0.1:8080/healthz"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "^2.5.6",
     "@playwright/test": "^1.62.1",
     "rollup-plugin-visualizer": "^7.0.1",
-    "turbo": "^2.3.3",
-    "typescript": "^5.7.2"
+    "turbo": "^2.10.8",
+    "typescript": "^7.0.2"
   }
 }

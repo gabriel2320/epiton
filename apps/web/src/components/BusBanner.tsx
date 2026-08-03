@@ -2,6 +2,8 @@ import { BusClient, type BusMessage } from "@epiton/protocol";
 import { Button } from "@epiton/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { invalidateModelProjections } from "../lib/backendTruth";
+import { clearClientAuthentication } from "../lib/sessionBoundary";
 import { useAppStore } from "../lib/store";
 
 interface BusNote {
@@ -68,14 +70,12 @@ function shouldAutoOpen(message: unknown): boolean {
 }
 
 /** Live bus indicator with invalidate + open-record hooks (Sao parity). */
-export function BusBanner(props: {
-  onOpenRecord?: (model: string, id: number) => void;
-}) {
+export function BusBanner(props: { onOpenRecord?: (model: string, id: number) => void }) {
   const client = useAppStore((s) => s.client);
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState<BusNote[]>([]);
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<"idle" | "listening" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "unavailable" | "listening" | "error">("idle");
 
   useEffect(() => {
     const session = client?.getSession();
@@ -83,7 +83,13 @@ export function BusBanner(props: {
       setStatus("idle");
       return;
     }
-    const bus = new BusClient(client.busUrl(), session);
+    if (client.getCapabilities()?.supportsBus !== true) {
+      setStatus("unavailable");
+      return;
+    }
+    const bus = new BusClient(client.busUrl(), session, {
+      onSessionInvalidated: () => clearClientAuthentication(queryClient),
+    });
     let active = true;
     setStatus("listening");
     const channels = [`user:${session.userId}`, "client"];
@@ -119,10 +125,7 @@ export function BusBanner(props: {
       setNotes((prev) => [note, ...prev].slice(0, 20));
       setOpen(true);
       setStatus("listening");
-      void queryClient.invalidateQueries({ queryKey: ["model"] });
-      if (target.model) {
-        void queryClient.invalidateQueries({ queryKey: ["model", target.model] });
-      }
+      void invalidateModelProjections(queryClient);
       if (auto && target.model && target.recordId != null) {
         props.onOpenRecord?.(target.model, target.recordId);
       }

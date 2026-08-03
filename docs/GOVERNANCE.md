@@ -33,8 +33,8 @@ any shared or internet-exposed environment.
 |-----|---------|------|
 | Local web | `pnpm dev` against lab or gateway | `pnpm lint` + `pnpm test` while iterating |
 | Lab trytond 7 | `pnpm lab:up` | `pnpm lab:smoke:live` |
-| Lab trytond 8 | `pnpm lab:up:8` | Manual / optional smoke |
-| CI | GitHub Actions `ci.yml` | lint, test, build, bundle, gateway, lab-smoke |
+| Lab trytond 8 | `pnpm lab:up:8` | Same supported protocol/oracle/browser gates as 7 |
+| CI | GitHub Actions `ci.yml` | lint/typecheck/test/build, Rust gateway, Tryton 7/8 matrix |
 | Production | Ops-owned trytond + TLS + gateway | Explicit human promotion; not agent-default |
 
 Agents **do not** promote production, rotate secrets, or open PHI datasets
@@ -48,7 +48,7 @@ unless a human explicitly authorizes that exact action in the request.
 | Client parity (RPC/UI) | Maintainer | Update `COMPATIBILITY.md`; pass CI |
 | Gateway ACL / CORS / rate limits | Maintainer + security-aware review | Note threat impact in PR |
 | New runtime dependency | Maintainer | Entry in `TOOLING.md` (allow or reject) |
-| GNU Health lab / health_* claims | Maintainer | Update `GNU_HEALTH.md`; no PHI fixtures |
+| GNU Health lab / `gnuhealth.*` claims | Maintainer | Update `GNU_HEALTH.md`; metadata first; no PHI fixtures |
 | Claiming “PHI ready” / clinical compliance | **Blocked** until separate HIS governance | Epitón alone cannot clear this |
 | License exception / Sao paste | **Forbidden** | — |
 
@@ -63,18 +63,28 @@ When in doubt: read the Tryton docs / live RPC, then write original TypeScript.
 
 ## Security controls (client + gateway)
 
+The scoped threats, trust boundaries, residual risk, and production acceptance
+triggers are maintained in [`THREAT_MODEL.md`](THREAT_MODEL.md).
+
 | Control | Location |
 |---------|----------|
 | Session in memory (web) | `@epiton/web` store |
-| OS secure session (desktop) | Tauri secure storage path |
+| Session in memory (desktop/mobile beta) | Persistence APIs disabled; exact deletion-only legacy cleanup, never hydration |
+| Client projections in memory | TanStack Query / Zustand / component state; never persisted or encoded in URL history |
+| Authentication boundary purge | Logout, authenticated 401, and page lifecycle teardown clear user-scoped state |
+| Strict JSON-RPC response contract | Matching request id; exactly one `result` or `error`; typed login and row shapes |
+| RPC / bus transport privacy | `cache: no-store`, `credentials: omit`, `referrerPolicy: no-referrer` |
+| PWA static assets only | Service worker has no runtime cache for RPC, bus, auth, or dynamic responses |
 | Block `javascript:` URLs | protocol / view-engine guards |
 | CORS allowlist | `EPITON_CORS_ORIGINS` |
 | Login rate limit | gateway |
 | Body size limit | gateway |
 | Correlation id | `X-Correlation-Id` |
-| Strict ACL coach on mutations | `EPITON_STRICT_ACL=true` |
+| Deny-only strict ACL guard on mutations | `EPITON_STRICT_ACL=true` |
 | Bundle size budget | `pnpm check:bundle` |
-| CSP topology | Prefer browser → gateway → trytond |
+| Browser accessibility/performance regression baseline | `pnpm test:e2e:release` with versioned limits in `config/client-release-budgets.json` |
+| Native distribution promotion | `pnpm check:native-promotion` plus the separately approved evidence flow in [`NATIVE_RELEASE.md`](NATIVE_RELEASE.md) |
+| CSP topology | Production browser must use same-origin edge → gateway → trytond |
 
 Audit logs on the gateway must not include response bodies or PHI payloads.
 
@@ -91,8 +101,8 @@ From [`INTELLIGENCE.md`](INTELLIGENCE.md):
 
 - Charts and board panes aggregate **`search_read` / `search_count`** results.
 - They are **not** a warehouse, OLAP cube, or second SoT.
-- Layout order may live in `sessionStorage`; never sync layout prefs that embed
-  record payloads to third parties.
+- Layout and analytic projections live in process memory only. Never sync them,
+  record identifiers, or payloads to browser/native persistence or third parties.
 
 ## Incident / stop conditions
 

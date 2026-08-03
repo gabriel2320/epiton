@@ -1,0 +1,28 @@
+name: tryton-upstream-canary
+
+on:
+  schedule:
+    - cron: "17 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tryton-9:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Observe official Tryton 9.0 release signals
+        run: node scripts/tryton-upstream-canary.mjs --fail-on-release
+        env:
+          EPITON_TRYTON_CANARY_RECEIPT: .artifacts/tryton-upstream-canary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tryton-9-upstream-canary
+          path: .artifacts/tryton-upstream-canary.json
+          if-no-files-found: error

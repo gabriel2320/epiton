@@ -1,26 +1,29 @@
+import type { JsonObject } from "@epiton/protocol";
 import { Button, Panel } from "@epiton/ui";
 import {
-  type O2MCommand,
+  type ChildScreenExitDecision,
+  type ChildScreenTarget,
+  childScreenTargetKey,
+  createRelationQueue,
   type ParsedView,
-  type RecordValues,
-  type ViewField,
   parseFieldsViewGet,
-  toTrytonM2MDelta,
-  toTrytonO2M,
+  type RecordValues,
+  type RelationCommandQueue,
+  relationQueueWireValue,
+  relationQueueWithTrytonTimestamps,
+  removeChildScreen,
   treeColumns,
+  trytonTimestampsForRecords,
+  type ViewField,
 } from "@epiton/view-engine";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { backendRpcContextKey } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 import { BoardTree } from "./BoardTree";
 import { RelationLineForm } from "./RelationLineForm";
 import { RelationSearch } from "./RelationSearch";
-
-type LineFormTarget =
-  | { kind: "new" }
-  | { kind: "edit"; id: number }
-  | { kind: "queued"; commandIndex: number }
-  | null;
 
 /** Inline editor for One2Many / Many2Many line commands (Sao-style tree + form). */
 export function RelationLinesEditor(props: {
@@ -29,40 +32,95 @@ export function RelationLinesEditor(props: {
   mode: "read" | "write";
   recordValues?: Record<string, unknown>;
   domain?: unknown[];
+  context?: JsonObject;
+  /** Parent-owned queue when the editor participates in a Screen lifecycle. */
+  queue?: RelationCommandQueue;
+  onQueueChange?: (update: (current: RelationCommandQueue) => RelationCommandQueue) => void;
+  /** Serialized Tryton tuples for legacy/uncontrolled hosts and explicit apply. */
   onCommit: (next: unknown) => void;
   /** Open nested related record (O2M/M2M line). */
   onOpenLine?: (model: string, id: number) => void;
+  /** Bubble an uncommitted child draft to the owning Screen. */
+  onExitDecisionChange?: (decision: ChildScreenExitDecision) => void;
 }) {
+  const { t } = useTranslation();
   const client = useAppStore((s) => s.client);
   const sessionContext = useAppStore((s) => s.sessionContext);
+  const rpcContext = useMemo(
+    () => ({ ...sessionContext, ...(props.context ?? {}) }),
+    [sessionContext, props.context],
+  );
+  const rpcScope = backendRpcContextKey(rpcContext);
   const relation = props.field.relation;
-  const initialIds = useMemo(() => normalizeIds(props.value), [props.value]);
-  const [ids, setIds] = useState<number[]>(initialIds);
-  const [baselineIds, setBaselineIds] = useState<number[]>(initialIds);
-  const [commands, setCommands] = useState<O2MCommand[]>([]);
+  const relationKind = props.field.type === "many2many" ? "many2many" : "one2many";
+  const initialQueue = useMemo(
+    () => createRelationQueue(relationKind, props.value),
+    [props.value, relationKind],
+  );
+  const [localQueue, setLocalQueue] = useState<RelationCommandQueue>(initialQueue);
+  const isControlled = props.queue != null && props.onQueueChange != null;
+  const queue = isControlled && props.queue ? props.queue : localQueue;
+  const { ids, commands } = queue;
   const [searchOpen, setSearchOpen] = useState(false);
-  const [lineForm, setLineForm] = useState<LineFormTarget>(null);
+  const [lineForm, setLineForm] = useState<ChildScreenTarget | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lineExitDecision, setLineExitDecision] = useState<ChildScreenExitDecision>({
+    kind: "allow",
+  });
+
+  const publishLineExitDecision = useCallback(
+    (decision: ChildScreenExitDecision) => {
+      setLineExitDecision((current) => (current.kind === decision.kind ? current : decision));
+      props.onExitDecisionChange?.(decision);
+    },
+    [props.onExitDecisionChange],
+  );
+
+  useEffect(
+    () => () => props.onExitDecisionChange?.({ kind: "allow" }),
+    [props.onExitDecisionChange],
+  );
 
   useEffect(() => {
-    setIds(initialIds);
-    setBaselineIds(initialIds);
-    setCommands([]);
+    if (isControlled) return;
+    setLocalQueue(initialQueue);
     setSelectedId(null);
     setLineForm(null);
-  }, [initialIds]);
+    publishLineExitDecision({ kind: "allow" });
+  }, [initialQueue, isControlled, publishLineExitDecision]);
+
+  function replaceLineForm(next: ChildScreenTarget | null): boolean {
+    const sameTarget =
+      lineForm != null &&
+      next != null &&
+      childScreenTargetKey(lineForm) === childScreenTargetKey(next);
+    if (sameTarget) return true;
+    if (
+      lineExitDecision.kind === "confirm-discard" &&
+      typeof globalThis.confirm === "function" &&
+      !globalThis.confirm(t("relationLine.discardConfirm"))
+    ) {
+      return false;
+    }
+    publishLineExitDecision({ kind: "allow" });
+    setLineForm(next);
+    return true;
+  }
+
+  function finishLineForm() {
+    publishLineExitDecision({ kind: "allow" });
+    setLineForm(null);
+  }
 
   const treeViewQuery = useQuery({
-    queryKey: ["relation-lines-tree", relation],
+    queryKey: ["relation-lines-tree", relation, rpcScope],
     enabled: Boolean(client && relation),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<ParsedView | null> => {
       if (!client || !relation) return null;
       try {
-        return parseFieldsViewGet(
-          await client.fieldsViewGet(relation, null, "tree", sessionContext),
-        );
+        return parseFieldsViewGet(await client.fieldsViewGet(relation, null, "tree", rpcContext));
       } catch {
         return null;
       }
@@ -75,13 +133,13 @@ export function RelationLinesEditor(props: {
       if (cols.length) return cols.map((c) => ({ name: c.name, string: c.string }));
     }
     return [
-      { name: "rec_name", string: "Name" },
-      { name: "id", string: "ID" },
+      { name: "rec_name", string: t("relationLines.name") },
+      { name: "id", string: t("relationLines.id") },
     ];
-  }, [treeViewQuery.data]);
+  }, [treeViewQuery.data, t]);
 
   const fieldNames = useMemo(() => {
-    const names = new Set<string>(["id", "rec_name", "name"]);
+    const names = new Set<string>(["id", "rec_name", "name", "_timestamp"]);
     for (const c of columns) names.add(c.name);
     return [...names];
   }, [columns]);
@@ -99,7 +157,7 @@ export function RelationLinesEditor(props: {
   }, [commands]);
 
   const rowsQuery = useQuery({
-    queryKey: ["relation-lines-rows", relation, ids, fieldNames.join(",")],
+    queryKey: ["relation-lines-rows", relation, ids, fieldNames.join(","), rpcScope],
     enabled: Boolean(client && relation && ids.length),
     queryFn: async (): Promise<Array<Record<string, unknown>>> => {
       if (!client || !relation || !ids.length) return [];
@@ -110,7 +168,7 @@ export function RelationLinesEditor(props: {
         0,
         ids.length,
         null,
-        sessionContext,
+        rpcContext,
       );
       const byId = new Map<number, Record<string, unknown>>();
       for (const row of rows) {
@@ -121,92 +179,128 @@ export function RelationLinesEditor(props: {
     },
   });
 
+  function updateQueue(update: (current: RelationCommandQueue) => RelationCommandQueue) {
+    const visibleTimestamps = relation
+      ? trytonTimestampsForRecords(relation, rowsQuery.data ?? [])
+      : {};
+    const guardedUpdate = (current: RelationCommandQueue) => {
+      const guarded = relationQueueWithTrytonTimestamps(current, visibleTimestamps);
+      const next = update(guarded);
+      return relationQueueWithTrytonTimestamps(next, guarded.timestamps);
+    };
+    if (isControlled) {
+      props.onQueueChange?.(guardedUpdate);
+      return;
+    }
+    setLocalQueue(guardedUpdate);
+  }
+
   const treeRows = useMemo(() => {
     const real = rowsQuery.data ?? [];
     const queued = pendingCreates.map(({ values, rowId }) => {
       const row: Record<string, unknown> = { id: rowId };
       for (const col of columns) {
         const v = values[col.name];
-        row[col.name] = v ?? (col.name === "rec_name" ? (values.name ?? "(new)") : "");
+        row[col.name] =
+          v ?? (col.name === "rec_name" ? (values.name ?? t("relationLines.newRecord")) : "");
       }
       if (row.rec_name == null || row.rec_name === "") {
-        row.rec_name = String(values.rec_name ?? values.name ?? "(new)");
+        row.rec_name = String(values.rec_name ?? values.name ?? t("relationLines.newRecord"));
       }
       return row;
     });
     return [...real, ...queued];
-  }, [rowsQuery.data, pendingCreates, columns]);
+  }, [rowsQuery.data, pendingCreates, columns, t]);
 
-  function addId(id: number) {
-    if (!Number.isFinite(id)) return;
-    setIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setCommands((prev) => [...prev, { op: "add", id }]);
+  function addId(id: number): boolean {
+    if (!Number.isFinite(id) || !replaceLineForm(null)) return false;
+    updateQueue((current) =>
+      current.ids.includes(id)
+        ? current
+        : {
+            ...current,
+            ids: [...current.ids, id],
+            commands: [...current.commands, { op: "add", id }],
+          },
+    );
     setSelectedId(id);
+    return true;
   }
 
   function removeId(id: number) {
-    setIds((prev) => prev.filter((x) => x !== id));
-    setCommands((prev) => [...prev, { op: "remove", id }]);
+    if (!replaceLineForm(null)) return;
+    updateQueue((current) => {
+      const result = removeChildScreen(current, { kind: "record", id }, "remove");
+      return result.ok ? result.queue : current;
+    });
     if (selectedId === id) setSelectedId(null);
-    if (lineForm?.kind === "edit" && lineForm.id === id) setLineForm(null);
   }
 
   function deleteId(id: number) {
-    setIds((prev) => prev.filter((x) => x !== id));
-    setCommands((prev) => [...prev, { op: "delete", id }]);
+    if (!replaceLineForm(null)) return;
+    updateQueue((current) => {
+      const result = removeChildScreen(current, { kind: "record", id }, "delete");
+      return result.ok ? result.queue : current;
+    });
     if (selectedId === id) setSelectedId(null);
-    if (lineForm?.kind === "edit" && lineForm.id === id) setLineForm(null);
   }
 
   function discardQueued(commandIndex: number) {
-    setCommands((prev) => prev.filter((_, i) => i !== commandIndex));
+    if (!replaceLineForm(null)) return;
+    updateQueue((current) => {
+      const result = removeChildScreen(current, { kind: "queued-create", commandIndex });
+      return result.ok ? result.queue : current;
+    });
     setSelectedId(null);
-    setLineForm(null);
-    setNotice("Queued create discarded");
+    setNotice(t("relationLines.discarded"));
   }
 
   function apply() {
-    if (props.field.type === "many2many") {
-      props.onCommit(toTrytonM2MDelta(baselineIds, ids));
-      setBaselineIds(ids);
-      setCommands([]);
-      setNotice("M2M delta applied — Save parent to write");
-      return;
+    if (!replaceLineForm(null)) return;
+    props.onCommit(relationQueueWireValue(queue));
+    if (!isControlled) {
+      updateQueue((current) => ({
+        ...current,
+        baselineIds: [...current.ids],
+        commands: current.kind === "many2many" ? [] : current.commands,
+      }));
     }
-    props.onCommit(toTrytonO2M(commands.length ? commands : ids.map((id) => ({ op: "add", id }))));
-    setBaselineIds(ids);
-    setNotice("O2M commands applied — Save parent to write");
+    setNotice(
+      t("relationLines.applied", {
+        kind:
+          queue.kind === "many2many" ? t("relationLines.m2mDelta") : t("relationLines.o2mCommands"),
+      }),
+    );
   }
 
-  function queueLine(values: RecordValues, lineId: number | null) {
-    if (lineForm?.kind === "queued") {
-      const idx = lineForm.commandIndex;
-      setCommands((prev) =>
-        prev.map((c, i) => (i === idx && c.op === "create" ? { op: "create", values } : c)),
-      );
-      setNotice("Queued create updated — Apply to attach");
-      setLineForm(null);
-      return;
-    }
-    if (lineId != null) {
-      setCommands((prev) => [...prev, { op: "write", id: lineId, values }]);
-      setNotice(`Write #${lineId} queued — Apply to attach`);
-    } else {
-      setCommands((prev) => [...prev, { op: "create", values }]);
-      setNotice("Create queued — Apply to attach");
-    }
-    setLineForm(null);
+  function queueLine(next: RelationCommandQueue) {
+    const target = lineForm;
+    updateQueue(() => next);
+    setNotice(
+      target?.kind === "record"
+        ? t("relationLines.writeQueued", { id: target.id })
+        : target?.kind === "queued-create"
+          ? t("relationLines.createUpdated")
+          : t("relationLines.createQueued"),
+    );
+    finishLineForm();
   }
 
   function selectRow(id: number) {
-    setSelectedId(id);
-    if (props.mode !== "write" || props.field.type !== "one2many") return;
-    if (id < 0) {
+    let next: ChildScreenTarget | null = null;
+    if (props.mode === "write" && props.field.type === "one2many" && id < 0) {
       const entry = pendingCreates.find((e) => e.rowId === id);
-      if (entry) setLineForm({ kind: "queued", commandIndex: entry.commandIndex });
-      return;
+      if (entry) next = { kind: "queued-create", commandIndex: entry.commandIndex };
+    } else if (props.mode === "write" && props.field.type === "one2many") {
+      next = { kind: "record", id };
     }
-    setLineForm({ kind: "edit", id });
+    if (!replaceLineForm(next)) return;
+    setSelectedId(id);
+  }
+
+  function openLine(id: number) {
+    if (!relation || !props.onOpenLine || !replaceLineForm(null)) return;
+    props.onOpenLine(relation, id);
   }
 
   const selectedQueued =
@@ -227,88 +321,95 @@ export function RelationLinesEditor(props: {
               onSelect={(id) => selectRow(id)}
               onOpen={(id) => {
                 if (id < 0) return;
-                if (relation && props.onOpenLine) props.onOpenLine(relation, id);
+                openLine(id);
               }}
             />
           ) : (
             <p className="epiton-board-pane-empty" role="status">
-              No lines
+              {t("relationLines.noLines")}
             </p>
           )}
           {props.mode === "write" ? (
             <div className="epiton-toolbar">
-              <Button onClick={() => setSearchOpen(true)}>Search add</Button>
-              {props.field.type === "one2many" && relation ? (
+              <Button
+                onClick={() => {
+                  if (replaceLineForm(null)) setSearchOpen(true);
+                }}
+              >
+                {t("relationLines.searchAdd")}
+              </Button>
+              {props.field.type === "one2many" && relation && props.field.create !== false ? (
                 <Button
                   onClick={() => {
-                    setLineForm({ kind: "new" });
-                    setSelectedId(null);
+                    if (replaceLineForm({ kind: "new" })) setSelectedId(null);
                   }}
                 >
-                  New line
+                  {t("relationLines.newLine")}
                 </Button>
               ) : null}
               {selectedQueued ? (
                 <>
                   <Button
-                    onClick={() =>
-                      setLineForm({ kind: "queued", commandIndex: selectedQueued.commandIndex })
-                    }
+                    onClick={() => {
+                      replaceLineForm({
+                        kind: "queued-create",
+                        commandIndex: selectedQueued.commandIndex,
+                      });
+                    }}
                   >
-                    Edit queued
+                    {t("relationLines.editQueued")}
                   </Button>
                   <Button
                     variant="danger"
                     onClick={() => discardQueued(selectedQueued.commandIndex)}
                   >
-                    Discard
+                    {t("relationLines.discard")}
                   </Button>
                 </>
               ) : null}
               {selectedId != null && selectedId > 0 ? (
                 <>
                   {props.field.type === "one2many" ? (
-                    <Button onClick={() => setLineForm({ kind: "edit", id: selectedId })}>
-                      Edit
+                    <Button onClick={() => replaceLineForm({ kind: "record", id: selectedId })}>
+                      {t("relationLines.edit")}
                     </Button>
                   ) : null}
                   <Button variant="danger" onClick={() => removeId(selectedId)}>
-                    Remove
+                    {t("relationLines.remove")}
                   </Button>
-                  {props.field.type === "one2many" ? (
+                  {props.field.type === "one2many" && props.field.delete !== false ? (
                     <Button variant="danger" onClick={() => deleteId(selectedId)}>
-                      Delete
+                      {t("relationLines.delete")}
                     </Button>
                   ) : null}
                   {relation && props.onOpenLine ? (
-                    <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>Open</Button>
+                    <Button onClick={() => openLine(selectedId)}>{t("relationLines.open")}</Button>
                   ) : null}
                 </>
               ) : null}
               <Button variant="primary" onClick={apply}>
-                Apply relation commands
+                {t("relationLines.apply")}
               </Button>
             </div>
           ) : selectedId != null && selectedId > 0 && relation && props.onOpenLine ? (
             <div className="epiton-toolbar">
-              <Button onClick={() => props.onOpenLine?.(relation, selectedId)}>Open</Button>
+              <Button onClick={() => openLine(selectedId)}>{t("relationLines.open")}</Button>
             </div>
           ) : null}
         </div>
         {lineForm != null && relation ? (
           <div className="epiton-relation-form">
             <RelationLineForm
+              key={childScreenTargetKey(lineForm)}
               model={relation}
-              lineId={lineForm.kind === "edit" ? lineForm.id : null}
-              initialValues={
-                lineForm.kind === "queued"
-                  ? (commands[lineForm.commandIndex] as Extract<O2MCommand, { op: "create" }>)
-                      ?.values
-                  : undefined
-              }
-              onCancel={() => setLineForm(null)}
-              onSave={queueLine}
+              target={lineForm}
+              parentQueue={queue}
+              context={props.context}
+              preValidate={props.field.pre_validate}
+              onCancel={finishLineForm}
+              onCommit={queueLine}
               onOpenRelated={props.onOpenLine}
+              onExitDecisionChange={publishLineExitDecision}
             />
           </div>
         ) : null}
@@ -318,60 +419,23 @@ export function RelationLinesEditor(props: {
           field={props.field}
           recordValues={props.recordValues ?? {}}
           domain={props.domain}
+          context={rpcContext}
           mode={props.mode}
           onCancel={() => setSearchOpen(false)}
           onPick={(id) => {
-            addId(id);
-            setSearchOpen(false);
+            if (addId(id)) setSearchOpen(false);
           }}
         />
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
       <p className="text-sm text-[var(--epiton-muted)]">
-        Relation: {relation ?? "—"} · lines: {ids.length} · queued creates: {pendingCreates.length}{" "}
-        · pending ops: {commands.length}
+        {t("relationLines.summary", {
+          relation: relation ?? "—",
+          lines: ids.length,
+          creates: pendingCreates.length,
+          operations: commands.length,
+        })}
       </p>
     </Panel>
   );
-}
-
-function normalizeIds(value: unknown): number[] {
-  if (!Array.isArray(value)) return [];
-  if (
-    value.length > 0 &&
-    Array.isArray(value[0]) &&
-    typeof (value[0] as unknown[])[0] === "string"
-  ) {
-    const ids: number[] = [];
-    const removed = new Set<number>();
-    for (const cmd of value) {
-      if (!Array.isArray(cmd) || typeof cmd[0] !== "string") continue;
-      const op = cmd[0];
-      if (op === "add" || op === "write") {
-        const arr = cmd[1];
-        if (!Array.isArray(arr)) continue;
-        for (const id of arr) {
-          const n = Number(id);
-          if (Number.isFinite(n) && !ids.includes(n)) ids.push(n);
-        }
-      } else if (op === "remove" || op === "delete") {
-        const arr = cmd[1];
-        if (!Array.isArray(arr)) continue;
-        for (const id of arr) {
-          const n = Number(id);
-          if (Number.isFinite(n)) removed.add(n);
-        }
-      }
-    }
-    return ids.filter((id) => !removed.has(id));
-  }
-  return value
-    .map((item) => {
-      if (typeof item === "number") return item;
-      if (Array.isArray(item) && typeof item[0] === "number") return item[0];
-      if (item && typeof item === "object" && "id" in item)
-        return Number((item as { id: unknown }).id);
-      return Number.NaN;
-    })
-    .filter((n) => Number.isFinite(n));
 }

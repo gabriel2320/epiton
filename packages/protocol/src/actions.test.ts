@@ -12,15 +12,20 @@ function clientWithFetch(fetchImpl: typeof fetch) {
   return client;
 }
 
+function rpcResult(init: RequestInit | undefined, result: unknown): Response {
+  const request = JSON.parse(String(init?.body)) as { id: number };
+  return new Response(JSON.stringify({ id: request.id, result }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 describe("resolveAction", () => {
   it("returns bare model names when not a registered wizard", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
       expect(body.method).toBe("model.ir.action.wizard.search_read");
-      return new Response(JSON.stringify({ id: 1, result: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return rpcResult(init, []);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveWorkspaceModel(client, "party.party")).resolves.toBe("party.party");
@@ -31,14 +36,8 @@ describe("resolveAction", () => {
   });
 
   it("detects bare wizard technical names", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response(
-        JSON.stringify({
-          id: 1,
-          result: [{ id: 9, wiz_name: "ir.module.activate_upgrade" }],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      return rpcResult(init, [{ id: 9, wiz_name: "ir.module.activate_upgrade" }]);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.module.activate_upgrade")).resolves.toEqual({
@@ -52,34 +51,24 @@ describe("resolveAction", () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
       if (body.method === "model.ir.action.act_window.domain.search_read") {
-        return new Response(
-          JSON.stringify({
-            id: 1,
-            result: [{ name: "Active", domain: '[["active", "=", true]]', count: true }],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return rpcResult(init, [
+          { name: "Active", domain: '[["active", "=", true]]', count: true },
+        ]);
       }
       expect(body.method).toBe("model.ir.action.act_window.search_read");
-      return new Response(
-        JSON.stringify({
-          id: 1,
-          result: [
-            {
-              id: 12,
-              res_model: "company.company",
-              name: "Companies",
-              domain: '[["active", "=", true]]',
-              context: { company: 1 },
-              views: [
-                [null, "tree"],
-                [null, "form"],
-              ],
-            },
+      return rpcResult(init, [
+        {
+          id: 12,
+          res_model: "company.company",
+          name: "Companies",
+          domain: '[["active", "=", true]]',
+          context: { company: 1 },
+          views: [
+            [null, "tree"],
+            [null, "form"],
           ],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+        },
+      ]);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action.act_window,12")).resolves.toEqual({
@@ -97,15 +86,35 @@ describe("resolveAction", () => {
     });
   });
 
+  it("uses the active Tryton session context for action metadata", async () => {
+    const requests: Array<{ method: string; params: unknown[] }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
+      requests.push(body);
+      if (body.method === "model.ir.action.act_window.domain.search_read") {
+        return rpcResult(init, []);
+      }
+      return rpcResult(init, [
+        { id: 12, res_model: "party.party", name: "Parties", domain: "[]", views: [] },
+      ]);
+    });
+    const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
+
+    await resolveAction(client, "ir.action.act_window,12", {
+      user: 7,
+      company: 2,
+      employee: 9,
+    });
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.params.at(-1)).toEqual({ user: 7, company: 2, employee: 9 });
+    }
+  });
+
   it("resolves url actions", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response(
-        JSON.stringify({
-          id: 1,
-          result: [{ id: 5, url: "https://example.test/docs", name: "Docs" }],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      return rpcResult(init, [{ id: 5, url: "https://example.test/docs", name: "Docs" }]);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action.url,5")).resolves.toEqual({
@@ -117,11 +126,8 @@ describe("resolveAction", () => {
   });
 
   it("resolves wizard action references", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response(
-        JSON.stringify({ id: 1, result: [{ id: 3, wiz_name: "ir.translation.export" }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      return rpcResult(init, [{ id: 3, wiz_name: "ir.translation.export" }]);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action.wizard,3")).resolves.toEqual({
@@ -132,11 +138,8 @@ describe("resolveAction", () => {
   });
 
   it("resolves report action references", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response(
-        JSON.stringify({ id: 1, result: [{ id: 7, report_name: "party.label" }] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      return rpcResult(init, [{ id: 7, report_name: "party.label" }]);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action.report,7")).resolves.toEqual({
@@ -150,25 +153,15 @@ describe("resolveAction", () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
       if (body.method === "model.ir.action.search_read") {
-        return new Response(
-          JSON.stringify({ id: 1, result: [{ id: 12, type: "ir.action.act_window" }] }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return rpcResult(init, [{ id: 12, type: "ir.action.act_window" }]);
       }
       if (body.method === "model.ir.action.act_window.domain.search_read") {
-        return new Response(JSON.stringify({ id: 1, result: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return rpcResult(init, []);
       }
       expect(body.method).toBe("model.ir.action.act_window.search_read");
-      return new Response(
-        JSON.stringify({
-          id: 1,
-          result: [{ id: 12, res_model: "party.party", name: "Parties", domain: "[]", views: [] }],
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return rpcResult(init, [
+        { id: 12, res_model: "party.party", name: "Parties", domain: "[]", views: [] },
+      ]);
     });
     const client = clientWithFetch(fetchImpl as unknown as typeof fetch);
     await expect(resolveAction(client, "ir.action,12")).resolves.toMatchObject({

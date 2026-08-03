@@ -1,5 +1,6 @@
 /** Map Tryton search_read rows to calendar events using calendar arch or common date fields. */
 
+import { formatTrytonCalendarDate } from "./dates";
 import type { ViewNode } from "./parse";
 
 export interface CalendarEventRow {
@@ -18,6 +19,11 @@ export interface CalendarSpec {
   mode?: string;
 }
 
+function displayValue(value: unknown): string {
+  if (Array.isArray(value)) return String(value[1] ?? value[0] ?? "");
+  return String(value);
+}
+
 /**
  * Parse Tryton `<calendar dtstart=… dtend=… color=…>` arch.
  * Falls back to null when the arch is not a calendar.
@@ -25,7 +31,7 @@ export interface CalendarSpec {
 export function parseCalendarArch(root: ViewNode): CalendarSpec | null {
   const node =
     root.tag === "calendar" ? root : (root.children.find((c) => c.tag === "calendar") ?? null);
-  if (!node || node.tag !== "calendar") return null;
+  if (node?.tag !== "calendar") return null;
   const dtstart = node.attrs.dtstart ?? node.attrs.start;
   if (!dtstart) return null;
   let titleField: string | undefined;
@@ -65,19 +71,16 @@ export function rowsToCalendarEvents(
       row[startField] ?? row.appointment_date ?? row.date ?? row.dtstart ?? row.create_date;
     if (start == null) continue;
     const end = row[endField] ?? row.dtend ?? null;
-    const title = String(row[titleField] ?? row.name ?? `#${id}`);
+    const formattedStart = formatTrytonCalendarDate(start);
+    if (!formattedStart) continue;
+    const title = displayValue(row[titleField] ?? row.name ?? `#${id}`);
     const colorRaw = colorField ? row[colorField] : null;
-    const color =
-      colorRaw == null
-        ? null
-        : Array.isArray(colorRaw)
-          ? String(colorRaw[1] ?? colorRaw[0] ?? "")
-          : String(colorRaw);
+    const color = colorRaw == null ? null : displayValue(colorRaw);
     out.push({
       id,
       title,
-      start: String(start),
-      end: end == null ? null : String(end),
+      start: formattedStart,
+      end: end == null ? null : formatTrytonCalendarDate(end) || null,
       color: color || null,
     });
   }

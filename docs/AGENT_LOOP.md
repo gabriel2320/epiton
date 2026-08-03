@@ -16,6 +16,18 @@ Daily speed path for agents. Authority and rails live in
 8. Commit (when user asked / session pattern expects ship)
 ```
 
+For frontend decomposition, extract the smallest pure translator/policy with a
+focused test, then a typed presentational component. Keep session-bound Tryton
+RPC, query invalidation, and workflow ownership in the existing coordinator;
+leaf UI components receive callbacks and must not create a second runtime.
+
+For nested relation work, read
+[`CHILD_SCREEN_CONTRACT.md`](CHILD_SCREEN_CONTRACT.md) before editing
+`RelationLineForm`, `RelationLinesEditor`, or another relation host. Those hosts
+must consume the frozen child lifecycle, keep RPC/server validation outside
+`view-engine`, and bubble every accepted child into the parent queue instead of
+writing it independently.
+
 ## Commands
 
 | Intent | Command |
@@ -26,6 +38,12 @@ Daily speed path for agents. Authority and rails live in
 | Unit tests | `pnpm test` |
 | Web build | `pnpm --filter @epiton/web build` |
 | Bundle budget | `pnpm check:bundle` |
+| Next production build | `pnpm check:next` |
+| Next production CSP/PWA browser receipt | `pnpm test:e2e:next` |
+| Capacitor Android sync | `pnpm --filter @epiton/mobile sync:android` |
+| Android debug APK | `pnpm --filter @epiton/mobile build:android:debug` (JDK + Android SDK) |
+| Android unsigned release APK | `pnpm --filter @epiton/mobile build:android:release-unsigned` (sign before receipt) |
+| Tauri Linux bundles | `pnpm --filter @epiton/desktop build:linux` (Rust + Linux WebKit) |
 | Lab up (Tryton 7) | `pnpm lab:up` |
 | Lab up (Tryton 8) | `pnpm lab:up:8` |
 | Lab down | `pnpm lab:down` |
@@ -33,10 +51,18 @@ Daily speed path for agents. Authority and rails live in
 | RPC smoke (live client) | `pnpm lab:smoke:live` |
 | Live compat matrix | `pnpm compat:live` |
 | Offline compat fixtures | `pnpm --filter @epiton/compat test` |
+| Client persistence boundary | `pnpm --filter @epiton/compat test -- client_persistence_contract.test.ts` |
 | Gateway health | `pnpm gateway:smoke` |
 | GH model probe | `pnpm gh:check` |
+| Tryton 9 official-source canary | `pnpm tryton:canary:9` |
+| Canary contract tests | `pnpm check:tryton-canary` |
+| Native receipt contract tests | `pnpm check:native-artifacts` |
+| Native promotion contract tests | `pnpm check:native-promotion` |
 | Gateway tests | `cd apps/gateway && cargo test` |
-| E2E (optional) | `pnpm test:e2e` |
+| Mock browser E2E | `pnpm test:e2e:mock` |
+| Client accessibility/performance release baseline | `pnpm test:e2e:release` |
+| Disposable live browser E2E | `EPITON_E2E_LAB=disposable pnpm test:e2e:live` |
+| Proteus oracle (7 / 8) | `pnpm lab:oracle:7` / `pnpm lab:oracle:8` |
 
 ## Batch sizing
 
@@ -44,6 +70,7 @@ Prefer one closed flow per commit, for example:
 
 - Protocol helper + unit test + web wire + COMPATIBILITY row
 - UI primitive + workspace consumer + ui vitest
+- Pure workspace policy + focused vitest + typed leaf component
 - Gateway ACL tweak + cargo test + gateway README note
 
 Avoid mega-batches that mix license policy, GH lab images, and unrelated UI.
@@ -64,7 +91,19 @@ delivery; do not fake live results.
 ## CI vs local
 
 - **Local loop:** lint → test → web build → bundle.
-- **CI (`.github/workflows/ci.yml`):** same plus gateway cargo + lab-smoke on push/PR.
+- **CI (`.github/workflows/ci.yml`):** same plus mock and Next production
+  browser receipts, locked gateway cargo, Android debug APK and Linux Tauri
+  bundles with SHA-256 receipts (plus attestations on push), and Tryton 7/8
+  protocol/oracle/live-browser gates on push/PR.
+- **Protected candidate CI (`native-release-candidate.yml`):** manual dispatch
+  from clean `main`; quality gates first, then Android platform signing in the
+  reviewed environment and exact Linux candidate staging. Receipts and build
+  attestations are non-promotable until independent signature and physical-
+  device evidence passes `check:native-promotion`.
+- **Scheduled canary (`tryton-upstream-canary.yml`):** checks official PyPI,
+  Tryton documentation, and container signals for 9.0. A release alert means
+  “build and prove the 9.0 lab lane,” never “claim support.” Follow every
+  activation requirement in `config/tryton-series-policy.json`.
 - Agents should not wait on Actions for every iteration; fix locally first.
 
 ## “Continua” pattern
@@ -76,7 +115,8 @@ When the user says **continua** and scope is “next P1 parity”:
 3. Update docs rows.
 4. Commit (and push only if the session rule expects it).
 
-Do not edit Cursor plan files unless the user points at them.
+This development program is Codex-only unless the user explicitly reverses that
+instruction. Do not consult or reactivate Cursor bridge/plan state implicitly.
 
 ## Stop and ask
 
@@ -96,3 +136,6 @@ A batch is done when:
 - [ ] Gates above are green (or lab gap explicitly noted)
 - [ ] Canon docs updated if status/deps/authority changed
 - [ ] No PHI, no session tokens, no Sao paste in the diff
+- [ ] No implicit durable client state or backend identifiers in URL/history;
+      logout, authenticated 401, and lifecycle teardown purge projections
+- [ ] Production browser traffic remains same-origin through the gateway

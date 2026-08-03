@@ -1,9 +1,16 @@
 import type { JsonObject } from "@epiton/protocol";
 import { applyFieldChange } from "@epiton/protocol";
 import { Button, StateBlock } from "@epiton/ui";
-import { type RecordValues, parseFieldsViewGet, renderView } from "@epiton/view-engine";
+import {
+  parseFieldsViewGet,
+  type RecordValues,
+  renderView,
+  trytonTimestampsForRecords,
+  withTrytonTimestampContext,
+} from "@epiton/view-engine";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { backendRpcContextKey, invalidateModelProjections } from "../lib/backendTruth";
 import { useAppStore } from "../lib/store";
 
 /** Compact in-pane form for board embedding (subset of ModelWorkspace form). */
@@ -20,9 +27,10 @@ export function RecordFormPane(props: {
   const [mode, setMode] = useState<"read" | "write">("read");
   const [notice, setNotice] = useState<string | null>(null);
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rpcScope = backendRpcContextKey(props.rpcContext);
 
   const viewQuery = useQuery({
-    queryKey: ["board-form-view", props.model],
+    queryKey: ["board-form-view", props.model, rpcScope],
     enabled: Boolean(client),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -34,12 +42,12 @@ export function RecordFormPane(props: {
   });
 
   const recordQuery = useQuery({
-    queryKey: ["board-form-record", props.model, props.recordId, viewQuery.dataUpdatedAt],
+    queryKey: ["board-form-record", props.model, props.recordId, viewQuery.dataUpdatedAt, rpcScope],
     enabled: Boolean(client && props.recordId && viewQuery.isSuccess),
     queryFn: async () => {
       if (!client) return null;
       const fieldNames = [
-        ...new Set(["id", "rec_name", ...Object.keys(viewQuery.data?.fields ?? {})]),
+        ...new Set(["id", "rec_name", "_timestamp", ...Object.keys(viewQuery.data?.fields ?? {})]),
       ];
       const result = await client.model(
         props.model,
@@ -72,11 +80,16 @@ export function RecordFormPane(props: {
         if (Array.isArray(raw) && typeof raw[0] === "number") patch[key] = raw[0];
         else if (raw !== undefined) patch[key] = raw as JsonObject[string];
       }
-      await client.model(props.model, "write", [[props.recordId], patch], props.rpcContext);
+      const mutationContext = withTrytonTimestampContext(
+        props.rpcContext,
+        trytonTimestampsForRecords(props.model, [draft]),
+      ) as JsonObject;
+      await client.model(props.model, "write", [[props.recordId], patch], mutationContext);
     },
     onSuccess: async () => {
       setNotice("Saved");
       setMode("read");
+      await invalidateModelProjections(queryClient);
       await queryClient.invalidateQueries({ queryKey: ["board-pane", "screen", props.model] });
       await queryClient.invalidateQueries({
         queryKey: ["board-form-record", props.model, props.recordId],

@@ -1,5 +1,5 @@
 /** Long-poll Tryton bus helper used by Epiton shell notifications. */
-import { type TrytonSessionAuth, sessionAuthorization } from "./auth";
+import { sessionAuthorization, type TrytonSessionAuth } from "./auth";
 
 export interface BusMessage {
   channel: string;
@@ -7,19 +7,26 @@ export interface BusMessage {
   timestamp?: number;
 }
 
+export interface BusClientOptions {
+  fetchImpl?: typeof fetch;
+  onSessionInvalidated?: () => void;
+}
+
 export class BusClient {
   private readonly busUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly onSessionInvalidated?: () => void;
   private lastMessage: number | null = null;
   private aborted = false;
 
   constructor(
     busUrl: string,
     private session: TrytonSessionAuth,
-    fetchImpl: typeof fetch = fetch.bind(globalThis),
+    options: BusClientOptions = {},
   ) {
     this.busUrl = busUrl;
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
+    this.onSessionInvalidated = options.onSessionInvalidated;
   }
 
   stop(): void {
@@ -39,7 +46,19 @@ export class BusClient {
             channels,
             last_message: this.lastMessage,
           }),
+          cache: "no-store",
+          credentials: "omit",
+          referrerPolicy: "no-referrer",
         });
+        if (payload.status === 401) {
+          this.aborted = true;
+          try {
+            this.onSessionInvalidated?.();
+          } catch {
+            // The bus must stop even if a UI observer fails.
+          }
+          return;
+        }
         if (!payload.ok) {
           await delay(1500);
           continue;

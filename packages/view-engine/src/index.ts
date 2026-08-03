@@ -1,110 +1,205 @@
 export {
+  parseViewLayoutAttributes,
+  type ViewLayoutAttributes,
+} from "./layout";
+export {
   collectFieldNames,
+  type FieldType,
   isRelationField,
+  type ParsedView,
   parseFieldsViewGet,
   parseXml,
-  type FieldType,
-  type ParsedView,
+  type SelectionKey,
   type ViewField,
   type ViewNode,
   type ViewType,
 } from "./parse";
 export {
+  type RecordValues,
+  type RenderContext,
   renderView,
+  type TreeColumn,
   treeButtons,
   treeColumns,
   treeEditable,
   treeEditablePlacement,
-  type RecordValues,
-  type RenderContext,
-  type TreeColumn,
+  type ViewButtonMeta,
 } from "./render";
+
 import { type ParsedView, parseFieldsViewGet } from "./parse";
 import type { RecordValues } from "./render";
+
+export {
+  labelFieldCandidate,
+  numericFieldCandidates,
+  type SeriesInsight,
+  type SeriesPoint,
+  summarizeSeries,
+} from "./analytics";
+export {
+  applyBoardOrder,
+  type BoardLayout,
+  type BoardTile,
+  boardActionNames,
+  parseBoardLayout,
+} from "./board";
+export {
+  type CalendarEventRow,
+  type CalendarSpec,
+  parseCalendarArch,
+  rowsToCalendarEvents,
+} from "./calendar";
+export {
+  acceptChildScreenOnChange,
+  applyChildScreenOnChange,
+  applyChildScreenTrytonOnChange,
+  applyRelationQueueOnChange,
+  beginChildScreenOnChange,
+  type ChildScreenCommitResult,
+  type ChildScreenExitDecision,
+  type ChildScreenNestedIssues,
+  type ChildScreenOnChangeToken,
+  type ChildScreenRemovalResult,
+  type ChildScreenState,
+  type ChildScreenTarget,
+  type ChildScreenValidationCode,
+  type ChildScreenValidationIssue,
+  cancelChildScreen,
+  childScreenExitDecision,
+  childScreenIsDirty,
+  childScreenTargetKey,
+  commitChildScreen,
+  createChildScreen,
+  hydrateChildScreen,
+  removeChildScreen,
+  setChildScreenRelationQueue,
+  updateChildScreenValues,
+  validateChildScreen,
+  type X2ManyOnChangePatch,
+} from "./childScreen";
+export {
+  formatTrytonDate,
+  formatTrytonTime,
+  parseTrytonDateInput,
+  parseTrytonTimeInput,
+  type TrytonDateTimeValue,
+  type TrytonDateValue,
+  type TrytonTimeValue,
+} from "./dates";
+export {
+  aggregateGraphData,
+  GRAPH_ROW_LIMIT,
+  type GraphAggregateOp,
+  type GraphChartType,
+  type GraphSpec,
+  inferGraphFields,
+  parseGraphArch,
+  rowsToGraphData,
+  rowsToMultiSeries,
+} from "./graph";
 export {
   catalogFromTrytonRows,
   getLocale,
   setCatalog,
   setLocale,
-  t,
   type TranslationDict,
+  t,
 } from "./i18n";
 export {
-  isTrytonRelationCommands,
-  relationRecordCount,
-  toTrytonM2M,
-  toTrytonM2MDelta,
-  toTrytonO2M,
-  type O2MCommand,
-} from "./relations";
-export {
   createWidgetRegistry,
-  resolveFieldWidget,
-  widgetKey,
   type FieldWidget,
+  resolveFieldWidget,
   type WidgetRegistry,
+  widgetKey,
 } from "./plugins";
-export {
-  appointmentChipWidget,
-  clinicalWidgetRegistry,
-  patientBadgeWidget,
-} from "./clinical_widgets";
-export {
-  parseCalendarArch,
-  rowsToCalendarEvents,
-  type CalendarEventRow,
-  type CalendarSpec,
-} from "./calendar";
-export {
-  GRAPH_ROW_LIMIT,
-  inferGraphFields,
-  rowsToGraphData,
-  parseGraphArch,
-  aggregateGraphData,
-  rowsToMultiSeries,
-  type GraphAggregateOp,
-  type GraphChartType,
-  type GraphSpec,
-} from "./graph";
-export {
-  summarizeSeries,
-  numericFieldCandidates,
-  labelFieldCandidate,
-  type SeriesInsight,
-  type SeriesPoint,
-} from "./analytics";
-export {
-  boardActionNames,
-  parseBoardLayout,
-  applyBoardOrder,
-  type BoardLayout,
-  type BoardTile,
-} from "./board";
-export {
-  buildSearchDomain,
-  formatOrder,
-  mergeDomains,
-} from "./search";
-export {
-  flattenTreeRows,
-  mergeTreeRows,
-  sequenceWrites,
-  siblingReorderIds,
-  treeMeta,
-  type FlatTreeRow,
-  type TreeMeta,
-} from "./tree_hierarchy";
 export {
   evalContext,
   evalDomain,
   evalPyson,
   evalPysonNode,
-  resolveStatesAttr,
   type FieldStates,
   type PysonContext,
   type PysonNode,
+  resolveStatesAttr,
 } from "./pyson";
-export { formatTrytonDate, parseTrytonDateInput } from "./dates";
+export {
+  hydrateMany2OneRecNames,
+  hydrateMany2OneRows,
+  isTrytonRelationCommands,
+  type O2MCommand,
+  type RelationProjectionField,
+  relationRecordCount,
+  toTrytonM2M,
+  toTrytonM2MDelta,
+  toTrytonO2M,
+  withMany2OneRecNames,
+} from "./relations";
+export {
+  acceptAsyncScreenUpdate,
+  acceptLatestAsyncScreenUpdate,
+  createRelationQueue,
+  createScreen,
+  hydrateScreenFromRecord,
+  hydrateSelectedScreen,
+  idsFromRelationValue,
+  isScreenReadyToSave,
+  mergeTrytonTimestamps,
+  type RelationCommandQueue,
+  type RelationFieldKind,
+  relationQueueHasChanges,
+  relationQueueOnChangeValue,
+  relationQueueWireValue,
+  relationQueueWithTrytonTimestamps,
+  type ScreenState,
+  screenForSelection,
+  screenIsDirty,
+  screenTrytonTimestamps,
+  screenValuesForOnChange,
+  screenValuesForSave,
+  setScreenRelationQueue,
+  shouldApplyNewDefaults,
+  type TrytonTimestamp,
+  type TrytonTimestampMap,
+  trytonTimestampsForRecords,
+  updateScreenValues,
+  withTrytonTimestampContext,
+} from "./screen";
+export {
+  buildSearchDomain,
+  DOMAIN_OPERATORS,
+  type DomainClause,
+  type DomainCombinator,
+  type DomainFilter,
+  type DomainOperator,
+  decodeDomainFilter,
+  encodeDomainFilter,
+  formatOrder,
+  mergeDomains,
+  parseDomainValue,
+  parseSearchDomain,
+  type SearchDomainResult,
+  validateTrytonDomain,
+} from "./search";
+export {
+  decodeSelectionKey,
+  encodeSelectionKey,
+  hydrateRelationSelections,
+  normalizeSelectionKey,
+  type RelationSelectionLoader,
+  type RelationSelectionRequest,
+  type RelationSelectionRow,
+  relationSelectionRequests,
+  selectionValueText,
+} from "./selections";
+export {
+  type FlatTreeRow,
+  flattenTreeRows,
+  mergeTreeRows,
+  sequenceWrites,
+  siblingReorderIds,
+  type TreeMeta,
+  treeMeta,
+} from "./tree_hierarchy";
 
 export interface WizardButton {
   state: string;

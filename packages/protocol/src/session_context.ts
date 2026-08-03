@@ -7,17 +7,27 @@ import type { EpitonClient, JsonObject, JsonValue } from "./index";
 
 export type SessionPreferences = JsonObject;
 
+async function requestUserPreferences(client: EpitonClient): Promise<SessionPreferences> {
+  const result = await client.model("res.user", "get_preferences", [false], {});
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    return result as SessionPreferences;
+  }
+  throw new Error("Tryton returned an invalid user preferences payload");
+}
+
 /** Fetch res.user.get_preferences(false). Soft-fails to {}. */
 export async function loadUserPreferences(client: EpitonClient): Promise<SessionPreferences> {
   try {
-    const result = await client.model("res.user", "get_preferences", [false], {});
-    if (result && typeof result === "object" && !Array.isArray(result)) {
-      return result as SessionPreferences;
-    }
+    return await requestUserPreferences(client);
   } catch {
     // Preferences optional on minimal labs
   }
   return {};
+}
+
+/** Fetch preferences for an explicit reload, propagating transport and shape errors. */
+export async function requireUserPreferences(client: EpitonClient): Promise<SessionPreferences> {
+  return requestUserPreferences(client);
 }
 
 /**

@@ -1,51 +1,24 @@
-import { buildSessionContext, createClient, loadUserPreferences } from "@epiton/protocol";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { discardBackendProjection } from "./lib/backendTruth";
+import { clearLegacyBrowserPersistence } from "./lib/legacyBrowserPersistence";
 import { applyShellDataset, detectShell } from "./lib/nativeShell";
-import { loadSecureSession } from "./lib/secureSessionBridge";
+import { clearSecureSession } from "./lib/secureSessionBridge";
+import { clearClientAuthentication } from "./lib/sessionBoundary";
 import { useAppStore } from "./lib/store";
-import { applyClientLanguage } from "./lib/translations";
-import { LoginPage } from "./pages/LoginPage";
-import { Shell } from "./pages/Shell";
+import { LoginPage } from "./screens/LoginPage";
+import { Shell } from "./screens/Shell";
 
 async function hydrateNativeSession(): Promise<boolean> {
   if (detectShell() === "web") return false;
-  const saved = await loadSecureSession();
-  if (!saved) return false;
-
-  const store = useAppStore.getState();
-  try {
-    store.setConnection({ baseUrl: saved.baseUrl, database: saved.database });
-    const client = createClient({
-      baseUrl: saved.baseUrl,
-      database: saved.database,
-      correlationId: () => crypto.randomUUID(),
-    });
-    client.setSession({
-      login: saved.login,
-      userId: saved.userId,
-      session: saved.session,
-    });
-    await client.detectCapabilities();
-    const preferences = await loadUserPreferences(client);
-    store.setPreferences(preferences, buildSessionContext(preferences, { user: saved.userId }));
-    const lang =
-      typeof preferences.language === "string"
-        ? preferences.language
-        : Array.isArray(preferences.language)
-          ? String(preferences.language[0] ?? "en")
-          : "en";
-    await applyClientLanguage(client, lang);
-    store.setClient(client);
-    store.setSession({ login: saved.login, userId: saved.userId });
-    return true;
-  } catch {
-    store.setClient(null);
-    store.setSession(null);
-    return false;
-  }
+  // Remove tokens written by pre-hardening native builds. Native beta now uses
+  // the same memory-only lifecycle as web until an audited secret store exists.
+  await clearSecureSession();
+  return false;
 }
 
 export function App() {
+  const queryClient = useQueryClient();
   const session = useAppStore((s) => s.session);
   const theme = useAppStore((s) => s.theme);
   const [booting, setBooting] = useState(() => detectShell() !== "web");
@@ -56,7 +29,18 @@ export function App() {
 
   useEffect(() => {
     applyShellDataset();
+    clearLegacyBrowserPersistence();
   }, []);
+
+  useEffect(() => {
+    if (!session) discardBackendProjection(queryClient);
+  }, [queryClient, session]);
+
+  useEffect(() => {
+    const onPageHide = () => clearClientAuthentication(queryClient);
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [queryClient]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +71,7 @@ export function App() {
   if (booting) {
     return (
       <div className="epiton-login" role="status">
-        Restoring session…
+        Preparing secure session…
       </div>
     );
   }

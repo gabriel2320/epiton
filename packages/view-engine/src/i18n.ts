@@ -4,6 +4,22 @@ export type TranslationDict = Record<string, string>;
 let catalog: TranslationDict = {};
 let locale = "en";
 
+const builtInCatalogs: Record<string, TranslationDict> = {
+  es: {
+    "epiton.binaryAttached": "Archivo adjunto",
+    "epiton.blockedJavascriptUrl": "javascript: bloqueado",
+    "epiton.download": "Descargar",
+    "epiton.file": "Archivo",
+    "epiton.horizontalSplit": "División horizontal",
+    "epiton.noFile": "Sin archivo",
+    "epiton.open": "Abrir",
+    "epiton.openLines": "Abrir líneas",
+    "epiton.records": "registro(s)",
+    "epiton.search": "Buscar",
+    "epiton.verticalSplit": "División vertical",
+  },
+};
+
 export function setLocale(next: string): void {
   locale = next;
 }
@@ -17,7 +33,8 @@ export function setCatalog(next: TranslationDict): void {
 }
 
 export function t(key: string, fallback?: string): string {
-  return catalog[key] ?? fallback ?? key;
+  const language = locale.trim().toLowerCase().replace("_", "-").split("-")[0] ?? "en";
+  return catalog[key] ?? builtInCatalogs[language]?.[key] ?? fallback ?? key;
 }
 
 /** Map Tryton ir.translation style rows into a flat catalog. */

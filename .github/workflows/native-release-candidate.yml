@@ -1,0 +1,288 @@
+name: native-release-candidate
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: native-release-candidate-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require the dispatched clean main revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF:?}" != "refs/heads/main" ]; then
+            echo "Native release candidates must be dispatched from refs/heads/main"
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" != "${GITHUB_SHA:?}" ]; then
+            echo "The checkout does not match GITHUB_SHA"
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ]; then
+            git status --short
+            echo "Native release candidates require a clean checkout"
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm check:native-artifacts
+      - run: pnpm check:native-promotion
+      - run: pnpm --filter @epiton/web build
+      - run: pnpm check:bundle
+
+  android:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: native-release-candidates
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Build the unsigned Android release APK
+        run: pnpm --filter @epiton/mobile build:android:release-unsigned
+      - name: Materialize the protected Android signing key
+        shell: bash
+        env:
+          EPITON_ANDROID_KEYSTORE_B64: ${{ secrets.EPITON_ANDROID_KEYSTORE_B64 }}
+          EPITON_ANDROID_KEY_ALIAS: ${{ secrets.EPITON_ANDROID_KEY_ALIAS }}
+          EPITON_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EPITON_ANDROID_KEYSTORE_PASSWORD }}
+          EPITON_ANDROID_KEY_PASSWORD: ${{ secrets.EPITON_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for required_name in \
+            EPITON_ANDROID_KEYSTORE_B64 \
+            EPITON_ANDROID_KEY_ALIAS \
+            EPITON_ANDROID_KEYSTORE_PASSWORD \
+            EPITON_ANDROID_KEY_PASSWORD; do
+            if [ -z "${!required_name:-}" ]; then
+              echo "Missing required native-release-candidates secret: ${required_name}"
+              exit 1
+            fi
+          done
+          umask 077
+          keystore_path="${RUNNER_TEMP:?}/epiton-android-release.jks"
+          if [ -e "$keystore_path" ] || [ -L "$keystore_path" ]; then
+            echo "Refusing to overwrite the Android keystore path"
+            exit 1
+          fi
+          printf '%s' "$EPITON_ANDROID_KEYSTORE_B64" | base64 --decode > "$keystore_path"
+          if [ ! -s "$keystore_path" ] || [ -L "$keystore_path" ]; then
+            echo "Decoded Android keystore is not a non-empty regular file"
+            exit 1
+          fi
+      - name: Sign and verify the exact Android candidate
+        shell: bash
+        env:
+          EPITON_ANDROID_KEY_ALIAS: ${{ secrets.EPITON_ANDROID_KEY_ALIAS }}
+          EPITON_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EPITON_ANDROID_KEYSTORE_PASSWORD }}
+          EPITON_ANDROID_KEY_PASSWORD: ${{ secrets.EPITON_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          unsigned_apk="apps/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          signed_directory=".artifacts/native/android-release-candidate"
+          signed_apk="${signed_directory}/epiton-android-release.apk"
+          keystore_path="${RUNNER_TEMP:?}/epiton-android-release.jks"
+          if [ ! -f "$unsigned_apk" ] || [ -L "$unsigned_apk" ]; then
+            echo "Gradle did not produce the expected unsigned release APK"
+            exit 1
+          fi
+          if [ ! -f "$keystore_path" ] || [ -L "$keystore_path" ]; then
+            echo "The protected Android keystore is unavailable"
+            exit 1
+          fi
+          mapfile -t apksigner_candidates < <(
+            find "${ANDROID_HOME:?}/build-tools" -type f -name apksigner -print | sort -V
+          )
+          if [ "${#apksigner_candidates[@]}" -eq 0 ]; then
+            echo "Android SDK did not provide apksigner"
+            exit 1
+          fi
+          apksigner_index=$((${#apksigner_candidates[@]} - 1))
+          apksigner_path="${apksigner_candidates[$apksigner_index]}"
+          if [ ! -x "$apksigner_path" ]; then
+            echo "apksigner is not executable: $apksigner_path"
+            exit 1
+          fi
+          mkdir -p "$signed_directory"
+          "$apksigner_path" sign \
+            --ks "$keystore_path" \
+            --ks-key-alias "${EPITON_ANDROID_KEY_ALIAS:?}" \
+            --ks-pass env:EPITON_ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:EPITON_ANDROID_KEY_PASSWORD \
+            --out "$signed_apk" \
+            "$unsigned_apk"
+          "$apksigner_path" verify --verbose --print-certs "$signed_apk"
+      - name: Require a clean source tree before recording provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF:?}" != "refs/heads/main" ] || \
+             [ "$(git rev-parse HEAD)" != "${GITHUB_SHA:?}" ]; then
+            echo "Android candidate source revision is not clean main"
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ]; then
+            git status --short
+            echo "Android candidate build changed tracked source"
+            exit 1
+          fi
+      - name: Record the signed Android release candidate
+        run: >-
+          node scripts/native-artifact-receipt.mjs
+          --kind android-release-candidate
+          --output .artifacts/native/android-release-candidate/receipt.json
+          .artifacts/native/android-release-candidate/epiton-android-release.apk
+      - name: Attest the Android candidate and receipt
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            .artifacts/native/android-release-candidate/epiton-android-release.apk
+            .artifacts/native/android-release-candidate/receipt.json
+            .artifacts/native/android-release-candidate/SHA256SUMS
+      - name: Upload the Android candidate set
+        uses: actions/upload-artifact@v4
+        with:
+          name: epiton-android-release-candidate-${{ github.sha }}
+          path: .artifacts/native/android-release-candidate/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+      - name: Remove the ephemeral Android keystore
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          keystore_path="${RUNNER_TEMP:?}/epiton-android-release.jks"
+          if [ -L "$keystore_path" ]; then
+            echo "Refusing to follow a symlink at the Android keystore path"
+            exit 1
+          fi
+          if [ -f "$keystore_path" ]; then
+            chmod 600 "$keystore_path"
+            rm -- "$keystore_path"
+          fi
+
+  linux:
+    needs: quality
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    environment: native-release-candidates
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            file \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev \
+            wget
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - name: Build Tauri Linux release bundles
+        run: pnpm --filter @epiton/desktop build:linux
+      - name: Stage one exact DEB and AppImage candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t deb_candidates < <(
+            find apps/desktop/src-tauri/target/release/bundle/deb \
+              -maxdepth 1 -type f -name '*.deb' -print | sort
+          )
+          mapfile -t appimage_candidates < <(
+            find apps/desktop/src-tauri/target/release/bundle/appimage \
+              -maxdepth 1 -type f -name '*.AppImage' -print | sort
+          )
+          if [ "${#deb_candidates[@]}" -ne 1 ] || \
+             [ "${#appimage_candidates[@]}" -ne 1 ]; then
+            echo "Expected exactly one DEB and one AppImage release candidate"
+            exit 1
+          fi
+          candidate_directory=".artifacts/native/linux-release-candidate"
+          mkdir -p "$candidate_directory"
+          install -m 0644 "${deb_candidates[0]}" \
+            "$candidate_directory/epiton-linux-amd64.deb"
+          install -m 0755 "${appimage_candidates[0]}" \
+            "$candidate_directory/Epiton-linux-x86_64.AppImage"
+      - name: Require a clean source tree before recording provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF:?}" != "refs/heads/main" ] || \
+             [ "$(git rev-parse HEAD)" != "${GITHUB_SHA:?}" ]; then
+            echo "Linux candidate source revision is not clean main"
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ]; then
+            git status --short
+            echo "Linux candidate build changed tracked source"
+            exit 1
+          fi
+      - name: Record the Linux release candidate
+        run: >-
+          node scripts/native-artifact-receipt.mjs
+          --kind linux-release-candidate
+          --output .artifacts/native/linux-release-candidate/receipt.json
+          .artifacts/native/linux-release-candidate/epiton-linux-amd64.deb
+          .artifacts/native/linux-release-candidate/Epiton-linux-x86_64.AppImage
+      - name: Attest the Linux candidates and receipt
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            .artifacts/native/linux-release-candidate/epiton-linux-amd64.deb
+            .artifacts/native/linux-release-candidate/Epiton-linux-x86_64.AppImage
+            .artifacts/native/linux-release-candidate/receipt.json
+            .artifacts/native/linux-release-candidate/SHA256SUMS
+      - name: Upload the Linux candidate set
+        uses: actions/upload-artifact@v4
+        with:
+          name: epiton-linux-release-candidate-${{ github.sha }}
+          path: .artifacts/native/linux-release-candidate/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

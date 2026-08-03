@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   parseFieldsViewGet,
+  parseViewLayoutAttributes,
   parseXml,
   treeButtons,
   treeColumns,
   treeEditable,
-  treeEditablePlacement,
 } from "./index";
 
 describe("view-engine", () => {
@@ -41,6 +41,20 @@ describe("view-engine", () => {
     expect(cols.find((c) => c.name === "qty")?.aggregate).toBe("average");
   });
 
+  it("keeps repeated fields as distinct columns with their XML widgets", () => {
+    const parsed = parseFieldsViewGet({
+      arch: `<tree><field name="appointment_date" widget="date"/><field name="appointment_date" widget="time"/></tree>`,
+      fields: {
+        appointment_date: { type: "datetime", string: "Appointment date" },
+      },
+    });
+
+    expect(treeColumns(parsed)).toMatchObject([
+      { key: "appointment_date:0", name: "appointment_date", widget: "date" },
+      { key: "appointment_date:1", name: "appointment_date", widget: "time" },
+    ]);
+  });
+
   it("parses form with o2m/m2o", () => {
     const parsed = parseFieldsViewGet({
       arch: `<form><group string="Main"><field name="party"/><field name="lines"/></group></form>`,
@@ -53,7 +67,66 @@ describe("view-engine", () => {
     expect(parsed.fields.lines?.type).toBe("one2many");
   });
 
-  it("parses on_change and domain metadata", () => {
+  it("normalizes dense form layout attributes without losing the XML contract", () => {
+    const parsed = parseFieldsViewGet({
+      arch: '<form col="6"><group colspan="6" xexpand="1"><field name="name" colspan="4" xfill="0" xalign="1"/><hpaned position="280"/></group></form>',
+      fields: { name: { type: "char", string: "Name" } },
+    });
+
+    expect(parseViewLayoutAttributes(parsed.arch.attrs)).toMatchObject({ columns: 6 });
+    const group = parsed.arch.children[0]!;
+    expect(group.attrs).toMatchObject({ colspan: "6", xexpand: "1" });
+    expect(parseViewLayoutAttributes(group.attrs)).toMatchObject({
+      colspan: 6,
+      xexpand: true,
+    });
+    expect(parseViewLayoutAttributes(group.children[0]!.attrs)).toMatchObject({
+      colspan: 4,
+      xfill: false,
+      xalign: 1,
+    });
+    expect(parseViewLayoutAttributes(group.children[1]!.attrs).position).toBe(280);
+  });
+
+  it("bounds malformed layout values and supports unconstrained containers", () => {
+    expect(
+      parseViewLayoutAttributes({
+        col: "0",
+        colspan: "nope",
+        rowspan: "-3",
+        xexpand: "false",
+        yexpand: "yes",
+        xfill: "0",
+        xalign: "9",
+        yalign: "-2",
+        position: "-10",
+      }),
+    ).toEqual({
+      columns: null,
+      colspan: 1,
+      rowspan: 1,
+      xexpand: false,
+      yexpand: true,
+      xfill: false,
+      yfill: true,
+      xalign: 1,
+      yalign: 0,
+      position: null,
+    });
+    expect(parseViewLayoutAttributes({ col: "0.5" }).columns).toBe(1);
+  });
+
+  it("parses on_change, domain and dynamic states metadata", () => {
+    const states = {
+      readonly: {
+        __class__: "Not",
+        v: {
+          __class__: "equal",
+          s1: { __class__: "Eval", v: "state" },
+          s2: "draft",
+        },
+      },
+    };
     const parsed = parseFieldsViewGet({
       arch: `<form><field name="party"/></form>`,
       fields: {
@@ -63,12 +136,29 @@ describe("view-engine", () => {
           on_change: ["party"],
           on_change_with: ["company"],
           domain: [["active", "=", true]],
+          states,
         },
       },
     });
     expect(parsed.fields.party?.on_change).toEqual(["party"]);
     expect(parsed.fields.party?.on_change_with).toEqual(["company"]);
     expect(parsed.fields.party?.domain).toEqual([["active", "=", true]]);
+    expect(parsed.fields.party?.states).toEqual(states);
+  });
+
+  it("parses embedded relation create, delete and pre_validate policy", () => {
+    const parsed = parseFieldsViewGet({
+      arch: '<form><field name="lines" create="0" delete="1" pre_validate="1"/></form>',
+      fields: {
+        lines: { type: "one2many", relation: "sale.line", string: "Lines" },
+      },
+    });
+
+    expect(parsed.fields.lines).toMatchObject({
+      create: false,
+      delete: true,
+      pre_validate: true,
+    });
   });
 
   it("applies arch widget= overrides to field type", () => {

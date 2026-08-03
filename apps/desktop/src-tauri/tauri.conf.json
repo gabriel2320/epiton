@@ -24,9 +24,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
-  },
-  "plugins": {
-    "store": {}
+    "icon": ["icons/icon.png"]
   }
 }

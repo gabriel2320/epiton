@@ -345,11 +345,20 @@ export function evalContext(contextNode: unknown, ctx: PysonContext): Record<str
 }
 
 /** Parse states="{...}" attribute; returns resolved flags for current values. */
-export function resolveStatesAttr(
-  statesAttr: string | undefined,
-  values: PysonContext,
-): FieldStates {
+export function resolveStatesAttr(statesAttr: unknown, values: PysonContext): FieldStates {
   if (!statesAttr) return {};
+  const statesObject = asRecord(statesAttr);
+  if (statesObject) {
+    const result: FieldStates = {};
+    for (const key of ["invisible", "readonly", "required"] as const) {
+      if (!(key in statesObject)) continue;
+      const value = evalPysonNode(statesObject[key], values);
+      if (typeof value === "boolean") result[key] = value;
+      else if (value != null) result[key] = truthy(value);
+    }
+    return result;
+  }
+  if (typeof statesAttr !== "string") return {};
   const trimmed = statesAttr.trim();
   if (trimmed.startsWith("{")) {
     try {

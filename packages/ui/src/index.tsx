@@ -165,11 +165,7 @@ export function Separator(props: { className?: string; orientation?: "horizontal
   });
 }
 
-export function Tabs(props: {
-  children: ReactNode;
-  className?: string;
-  "aria-label"?: string;
-}) {
+export function Tabs(props: { children: ReactNode; className?: string; "aria-label"?: string }) {
   return createElement(
     "div",
     {
@@ -214,10 +210,7 @@ function formatMetaValue(value: unknown): string {
 }
 
 /** Sao-style audit strip: create/write date + uid. */
-export function MetaStrip(props: {
-  values: Record<string, unknown>;
-  className?: string;
-}) {
+export function MetaStrip(props: { values: Record<string, unknown>; className?: string }) {
   const created = formatMetaValue(props.values.create_date);
   const creator = formatMetaValue(props.values.create_uid);
   const modified = formatMetaValue(props.values.write_date);
@@ -249,7 +242,7 @@ export function MetaStrip(props: {
 
 /** Inline status / notice banner (shadcn Alert recipe). */
 export function Alert(props: {
-  children: ReactNode;
+  children?: ReactNode;
   tone?: "default" | "accent" | "danger" | "muted";
   className?: string;
   role?: "status" | "alert";

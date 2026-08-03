@@ -2,8 +2,8 @@
 
 Epitón is a **Tryton-compatible client**. Clinical/business truth stays on
 **trytond** (JSON-RPC Session). The gateway is **Axum (Rust)**; the UI is
-**React + TypeScript**. New libraries must not create a second source of truth
-or a parallel Python stack beside trytond.
+**Next.js + React + TypeScript**. New libraries must not create a second source
+of truth or a parallel Python stack beside trytond.
 
 Canon: [`CANON.md`](CANON.md) · Governance: [`GOVERNANCE.md`](GOVERNANCE.md) ·
 Agents: [`../AGENTS.md`](../AGENTS.md).
@@ -19,7 +19,9 @@ Agents: [`../AGENTS.md`](../AGENTS.md).
 | **WeasyPrint** | HTML→PDF | **Reject (core)** | Reports run via `report.*.execute` on trytond. Client previews with **pdfjs**. |
 | **ReportLab** | PDF generation | **Reject (core)** | Same: server reports, not client PDF authors. |
 | **FastAPI** | HTTP API | **Reject (core)** | Gateway is already **Axum**. A second Python API would split auth/CSP/audit. |
-| **Tailwind** | Utility CSS | **Keep (already)** | Tailwind CSS **4** is in `@epiton/web` (`@tailwindcss/vite`). |
+| **Next.js 16** | Web application host | **Adopt progressively** | App Router is the target host; the Tryton runtime stays a client island while server layout/document concerns remain server-first. |
+| **Vite 8** | Embedded native assets + existing web bridge | **Keep narrowly** | Next CSP/PWA/E2E now pass. After N2, remove the Vite web entrypoint but retain its minimal static adapter while Tauri/Capacitor embed local assets. It must not contain a parallel UI or Tryton behavior. |
+| **Tailwind** | Utility CSS | **Keep (already)** | Tailwind CSS **4** uses the host adapter (`@tailwindcss/postcss` for Next, `@tailwindcss/vite` during the bridge). |
 | **shadcn/ui** | Component recipes | **Adopt selectively** | `@epiton/ui` ships Input/Badge/Tabs/Separator/MetaStrip/Alert/ConfirmDialog. Prefer recipes over CLI dump. |
 
 ## What to use instead
@@ -27,6 +29,7 @@ Agents: [`../AGENTS.md`](../AGENTS.md).
 | Need | Epitón choice |
 |------|----------------|
 | HTTP gateway / CSP / session proxy | `apps/gateway` (Axum) |
+| Web host and document composition | Next.js App Router; no backend ids or client state in routes |
 | Form/DTO validation | Zod + react-hook-form |
 | UI primitives | `@epiton/ui` (+ Radix where interaction needs it) |
 | Styling | Tailwind 4 + CSS variables in `app.css` |
@@ -35,6 +38,77 @@ Agents: [`../AGENTS.md`](../AGENTS.md).
 | PDF preview | pdfjs-dist over Tryton report binaries |
 | Search | fuse.js + intelligence package |
 | Dashboard layout | Native HTML5 drag-and-drop (no DnD library) |
+| Server-state projection | TanStack Query in process memory; no persistence adapter |
+
+The progressive host gates are `pnpm check:next` for the App Router build,
+`pnpm test:e2e:next` for its production browser/CSP/static-PWA contract, and
+`pnpm --filter @epiton/web build` for the current Vite web/native-static
+artifact. All must stay green during N1 so the migration cannot silently fork
+the product. The Next E2E gate qualifies the installable web PWA but does not
+replace native-shell receipts: CI now builds an Android debug APK and Linux
+Tauri DEB/AppImage bundles. Each native job emits `receipt.json` plus
+`SHA256SUMS`; push jobs attest those subjects with `actions/attest@v4`. Their
+first green Actions receipts are still required. A separate manual
+`native-release-candidate.yml` workflow is restricted to clean `main`, reruns
+the quality gates, signs and verifies Android inside the protected
+`native-release-candidates` environment, and emits the exact Linux candidate
+pair for independent detached signing. It records non-promotable receipts and
+build attestations before upload; its first green run and all external approval
+evidence are still required. Next request-time nonce/Proxy behavior remains
+server-hosted rather than being weakened into a static export.
+
+## Reproducible client toolchain
+
+| Layer | Pinned baseline |
+|-------|-----------------|
+| JavaScript runtime | Node 24.18.1 LTS + pnpm 11.18.0 |
+| TypeScript/web tests | TypeScript 7.0.2 + Vite 8.2.0 + Vitest 4.1.10 |
+| Library bundling | tsdown 0.22.14 (`--platform neutral`; React remains external) |
+| Formatting/lint | Biome 2.5.6 |
+| Desktop | Tauri JS 2.11.x + Rust 1.97.1 |
+| Android | Capacitor 8.5.x + JDK 21 + SDK 36 + AGP 8.13.0 + Gradle 8.14.3 |
+
+`.node-version`, `packageManager`, `engines`, `rust-toolchain.toml`, the Android
+Gradle sources, and CI all carry the same baseline. Dependency ranges accept
+compatible patch releases; the lockfile records the exact resolved graph.
+
+The four publishable TypeScript libraries use `tsdown` instead of `tsup`.
+`tsdown` supports the TypeScript 7 declaration pipeline used here; neutral
+output preserves the existing `.js`/`.d.ts` package exports, and React is kept
+external in UI bundles so consumers retain a single React runtime.
+
+## Native artifact provenance
+
+`node scripts/native-artifact-receipt.mjs` accepts only explicit, in-repository
+regular files. It rejects symlinks, duplicates, unexpected package formats, and
+incomplete Linux DEB/AppImage pairs. Its `epiton.native-artifacts.v1` receipt
+records sorted paths, byte sizes, streaming SHA-256 values, source revision,
+working-tree state, CI
+run link, declared native toolchains, and the `pnpm-lock.yaml` digest.
+`SHA256SUMS` covers every binary and the receipt itself; its output directory is
+also resolved physically to reject symlink traversal.
+
+The policy deliberately classifies Android debug as `debug-only` and Linux as
+`unsigned`, both with `productionEligible: false`. GitHub's build attestation
+binds subjects to a workflow, but does not replace Android release signing,
+Linux platform signing, key custody, or device acceptance.
+
+The ordinary CI upload explicitly includes hidden paths because receipts live
+under `.artifacts/`. The protected candidate workflow signs the Android APK
+before hashing it; for Linux it hashes immutable DEB/AppImage bytes before the
+independent authority retains detached signatures. Android keystore secrets are
+platform-signing material only and never substitute for either Ed25519 approval
+authority.
+
+Release candidates remain non-promotable until
+`scripts/verify-native-release-promotion.mjs` validates both exact candidate
+sets against [`config/native-release-promotion.json`](../config/native-release-promotion.json).
+The verifier requires a clean `main` GitHub Actions revision, current pinned
+toolchain, build attestations, externally approved signature-verification
+evidence, and later physical-device acceptance authenticated by a different
+authority. Its output grants only native artifact distribution eligibility;
+the procedure and explicit non-claims are in
+[`NATIVE_RELEASE.md`](NATIVE_RELEASE.md).
 
 ## Optional future (non-core) niches
 
@@ -43,7 +117,9 @@ These are **not** default dependencies; only consider behind a clear consumer:
 - **FastAPI / Pydantic**: research-only sidecar (benchmarks, offline tools), never on the clinical write path.
 - **WeasyPrint / ReportLab**: only if a future *offline export lab* must render PDFs without trytond — still not for production HIS writes.
 - **NumPy**: only in a research notebook/worker outside the shipped client.
-- **SQLAlchemy / Alembic**: only if Epitón someday owns a *non-clinical* local cache DB (explicitly non-authoritative). Prefer IndexedDB / SQLite via Tauri if needed.
+- **Client databases**: IndexedDB/SQLite and ORM/migration layers are rejected by
+  the current canon. Adding one requires an explicit authority and threat-model
+  change; trytond must remain the only truth.
 
 ## Decision
 
