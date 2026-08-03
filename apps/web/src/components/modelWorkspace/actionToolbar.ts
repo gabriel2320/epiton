@@ -38,6 +38,7 @@ export function listActionAvailability(input: ListActionAvailabilityInput) {
 /** Pure availability contract shared by the selected-record action toolbar. */
 export function recordActionAvailability(input: RecordActionAvailabilityInput) {
   const canModify = input.hasFocusedRecord ? input.canWrite : input.canCreate;
+  const recordActionDisabled = input.savePending || !input.hasFocusedRecord;
   return {
     modeDisabled:
       input.savePending ||
@@ -45,10 +46,10 @@ export function recordActionAvailability(input: RecordActionAvailabilityInput) {
       !canModify ||
       (input.mode === "read" && !input.canSave),
     saveDisabled: input.savePending || !canModify || !input.canSave,
-    deleteDisabled: !input.clientAvailable || !input.canDelete || !input.hasFocusedRecord,
-    copyDisabled: !input.clientAvailable || !input.canCreate || !input.hasFocusedRecord,
-    historyDisabled: !input.hasFocusedRecord,
-    emailDisabled: !input.hasFocusedRecord,
+    deleteDisabled: !input.clientAvailable || !input.canDelete || recordActionDisabled,
+    copyDisabled: !input.clientAvailable || !input.canCreate || recordActionDisabled,
+    historyDisabled: recordActionDisabled,
+    emailDisabled: recordActionDisabled,
   };
 }
 

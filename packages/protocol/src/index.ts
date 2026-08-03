@@ -186,6 +186,31 @@ function malformedRpcResponse(message: string, payload?: unknown): TrytonRpcErro
     : new TrytonRpcError(message, -32700, payload as JsonValue);
 }
 
+/**
+ * Attach gateway correlation to Tryton's public model context without mutating
+ * caller-owned parameters. Model RPCs always carry their context as the final
+ * object; non-model methods keep their original wire contract.
+ */
+export function withCorrelationContext(
+  method: string,
+  params: JsonValue[],
+  correlationId: string,
+): JsonValue[] {
+  if (!method.startsWith("model.")) return params;
+
+  const correlated = [...params];
+  const context = correlated.at(-1);
+  if (context && typeof context === "object" && !Array.isArray(context)) {
+    correlated[correlated.length - 1] = {
+      ...context,
+      epiton_correlation_id: correlationId,
+    };
+  } else {
+    correlated.push({ epiton_correlation_id: correlationId });
+  }
+  return correlated;
+}
+
 export class EpitonClient {
   readonly baseUrl: string;
   readonly database: string;
@@ -357,14 +382,18 @@ export class EpitonClient {
     authenticated: boolean,
   ): Promise<JsonValue> {
     const id = this.rpcSeq++;
-    const body: JsonRpcRequest = { id, method, params };
+    const correlationId = this.correlationId?.();
+    const requestParams = correlationId
+      ? withCorrelationContext(method, params, correlationId)
+      : params;
+    const body: JsonRpcRequest = { id, method, params: requestParams };
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
 
-    if (this.correlationId) {
-      headers["X-Correlation-Id"] = this.correlationId();
+    if (correlationId) {
+      headers["X-Correlation-Id"] = correlationId;
     }
 
     if (authenticated) {

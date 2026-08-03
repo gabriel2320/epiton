@@ -349,7 +349,16 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("response", (response) => {
     if (response.status() >= 400) {
-      failedResponses.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+      let rpcMethod = "unknown-rpc";
+      try {
+        const payload = response.request().postDataJSON() as { method?: unknown };
+        if (typeof payload.method === "string") rpcMethod = payload.method;
+      } catch {
+        // Keep the transport evidence even when the request has no JSON body.
+      }
+      failedResponses.push(
+        `${response.status()} ${response.request().method()} ${response.url()} (${rpcMethod})`,
+      );
     }
   });
   page.on("requestfailed", (request) => {
@@ -762,6 +771,11 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
   const persistedPatientRow = page.getByRole("row").filter({ hasText: syntheticGivenName }).first();
   await expect(persistedPatientRow).toBeVisible();
   await persistedPatientRow.click();
+  await expect(
+    page.getByRole("heading", {
+      name: new RegExp(`gnuhealth\\.patient #${patientId}`),
+    }),
+  ).toBeVisible();
   await expect(page.locator('textarea[name="general_info"]:visible')).toHaveValue(
     syntheticClinicalNote,
   );
@@ -884,19 +898,27 @@ test("Epiton renders the Spanish GNU Health core through Tryton JSON-RPC", async
     expect(currentPatientTimestamp).not.toBe("");
     expect(currentPatientTimestamp).not.toBe(concurrentPatientTimestamp);
 
+    await expect(
+      page.getByRole("heading", {
+        name: new RegExp(`gnuhealth\\.patient #${patientId}`),
+      }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Modo: lectura", exact: true }).click();
     await page.locator('textarea[name="general_info"]:visible').fill(syntheticStaleClinicalNote);
-    const staleWriteResponse = page.waitForResponse((response) => {
+    const staleWriteRequestPromise = page.waitForRequest((request) => {
       try {
-        const request = response.request().postDataJSON() as { method?: unknown };
-        return request.method === "model.gnuhealth.patient.write";
+        const payload = request.postDataJSON() as { method?: unknown };
+        return payload.method === "model.gnuhealth.patient.write";
       } catch {
         return false;
       }
     });
     await page.getByRole("button", { name: "Guardar", exact: true }).click();
-    const staleWrite = await staleWriteResponse;
-    const staleWriteRequest = staleWrite.request().postDataJSON() as { params?: unknown[] };
+    const staleWriteNetworkRequest = await staleWriteRequestPromise;
+    const staleWrite = await staleWriteNetworkRequest.response();
+    expect(staleWrite, "Tryton must answer the stale optimistic-lock write").not.toBeNull();
+    if (!staleWrite) throw new Error("Tryton did not answer the stale optimistic-lock write");
+    const staleWriteRequest = staleWriteNetworkRequest.postDataJSON() as { params?: unknown[] };
     const staleWritePayload = (await staleWrite.json()) as {
       error?: { message?: unknown } | unknown[];
     };

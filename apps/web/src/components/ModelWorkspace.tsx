@@ -28,7 +28,6 @@ import {
   evalDomain,
   flattenTreeRows,
   formatOrder,
-  hydrateMany2OneRecNames,
   hydrateMany2OneRows,
   inferGraphFields,
   mergeDomains,
@@ -96,6 +95,7 @@ import { beginButtonFlight, finishButtonFlight } from "./modelWorkspace/buttonFl
 import {
   adjacentSelectedId,
   effectiveSelectedIds,
+  externalSelectionNeedsSync,
   listSelectionTransition,
   screenAfterListSelection,
   toggleSelectedId,
@@ -111,12 +111,14 @@ import {
 } from "./modelWorkspace/recordLifecycle";
 import {
   leaveWriteModeTransition,
+  readRecordSnapshot,
   saveRecord,
   screenAfterDiscard,
   screenAfterNewDefaults,
 } from "./modelWorkspace/recordSave";
 import {
   type WorkspaceListViewMode,
+  actionHasViewMode,
   initialWorkspaceViewMode,
 } from "./modelWorkspace/workspaceNavigation";
 import {
@@ -195,6 +197,7 @@ export function ModelWorkspace(props: {
   const onChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const treeStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const screenRef = useRef(screen);
+  const selectedIdRef = useRef(selectedId);
   const screenGenerationRef = useRef(0);
   const onChangeRevisionRef = useRef(0);
   const onChangeWorkRef = useRef<OnChangeWork | null>(null);
@@ -213,6 +216,7 @@ export function ModelWorkspace(props: {
     selectAdjacent: (_delta: -1 | 1) => {},
   });
   screenRef.current = screen;
+  selectedIdRef.current = selectedId;
   const newDefaultsPending = newDefaultsGeneration === screenGenerationRef.current;
   const recordLifecycleRefs = useMemo<RecordLifecycleRefs>(
     () => ({
@@ -253,6 +257,7 @@ export function ModelWorkspace(props: {
   const treeViewId = viewIdForMode(props.actionViews, "tree");
   const formViewId = viewIdForMode(props.actionViews, "form");
   const calendarViewId = viewIdForMode(props.actionViews, "calendar");
+  const hasCalendarView = actionHasViewMode(props.actionViews, "calendar");
   const listFormViewId = viewIdForMode(props.actionViews, "list-form");
   const graphViewId = viewIdForMode(props.actionViews, "graph");
 
@@ -447,7 +452,7 @@ export function ModelWorkspace(props: {
 
   const calendarViewQuery = useQuery({
     queryKey: ["model", props.model, "calendar-view", calendarViewId, rpcScope],
-    enabled: Boolean(client),
+    enabled: Boolean(client && hasCalendarView),
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!client) return null;
@@ -647,27 +652,15 @@ export function ModelWorkspace(props: {
     placeholderData: keepPreviousData,
     queryFn: async () => {
       if (!client) return [];
-      try {
-        return await client.searchRead(
-          props.model,
-          listDomain as never[],
-          listFields,
-          offset,
-          pageSize,
-          order,
-          rpcContext,
-        );
-      } catch {
-        return await client.searchRead(
-          props.model,
-          [],
-          ["id", "rec_name", "_timestamp"],
-          offset,
-          pageSize,
-          null,
-          rpcContext,
-        );
-      }
+      return client.searchRead(
+        props.model,
+        listDomain as never[],
+        listFields,
+        offset,
+        pageSize,
+        order,
+        rpcContext,
+      );
     },
   });
 
@@ -957,23 +950,24 @@ export function ModelWorkspace(props: {
     queryFn: async (): Promise<{ recordId: number; values: RecordValues } | null> => {
       const requestedId = selectedId;
       if (!client || requestedId == null) return null;
-      const result = await client.model(
+      return readRecordSnapshot(
+        client,
         props.model,
-        "read",
-        [[requestedId], recordReadFields],
+        requestedId,
+        recordReadFields,
+        formViewQuery.data?.fields ?? {},
         rpcContext,
       );
-      const values = Array.isArray(result) ? (result[0] as RecordValues) : null;
-      if (!values) return null;
-      return {
-        recordId: requestedId,
-        values: hydrateMany2OneRecNames(values, Object.values(formViewQuery.data?.fields ?? {})),
-      };
     },
   });
 
   useEffect(() => {
     const nextId = props.initialSelectedId ?? null;
+    if (
+      !externalSelectionNeedsSync(screenRef.current, selectedIdRef.current, props.model, nextId)
+    ) {
+      return;
+    }
     bumpRecordScreenGeneration(recordLifecycleRefs, setOnChangePending);
     closeRelationEditor();
     setScreen((current) => screenForSelection(current, props.model, nextId));
@@ -1157,8 +1151,49 @@ export function ModelWorkspace(props: {
       const savedScreen = createScreen(props.model, id, savedValues);
       screenRef.current = savedScreen;
       setScreen(savedScreen);
-      setNotice(t("workspace.saved"));
-      await invalidateModelProjections(queryClient);
+      const expected = {
+        generation: screenGenerationRef.current,
+        model: props.model,
+        recordId: id,
+      };
+      let committedSnapshot = null;
+      if (client) {
+        try {
+          committedSnapshot = await readRecordSnapshot(
+            client,
+            props.model,
+            id,
+            recordReadFields,
+            formViewQuery.data?.fields ?? {},
+            rpcContext,
+          );
+        } catch {
+          // The write is already committed. Keep it distinct from a failed save
+          // and fail closed until the normal record query can reload its epoch.
+        }
+      }
+      const stillCurrent = () => {
+        const current = screenRef.current;
+        return (
+          screenGenerationRef.current === expected.generation &&
+          current.model === expected.model &&
+          current.recordId === expected.recordId
+        );
+      };
+      if (stillCurrent()) {
+        const refreshedScreen = committedSnapshot
+          ? createScreen(props.model, id, committedSnapshot.values)
+          : createScreen(props.model, id);
+        screenRef.current = refreshedScreen;
+        setScreen(refreshedScreen);
+        setNotice(committedSnapshot ? t("workspace.saved") : t("workspace.savedRefreshFailed"));
+      }
+      try {
+        await invalidateModelProjections(queryClient);
+      } catch {
+        // Invalidating projections is best effort after a committed write; the
+        // explicit read above already refreshed (or failed closed) this Screen.
+      }
     },
   });
 
@@ -1710,7 +1745,7 @@ export function ModelWorkspace(props: {
           onSelect={selectDomainTab}
         />
         <WorkspaceListActionToolbar
-          clientAvailable={Boolean(client)}
+          clientAvailable={Boolean(client) && !saveMutation.isPending}
           canCreate={modelAccess.create}
           canWrite={modelAccess.write}
           canDelete={modelAccess.delete}

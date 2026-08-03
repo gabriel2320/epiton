@@ -90,6 +90,10 @@ struct JsonRpcEnvelope {
 async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter("epiton_gateway=info,tower_http=info")
+        // Gateway audit output is a machine-processed production artifact.
+        // ANSI escapes make fields such as `status=200` ambiguous once Docker
+        // redirects the stream to a file and break correlation reconciliation.
+        .with_ansi(false)
         .init();
 
     let upstream = validated_upstream(
@@ -456,7 +460,7 @@ async fn forward(
     tracing::info!(
         %correlation,
         method = %method,
-        rpc = rpc_method.unwrap_or("-"),
+        rpc = %rpc_method.unwrap_or("-"),
         %status,
         latency_ms = started.elapsed().as_millis() as u64,
         ts = %Utc::now().to_rfc3339(),

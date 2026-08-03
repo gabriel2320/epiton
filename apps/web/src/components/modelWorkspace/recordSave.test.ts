@@ -11,6 +11,7 @@ import {
 import {
   type SaveRecordOptions,
   leaveWriteModeTransition,
+  readRecordSnapshot,
   saveRecord,
   screenAfterDiscard,
   screenAfterNewDefaults,
@@ -53,6 +54,47 @@ function saveOptions(
 }
 
 describe("recordSave", () => {
+  it("reads and hydrates the committed snapshot without accepting another record", async () => {
+    const client: SaveRecordOptions["client"] = {
+      model: vi.fn(async () => [
+        {
+          id: 7,
+          name: "Ada",
+          company: 5,
+          "company.": { rec_name: "Epiton" },
+          _timestamp: "21.000000",
+        },
+      ]),
+    };
+
+    await expect(
+      readRecordSnapshot(client, model, 7, ["id", "name", "company", "company.rec_name"], fields, {
+        language: "es",
+      }),
+    ).resolves.toEqual({
+      recordId: 7,
+      values: {
+        id: 7,
+        name: "Ada",
+        company: [5, "Epiton"],
+        _timestamp: "21.000000",
+      },
+    });
+    expect(client.model).toHaveBeenCalledWith(
+      model,
+      "read",
+      [[7], ["id", "name", "company", "company.rec_name"]],
+      { language: "es" },
+    );
+
+    const mismatchedClient: SaveRecordOptions["client"] = {
+      model: vi.fn(async () => [{ id: 8, name: "Other" }]),
+    };
+    await expect(
+      readRecordSnapshot(mismatchedClient, model, 7, ["id", "name"], fields, context),
+    ).resolves.toBeNull();
+  });
+
   it("applies late default_get only to the same pristine new Screen", () => {
     const expected = { generation: 2, model, recordId: null };
     const pristine = createScreen(model, null);

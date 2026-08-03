@@ -152,8 +152,14 @@ export function Shell() {
   const [attachOpen, setAttachOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const workspaceRequestRef = useRef(0);
+
+  function supersedePendingWorkspaceOpen() {
+    workspaceRequestRef.current += 1;
+  }
 
   function resetWorkspaceForSessionBoundary() {
+    supersedePendingWorkspaceOpen();
     const tab = makeTab();
     setTabState({ tabs: [tab], activeTabId: tab.id });
     setActiveWizard(null);
@@ -322,11 +328,6 @@ export function Shell() {
         queryFn: async () =>
           parseFieldsViewGet(await client.fieldsViewGet(model, null, "tree", sessionContext)),
       });
-      await queryClient.prefetchQuery({
-        queryKey: ["model", model, "list", "id,rec_name,name,code,active", sessionRpcScope],
-        queryFn: async () =>
-          client.searchRead(model, [], ["id", "rec_name", "name"], 0, 40, null, sessionContext),
-      });
     } catch (error) {
       setWorkspaceNotice(`Backend prefetch failed: ${errorMessage(error, "unknown error")}`);
     }
@@ -397,13 +398,17 @@ export function Shell() {
       const key = e.key.toLowerCase();
       if (key === "t") {
         e.preventDefault();
+        workspaceRequestRef.current += 1;
         openNewTabRef.current();
         return;
       }
       if (key === "w") {
         e.preventDefault();
         const id = activeTabIdRef.current;
-        if (id) closeTabRef.current(id);
+        if (id) {
+          workspaceRequestRef.current += 1;
+          closeTabRef.current(id);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -416,6 +421,8 @@ export function Shell() {
     asNewTab = false,
     inheritedContext?: JsonObject,
   ) {
+    const requestId = workspaceRequestRef.current + 1;
+    workspaceRequestRef.current = requestId;
     if (!client) {
       setWorkspaceNotice("Backend unavailable; action was not opened");
       return;
@@ -423,11 +430,13 @@ export function Shell() {
     setWorkspaceNotice(null);
     const resolved = await resolveAction(client, actionOrModel, sessionContext).catch(
       (error: unknown) => {
-        setWorkspaceNotice(`Backend action failed: ${errorMessage(error, "unknown error")}`);
+        if (workspaceRequestRef.current === requestId) {
+          setWorkspaceNotice(`Backend action failed: ${errorMessage(error, "unknown error")}`);
+        }
         return null;
       },
     );
-    if (!resolved) return;
+    if (!resolved || workspaceRequestRef.current !== requestId) return;
     if (resolved.kind === "model") {
       setActiveWizard(null);
       setWizardActionId(null);
@@ -591,6 +600,7 @@ export function Shell() {
             </Button>
             <BusBanner
               onOpenRecord={(model, id) => {
+                supersedePendingWorkspaceOpen();
                 setActiveWizard(null);
                 setWizardActionId(null);
                 setWizardInvocationContext(null);
@@ -679,7 +689,10 @@ export function Shell() {
                 type="button"
                 role="tab"
                 aria-selected={tab.id === activeTab?.id}
-                onClick={() => setActiveTabId(tab.id)}
+                onClick={() => {
+                  supersedePendingWorkspaceOpen();
+                  setActiveTabId(tab.id);
+                }}
               >
                 {tab.title}
               </button>
@@ -688,14 +701,23 @@ export function Shell() {
                   type="button"
                   className="epiton-tab-close"
                   aria-label={`Close ${tab.title}`}
-                  onClick={() => closeTab(tab.id)}
+                  onClick={() => {
+                    supersedePendingWorkspaceOpen();
+                    closeTab(tab.id);
+                  }}
                 >
                   ×
                 </button>
               ) : null}
             </div>
           ))}
-          <Button onClick={() => openNewTab()} aria-label="New tab">
+          <Button
+            onClick={() => {
+              supersedePendingWorkspaceOpen();
+              openNewTab();
+            }}
+            aria-label="New tab"
+          >
             + Tab
           </Button>
         </div>
@@ -708,7 +730,10 @@ export function Shell() {
                 type="button"
                 className="epiton-breadcrumb"
                 data-active={index === stack.length - 1}
-                onClick={() => popTo(index)}
+                onClick={() => {
+                  supersedePendingWorkspaceOpen();
+                  popTo(index);
+                }}
               >
                 {frame.id != null ? `${frame.model} #${frame.id}` : frame.label}
               </button>
@@ -716,7 +741,10 @@ export function Shell() {
           ))}
           {stack.length > 1 ? (
             <Button
-              onClick={() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s))}
+              onClick={() => {
+                supersedePendingWorkspaceOpen();
+                setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+              }}
               aria-label="Back"
             >
               Back
@@ -750,6 +778,7 @@ export function Shell() {
             model={active}
             onOpen={(ref, context) => void openWorkspace(ref, "board", false, context)}
             onOpenRecord={(model, id) => {
+              supersedePendingWorkspaceOpen();
               setActiveWizard(null);
               setWizardActionId(null);
               setWizardInvocationContext(null);
@@ -770,11 +799,13 @@ export function Shell() {
               actionViews={topFrame?.views}
               actionDomains={topFrame?.domains}
               onSelectedIdChange={(id) => {
+                supersedePendingWorkspaceOpen();
                 setSelectedId(id);
                 if (id == null) setSelectedIds([]);
               }}
               onSelectedIdsChange={setSelectedIds}
               onPushRelated={(model, id) => {
+                supersedePendingWorkspaceOpen();
                 pushFrame(model, id);
                 setHistory((h) => [...h, { model, action: "stack:push" }]);
               }}

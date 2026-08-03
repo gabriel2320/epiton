@@ -2,6 +2,14 @@ export type WorkspaceListViewMode = "tree" | "list-form" | "calendar" | "graph";
 
 export type WorkspaceHost = "model" | "board";
 
+/** Whether the ordered Tryton action explicitly exposes a given view mode. */
+export function actionHasViewMode(
+  views: Array<[number | null, string]> | undefined,
+  mode: string,
+): boolean {
+  return views?.some(([, viewMode]) => viewMode === mode) ?? false;
+}
+
 /**
  * Honor the first Tryton action view when Epiton has a dedicated list host for it.
  * Form-only and unknown future view kinds stay on the generic model workspace.

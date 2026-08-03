@@ -89,6 +89,8 @@ const resources = {
       "workspace.write": "write",
       "workspace.updatingFields": "Updating fields…",
       "workspace.saved": "Saved",
+      "workspace.savedRefreshFailed":
+        "Saved, but the authoritative record version could not be reloaded",
       "workspace.deleted": "Deleted",
       "workspace.defaultsFailed": "Could not load initial values",
       "workspace.nothingSelected": "Nothing selected",
@@ -290,6 +292,8 @@ const resources = {
       "workspace.write": "edición",
       "workspace.updatingFields": "Actualizando campos…",
       "workspace.saved": "Guardado",
+      "workspace.savedRefreshFailed":
+        "Guardado, pero no se pudo recargar la versión autoritativa del registro",
       "workspace.deleted": "Eliminado",
       "workspace.defaultsFailed": "No se pudieron cargar los valores iniciales",
       "workspace.nothingSelected": "No hay registros seleccionados",

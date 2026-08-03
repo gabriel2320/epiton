@@ -16,6 +16,41 @@ export interface RecordHistoryRevision {
   user: string;
 }
 
+// React Strict Mode deliberately replays effects in development. Coalesce only
+// identical requests that are still in flight so a replay neither duplicates a
+// clinical read nor creates a second server audit event. Resolved snapshots are
+// never retained in the client.
+const inFlightByClient = new WeakMap<RecordHistoryClient, Map<string, Promise<JsonValue>>>();
+
+function requestKey(model: string, method: string, params: JsonValue[], context: JsonObject) {
+  return JSON.stringify([model, method, params, context]);
+}
+
+function requestOnce(
+  client: RecordHistoryClient,
+  model: string,
+  method: string,
+  params: JsonValue[],
+  context: JsonObject,
+): Promise<JsonValue> {
+  let requests = inFlightByClient.get(client);
+  if (!requests) {
+    requests = new Map();
+    inFlightByClient.set(client, requests);
+  }
+  const key = requestKey(model, method, params, context);
+  const existing = requests.get(key);
+  if (existing) return existing;
+
+  const pending = client.model(model, method, params, context);
+  requests.set(key, pending);
+  const cleanup = () => {
+    if (requests.get(key) === pending) requests.delete(key);
+  };
+  void pending.then(cleanup, cleanup);
+  return pending;
+}
+
 function isObject(value: JsonValue): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -37,7 +72,7 @@ export async function listRecordHistory(
   context: JsonObject,
   limit = 40,
 ): Promise<RecordHistoryRevision[]> {
-  const result = await client.model(model, "history_revisions", [[recordId]], context);
+  const result = await requestOnce(client, model, "history_revisions", [[recordId]], context);
   if (!Array.isArray(result)) throw new Error("history_revisions expected an array");
 
   return result.slice(0, limit).map((row, index) => {
@@ -78,7 +113,7 @@ export async function readRecordHistorySnapshot(
         field !== "id" && !field.startsWith("_") && fieldNames.indexOf(field) === index,
     ),
   ].slice(0, 40);
-  const result = await client.model(model, "read", [[revision.recordId], fields], {
+  const result = await requestOnce(client, model, "read", [[revision.recordId], fields], {
     ...context,
     _datetime: revision.at,
   });

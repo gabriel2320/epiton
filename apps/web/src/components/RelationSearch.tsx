@@ -44,19 +44,15 @@ export function RelationSearch(props: {
     enabled: Boolean(client && relation),
     queryFn: async () => {
       if (!client || !relation) return [];
-      try {
-        return await client.searchRead(
-          relation,
-          searchDomain as never[],
-          ["id", "rec_name", "name"],
-          0,
-          40,
-          null,
-          rpcContext,
-        );
-      } catch {
-        return await client.searchRead(relation, [], ["id", "rec_name"], 0, 40, null, rpcContext);
-      }
+      return client.searchRead(
+        relation,
+        searchDomain as never[],
+        ["id", "rec_name"],
+        0,
+        40,
+        null,
+        rpcContext,
+      );
     },
   });
 
@@ -92,7 +88,7 @@ export function RelationSearch(props: {
         <ul className="epiton-menu-list">
           {(listQuery.data ?? []).map((row) => {
             const id = Number(row.id);
-            const label = String(row.rec_name ?? row.name ?? id);
+            const label = String(row.rec_name ?? id);
             return (
               <li key={id}>
                 <button

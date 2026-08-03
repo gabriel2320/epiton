@@ -3,6 +3,7 @@ import { createScreen, screenIsDirty, updateScreenValues } from "../../lib/scree
 import {
   adjacentSelectedId,
   effectiveSelectedIds,
+  externalSelectionNeedsSync,
   listSelectionTransition,
   screenAfterListSelection,
   toggleSelectedId,
@@ -42,6 +43,15 @@ describe("listSelection", () => {
     expect(
       screenAfterListSelection(dirtyA, "party.party", listSelectionTransition(7, 9, true)),
     ).toBe(dirtyA);
+  });
+
+  it("treats an identical controlled-selection echo as a no-op", () => {
+    const current = createScreen("party.party", 7, { name: "Autoritativo" });
+
+    expect(externalSelectionNeedsSync(current, 7, "party.party", 7)).toBe(false);
+    expect(externalSelectionNeedsSync(current, null, "party.party", 7)).toBe(true);
+    expect(externalSelectionNeedsSync(current, 7, "party.party", 8)).toBe(true);
+    expect(externalSelectionNeedsSync(current, 7, "gnuhealth.patient", 7)).toBe(true);
   });
 
   it("resolves adjacent ids from visible rows and clamps list boundaries", () => {

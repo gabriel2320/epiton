@@ -1,5 +1,5 @@
 import type { EpitonClient, JsonObject } from "@epiton/protocol";
-import type { RecordValues, ViewField } from "@epiton/view-engine";
+import { type RecordValues, type ViewField, hydrateMany2OneRecNames } from "@epiton/view-engine";
 import {
   type ScreenState,
   createScreen,
@@ -34,6 +34,34 @@ export interface SaveRecordOptions {
 export interface SavedRecord {
   id: number;
   savedValues: RecordValues;
+}
+
+export interface RecordSnapshot {
+  recordId: number;
+  values: RecordValues;
+}
+
+/**
+ * Read the committed Tryton snapshot, including the new optimistic-lock epoch.
+ * The caller decides whether a late result still belongs to its active Screen.
+ */
+export async function readRecordSnapshot(
+  client: RecordSaveClient,
+  model: string,
+  recordId: number,
+  fields: readonly string[],
+  fieldMeta: Record<string, ViewField>,
+  context: JsonObject,
+): Promise<RecordSnapshot | null> {
+  const result = await client.model(model, "read", [[recordId], [...fields]], context);
+  const values = Array.isArray(result) ? result[0] : null;
+  if (!values || typeof values !== "object" || Array.isArray(values)) return null;
+  const payloadId = Number((values as RecordValues).id);
+  if (Number.isFinite(payloadId) && payloadId !== recordId) return null;
+  return {
+    recordId,
+    values: hydrateMany2OneRecNames(values as RecordValues, Object.values(fieldMeta)),
+  };
 }
 
 /** Apply a delayed default_get result only while the same new Screen is pristine. */

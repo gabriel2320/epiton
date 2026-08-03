@@ -64,6 +64,71 @@ describe("native Tryton record history", () => {
     );
   });
 
+  it("coalesces concurrent history reads without caching clinical snapshots", async () => {
+    let resolveRead: ((value: JsonValue) => void) | undefined;
+    const model = vi.fn<RecordHistoryClient["model"]>(
+      () =>
+        new Promise<JsonValue>((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    const client = { model };
+    const revision = {
+      at: moment,
+      key: "revision-1",
+      recordId: 42,
+      user: "Médica Epiton",
+    };
+
+    const first = readRecordHistorySnapshot(
+      client,
+      "gnuhealth.patient",
+      revision,
+      ["general_info"],
+      { company: 3 },
+    );
+    const replay = readRecordHistorySnapshot(
+      client,
+      "gnuhealth.patient",
+      revision,
+      ["general_info"],
+      { company: 3 },
+    );
+
+    expect(model).toHaveBeenCalledTimes(1);
+    resolveRead?.([{ id: 42, general_info: "Antecedente clínico sintético" }]);
+    await expect(Promise.all([first, replay])).resolves.toEqual([
+      { id: 42, general_info: "Antecedente clínico sintético" },
+      { id: 42, general_info: "Antecedente clínico sintético" },
+    ]);
+
+    model.mockResolvedValueOnce([{ id: 42, general_info: "Nueva lectura" }]);
+    await expect(
+      readRecordHistorySnapshot(client, "gnuhealth.patient", revision, ["general_info"], {
+        company: 3,
+      }),
+    ).resolves.toEqual({ id: 42, general_info: "Nueva lectura" });
+    expect(model).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces concurrent revision lists produced by replayed effects", async () => {
+    let resolveList: ((value: JsonValue) => void) | undefined;
+    const model = vi.fn<RecordHistoryClient["model"]>(
+      () =>
+        new Promise<JsonValue>((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    const client = { model };
+
+    const first = listRecordHistory(client, "gnuhealth.patient", 42, { company: 3 });
+    const replay = listRecordHistory(client, "gnuhealth.patient", 42, { company: 3 });
+
+    expect(model).toHaveBeenCalledTimes(1);
+    resolveList?.([[moment, 42, "Médica Epiton"]]);
+    await expect(Promise.all([first, replay])).resolves.toHaveLength(2);
+  });
+
   it("rejects malformed revision and historical read responses", async () => {
     const malformedList = clientReturning([["", 42, "User"]]).client;
     await expect(listRecordHistory(malformedList, "gnuhealth.patient", 42, {})).rejects.toThrow(

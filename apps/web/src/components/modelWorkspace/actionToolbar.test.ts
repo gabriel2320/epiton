@@ -101,10 +101,32 @@ describe("actionToolbar", () => {
     ).toEqual({
       modeDisabled: true,
       saveDisabled: true,
-      deleteDisabled: false,
-      copyDisabled: false,
-      historyDisabled: false,
-      emailDisabled: false,
+      deleteDisabled: true,
+      copyDisabled: true,
+      historyDisabled: true,
+      emailDisabled: true,
+    });
+  });
+
+  it("blocks every selected-record action until a save installs the committed version", () => {
+    expect(
+      recordActionAvailability({
+        mode: "read",
+        clientAvailable: true,
+        canCreate: true,
+        canWrite: true,
+        canDelete: true,
+        hasFocusedRecord: true,
+        canSave: true,
+        savePending: true,
+      }),
+    ).toEqual({
+      modeDisabled: true,
+      saveDisabled: true,
+      deleteDisabled: true,
+      copyDisabled: true,
+      historyDisabled: true,
+      emailDisabled: true,
     });
   });
 

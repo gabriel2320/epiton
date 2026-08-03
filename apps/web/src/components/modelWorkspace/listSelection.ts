@@ -32,6 +32,16 @@ export function screenAfterListSelection(
   return transition.resetScreen ? screenForSelection(current, model, transition.nextId) : current;
 }
 
+/** Ignore a controlled-selection echo when local state already has that identity. */
+export function externalSelectionNeedsSync(
+  current: ScreenState,
+  selectedId: number | null,
+  model: string,
+  nextId: number | null,
+): boolean {
+  return current.model !== model || current.recordId !== nextId || selectedId !== nextId;
+}
+
 /** Prefer explicit multi-selection, then the focused row, for bulk contexts. */
 export function effectiveSelectedIds(
   selectedIds: readonly number[],

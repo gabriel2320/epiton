@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { initialWorkspaceViewMode, workspaceHostForViews } from "./workspaceNavigation";
+import {
+  actionHasViewMode,
+  initialWorkspaceViewMode,
+  workspaceHostForViews,
+} from "./workspaceNavigation";
 
 describe("workspaceNavigation", () => {
   it("starts on the first supported Tryton list view", () => {
@@ -13,6 +17,20 @@ describe("workspaceNavigation", () => {
     expect(initialWorkspaceViewMode([[7, "form"]])).toBe("tree");
     expect(initialWorkspaceViewMode([[8, "future-view"]])).toBe("tree");
     expect(initialWorkspaceViewMode()).toBe("tree");
+  });
+
+  it("probes only view modes declared by the Tryton action", () => {
+    expect(
+      actionHasViewMode(
+        [
+          [null, "calendar"],
+          [7, "form"],
+        ],
+        "calendar",
+      ),
+    ).toBe(true);
+    expect(actionHasViewMode([[7, "form"]], "calendar")).toBe(false);
+    expect(actionHasViewMode(undefined, "calendar")).toBe(false);
   });
 
   it("routes only ordered board-first actions to the board host", () => {

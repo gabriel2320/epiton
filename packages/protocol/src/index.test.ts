@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { EpitonClient, TrytonRpcError, trytonSeriesFromVersion } from "./index";
+import {
+  EpitonClient,
+  type JsonValue,
+  TrytonRpcError,
+  trytonSeriesFromVersion,
+  withCorrelationContext,
+} from "./index";
 
 function rpcResponse(init: RequestInit | undefined, payload: Record<string, unknown>): Response {
   const request = JSON.parse(String(init?.body)) as { id: number };
@@ -10,6 +16,42 @@ function rpcResponse(init: RequestInit | undefined, payload: Record<string, unkn
 }
 
 describe("EpitonClient", () => {
+  it("uses one correlation id in the model context and gateway header", async () => {
+    const correlationId = "8d95cf28-4309-4cb7-b357-70f91ed13892";
+    const correlationFactory = vi.fn(() => correlationId);
+    const context = { language: "es" };
+    const params: JsonValue[] = [[1], ["name"], context];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { params: unknown[] };
+      expect(body.params).toEqual([
+        [1],
+        ["name"],
+        { language: "es", epiton_correlation_id: correlationId },
+      ]);
+      expect((init?.headers as Record<string, string>)["X-Correlation-Id"]).toBe(correlationId);
+      return rpcResponse(init, { result: [{ id: 1, name: "Paciente sintético" }] });
+    });
+    const client = new EpitonClient({
+      baseUrl: "http://localhost:8000",
+      database: "epiton_lab",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      correlationId: correlationFactory,
+    });
+    client.setSession({ login: "admin", userId: 1, session: "x" });
+
+    await client.call("model.party.party.read", params);
+
+    expect(correlationFactory).toHaveBeenCalledOnce();
+    expect(params).toEqual([[1], ["name"], { language: "es" }]);
+    expect(context).toEqual({ language: "es" });
+  });
+
+  it("does not add Tryton context to non-model RPCs", () => {
+    const params = ["admin", { password: "synthetic" }, "es"] satisfies JsonValue[];
+
+    expect(withCorrelationContext("common.db.login", params, "correlation-123")).toBe(params);
+  });
+
   it("logs in and sends Session authorization", async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { method: string };
